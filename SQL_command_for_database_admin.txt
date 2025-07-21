@@ -1,0 +1,13 @@
+
+<!-- use this sql command in database administration  -- >
+
+DROP TABLE IF EXISTS difficult_words;
+
+CREATE TABLE difficult_words (
+    source_word VARCHAR(255) NOT NULL,
+    target_word VARCHAR(255) NOT NULL,
+    last_attempt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    user_id INT NOT NULL,
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);

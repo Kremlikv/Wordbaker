@@ -1,0 +1,45 @@
+✅ Option 1: Use GitHub Actions + FTP Deploy to ByetHost
+✔️ Pros:
+Stay with ByetHost (you already like it)
+
+Keep your current MySQL database
+
+No switching hosts
+
+Works with full PHP+SQL codebase
+
+❗ Cons:
+You still use FTP behind the scenes — but it’s automated from GitHub, so no manual uploads
+
+🧩 Setup:
+Add this to your GitHub repo as .github/workflows/deploy.yml:
+
+yaml
+Zkopírovat
+Upravit
+name: Deploy to ByetHost
+
+on:
+  push:
+    branches:
+      - main  # or master
+
+jobs:
+  ftp-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Upload to FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4
+        with:
+          server: ftp.your-byethost-url.com
+          username: your_byethost_ftp_user
+          password: ${{ secrets.FTP_PASSWORD }}
+          local-dir: ./
+Go to your GitHub repo:
+
+Settings > Secrets and Variables > Actions
+
+Add a secret called: FTP_PASSWORD
+
+✅ Now every time you git push, it auto-deploys to ByetHost.

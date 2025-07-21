@@ -1,0 +1,25 @@
+name: Deploy to ByetHost
+
+on:
+  push:
+    branches:
+      - main  # or master
+
+jobs:
+  ftp-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Upload to FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+
+        with:
+          server: ftp.byethost15.com
+          username: b15_39452825
+          password: ${{ secrets.FTP_PASSWORD }}
+          server-dir: /htdocs/    # Most ByetHost sites serve from /htdocs/
+          local-dir: ./  
+          verbose: true
+         
+
+
