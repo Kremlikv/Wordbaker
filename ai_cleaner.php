@@ -5,7 +5,7 @@ header('Content-Type: application/json');
 $apiKey = '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'; //
 
 $input = json_decode(file_get_contents('php://input'), true);
-$text = $input['text'] ?? '';
+$text = $input['text'] ?? ''; 
 
 if (!$text) {
     http_response_code(400);
