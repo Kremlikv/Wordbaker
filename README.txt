@@ -16,7 +16,7 @@ Ale free databázové služby to umožňují, takže stačí propojit tyto dvě 
 Na free databázový server mohu soubory nahrávat jen přes FileZillu (win program)
 Ve free databázové službě AlwaysData pak databázi prohlížím v phpadmin.
 
-STEJNÁ BRANCH
+STEJNÁ BRANCH 
 db_backup.yaml umožňuje na dálku řídit databázi v AlwayData.
 db_backup.yaml funguje až když jsem nastavil push: branch01
 (stejná branch jako u php files).
