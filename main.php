@@ -19,7 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_table'])) {
     }
 
     if (in_array($tableToDelete, $tables)) {
-        $conn->query("DROP TABLE `$tableToDelete`");
+        $conn->query("DROP TABLE $tableToDelete");
         $audioPath = "cache/$tableToDelete.mp3";
         if (file_exists($audioPath)) {
             unlink($audioPath);
@@ -60,10 +60,9 @@ $column1 = '';
 $column2 = '';
 $heading1 = '';
 $heading2 = '';
-$res = false;
 
 if (!empty($selectedFullTable)) {
-    $res = $conn->query("SELECT * FROM `$selectedFullTable`");
+    $res = $conn->query("SELECT * FROM $selectedFullTable");
     if ($res && $res->num_rows > 0) {
         $columns = $res->fetch_fields();
 
@@ -195,6 +194,7 @@ HTML;
 
 echo "</div>";
 echo "</div>";
+
 ?>
 <script>
 function autoResize(textarea) {
