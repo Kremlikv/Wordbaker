@@ -214,6 +214,8 @@ echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Log
   <input type="hidden" name="delete_pdf_path" value="<?= htmlspecialchars($deletePdfPath) ?>">
 
   <button type="submit">🌐 Translate</button>
+  <label>mymemory.translated.net</label><br><br>
+
 </form>
 
 <?php if (!empty($translated)): ?>

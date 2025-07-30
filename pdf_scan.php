@@ -197,6 +197,9 @@ echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Log
       <input type="file" name="pdf_file" accept=".pdf" required>
     </label>
     <button type="submit">📤 Extract Text</button>
+
+    <label>using: https://github.com/smalot/pdfparser</label><br><br>
+
   </form>
 <?php else: ?>
   <form method="POST" action="translator.php" onsubmit="return validateLangSelection(event)">

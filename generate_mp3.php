@@ -11,9 +11,9 @@ if (!$silence) {
 // ElevenLabs API setup
 $api_key = 'sk_3fd1ed62c6431f562064ece5d9e46dbb3e9cdf4b96451734';
 $voices = [
-    'czech' => 'OAAjJsQDvpg3sVjiLgyl',  // Denisa O
-    'english' => 'goT3UYdM9bhm0n2lmKQx', // Edward
-    'german' => 'zl7GSCFv2aKISCB2LjZz',  // Wilhelm
+    'czech'   => 'OAAjJsQDvpg3sVjiLgyl',  // Denisa O
+    'english' => 'goT3UYdM9bhm0n2lmKQx',  // Edward
+    'german'  => 'zl7GSCFv2aKISCB2LjZz'   // Wilhelm
 ];
 
 // Retrieve from session
@@ -21,18 +21,9 @@ $table = $_SESSION['table'] ?? '';
 $col1  = $_SESSION['col1'] ?? '';
 $col2  = $_SESSION['col2'] ?? '';
 
-// DEBUG
-// echo "<pre>";
-// print_r($_SESSION);
-// echo "</pre>";
-
-//if (empty($table) || empty($col1) || empty($col2)) {
-//    echo "DEBUG info:<br>";
-//    echo "Table: $table<br>";
-//    echo "Col1: $col1<br>";
-//    echo "Col2: $col2<br>";
-//    die("❌ Missing table or column names.");
-// }
+if (empty($table) || empty($col1) || empty($col2)) {
+    die("❌ Missing session info: table or column names.");
+}
 
 // Normalize for voice selection
 $source_key = strtolower($col1);
@@ -111,6 +102,7 @@ if ($final_audio === '') {
 }
 
 file_put_contents("cache/$table.mp3", $final_audio);
-header("Location: main.php?table=" . urlencode($_POST['table']));
 
+// Redirect back to main with correct table preserved
+header("Location: main.php?table=" . urlencode($table));
 exit;
