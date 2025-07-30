@@ -1,13 +1,8 @@
 <?php
-// ini_set('display_errors', 1);
-// ini_set('display_startup_errors', 1);
-// error_reporting(E_ALL);
-// session_start();
-
 require_once 'db.php';
 require_once 'session.php';
 
-// Handle table deletion BEFORE any output
+// Handle table deletion BEFORE any output 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_table'])) {
     $conn = new mysqli($host, $user, $password, $database);
     $conn->set_charset("utf8mb4");
@@ -17,7 +12,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_table'])) {
     }
 
     $tableToDelete = $conn->real_escape_string($_POST['delete_table']);
-
     $tables = [];
     $result = $conn->query("SHOW TABLES");
     while ($row = $result->fetch_array()) {
@@ -48,6 +42,23 @@ function getTables($conn) {
         }
     }
     return $tables;
+}
+
+// Helper: convert column label to language code
+function getLanguageCode($label) {
+    $map = [
+        'Czech' => 'cs',
+        'English' => 'en',
+        'German' => 'de',
+        'French' => 'fr',
+        'Italian' => 'it',
+        'Spanish' => 'es',
+        'Polish' => 'pl',
+        'Russian' => 'ru',
+        'Ukrainian' => 'uk',
+        'Foreign' => 'en'
+    ];
+    return $map[$label] ?? 'en'; // fallback to English
 }
 
 $tables = getTables($conn);
@@ -127,18 +138,41 @@ if (file_exists($audioFile)) {
 
 // Show table
 if (!empty($selectedTable) && $res && $res->num_rows > 0) {
+    echo "<form method='POST' action='update_table.php'>";
+    echo "<input type='hidden' name='table' value='" . htmlspecialchars($selectedTable) . "'>";
+    echo "<input type='hidden' name='col1' value='" . htmlspecialchars($column1) . "'>";
+    echo "<input type='hidden' name='col2' value='" . htmlspecialchars($column2) . "'>";
+    echo "<input type='hidden' id='source_lang_code' value='" . getLanguageCode($heading2) . "'>";
+
     echo "<table border='1' cellpadding='5' cellspacing='0'>";
-    echo "<tr><th>" . htmlspecialchars($heading1) . "</th><th>" . htmlspecialchars($heading2) . "</th></tr>";
+    echo "<tr><th>" . htmlspecialchars($heading1) . "</th><th>" . htmlspecialchars($heading2) . "</th><th>Action</th></tr>";
     $res->data_seek(0);
+    $rowIndex = 0;
+
     while ($row = $res->fetch_assoc()) {
         echo "<tr>";
-        echo "<td>" . htmlspecialchars($row[$column1]) . "</td>";
-        echo "<td>" . htmlspecialchars($row[$column2]) . "</td>";
+        echo "<input type='hidden' name='rows[$rowIndex][orig_col1]' value='" . htmlspecialchars($row[$column1]) . "'>";
+        echo "<input type='hidden' name='rows[$rowIndex][orig_col2]' value='" . htmlspecialchars($row[$column2]) . "'>";
+
+        echo "<td><textarea name='rows[$rowIndex][col1]' oninput='autoResize(this)' style='min-height: 40px; width: 100%; resize: none;'>" .
+            htmlspecialchars($row[$column1]) . "</textarea></td>";
+        echo "<td><textarea name='rows[$rowIndex][col2]' oninput='autoResize(this)' style='min-height: 40px; width: 100%; resize: none;'>" .
+            htmlspecialchars($row[$column2]) . "</textarea></td>";
+        echo "<td><input type='checkbox' name='rows[$rowIndex][delete]'> Delete</td>";
+        $rowIndex++;
         echo "</tr>";
     }
+
+    // Blank row for new entry
+    echo "<tr>";
+    echo "<td><textarea name='new_row[col1]' oninput='autoResize(this)' placeholder='New " . htmlspecialchars($heading1) . "' style='min-height: 40px; width: 100%; resize: none;'></textarea></td>";
+    echo "<td><textarea name='new_row[col2]' oninput='autoResize(this)' placeholder='New " . htmlspecialchars($heading2) . "' style='min-height: 40px; width: 100%; resize: none;'></textarea></td>";
+    echo "<td><button type='button' onclick='translateNewRow()'>🌐 Translate</button></td>";
+    echo "</tr>";
+
     echo "</table><br>";
-} elseif (!empty($selectedTable)) {
-    echo "<p>No data found in the table.</p>";
+    echo "<button type='submit'>💾 Save Changes</button>";
+    echo "</form><br>";
 }
 
 // Protect important tables
@@ -162,5 +196,54 @@ echo <<<HTML
 </form>
 HTML;
 
-echo "</div></body></html>";
+echo "</div>";
 ?>
+
+<!-- JavaScript to auto-resize textareas and translate -->
+<script>
+function autoResize(textarea) {
+    textarea.style.height = 'auto';
+    textarea.style.height = textarea.scrollHeight + 'px';
+}
+
+document.addEventListener("DOMContentLoaded", function () {
+    document.querySelectorAll("textarea").forEach(autoResize);
+});
+
+function translateNewRow() {
+    const source = document.querySelector("textarea[name='new_row[col2]']");
+    const target = document.querySelector("textarea[name='new_row[col1]']");
+    const text = source.value.trim();
+    const sourceLang = document.getElementById('source_lang_code').value || 'en';
+
+    if (!text) {
+        alert("Please enter a word or phrase to translate.");
+        return;
+    }
+
+    fetch('translate_api.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+            text: text,
+            source: sourceLang,
+            target: 'cs'
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.translated) {
+            target.value = data.translated;
+            autoResize(target);
+        } else {
+            alert("❌ Translation failed.");
+        }
+    })
+    .catch(err => {
+        console.error(err);
+        alert("❌ Translation request failed.");
+    });
+}
+</script>
+
+</body></html>
