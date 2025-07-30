@@ -183,6 +183,7 @@ echo <<<HTML
 <h2>Upload New CSV Table</h2>
 <form method="POST" action="upload_handler.php" enctype="multipart/form-data">
     <label>Table Name: <input type="text" name="new_table_name" required></label><br><br>
+    <label>Naming convention: FolderName_FileName</label><br><br> 
     <label>CSV File: <input type="file" name="csv_file" accept=".csv" required></label><br><br>
     <button type="submit">Upload</button>
 </form>
