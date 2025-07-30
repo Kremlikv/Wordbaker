@@ -1,40 +1,54 @@
 <?php
+session_start();
 require_once 'db.php';
 
-$text1 = $_POST['text1'] ?? '';
-$text2 = $_POST['text2'] ?? '';
-$lang1 = strtolower($_POST['lang1'] ?? 'czech');
-$lang2 = strtolower($_POST['lang2'] ?? 'english');
+// Google Cloud TTS API Key
+$apiKey = 'AIzaSyCTj5ksARALCyr7tXmQhgJBx8_tvgT76xU'; // Replace with your actual key
 
-$silence = file_get_contents('silence.mp3');
-if (!$silence) {
-    die("Silence file missing.");
+// Get table and columns from session
+$table = $_SESSION['table'] ?? '';
+$col1 = $_SESSION['col1'] ?? '';
+$col2 = $_SESSION['col2'] ?? '';
+
+if (!$table || !$col1 || !$col2) {
+    die("❌ Missing table or column session info.");
 }
 
-$googleApiKey = 'YOUR_GOOGLE_CLOUD_API_KEY';
-
+// Define voice mapping
 $voiceMap = [
-    'czech'   => ['name' => 'cs-CZ-Standard-B', 'languageCode' => 'cs-CZ'],
-    'english' => ['name' => 'en-GB-Standard-O', 'languageCode' => 'en-GB'],
-    'german'  => ['name' => 'de-DE-Wavenet-H',  'languageCode' => 'de-DE'],
+    'czech' => 'cs-CZ-Standard-B',        // Female Czech
+    'english' => 'en-GB-Standard-O',      // Male English (UK)
+    'german' => 'de-DE-Wavenet-H'         // Male German
 ];
 
-if (!isset($voiceMap[$lang1]) || !isset($voiceMap[$lang2])) {
-    http_response_code(400);
-    die("❌ Unsupported language configuration.");
+// Normalize keys for language lookup
+$sourceKey = strtolower($col1);
+$targetKey = strtolower($col2);
+
+$sourceVoice = $voiceMap[$sourceKey] ?? null;
+$targetVoice = $voiceMap[$targetKey] ?? null;
+
+if (!$sourceVoice || !$targetVoice) {
+    die("❌ No voice configured for columns: $col1 / $col2");
 }
 
-function generateTTS($text, $voice, $apiKey) {
-    $url = "https://texttospeech.googleapis.com/v1/text:synthesize?key=" . urlencode($apiKey);
+// Ensure cache/{table}/ exists
+$folder = "cache/$table";
+if (!is_dir($folder)) {
+    mkdir($folder, 0777, true);
+}
+
+// Google TTS function
+function googleTTS($text, $voiceName, $apiKey) {
+    $url = "https://texttospeech.googleapis.com/v1/text:synthesize?key=$apiKey";
+
     $payload = json_encode([
-        'input' => ['text' => $text],
+        'input' => [ 'text' => $text ],
         'voice' => [
-            'languageCode' => $voice['languageCode'],
-            'name' => $voice['name']
+            'languageCode' => substr($voiceName, 0, 5),
+            'name' => $voiceName
         ],
-        'audioConfig' => [
-            'audioEncoding' => 'MP3'
-        ]
+        'audioConfig' => [ 'audioEncoding' => 'MP3' ]
     ]);
 
     $ch = curl_init($url);
@@ -42,19 +56,14 @@ function generateTTS($text, $voice, $apiKey) {
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_POST => true,
         CURLOPT_POSTFIELDS => $payload,
-        CURLOPT_HTTPHEADER => ['Content-Type: application/json']
+        CURLOPT_HTTPHEADER => [ 'Content-Type: application/json' ]
     ]);
 
     $response = curl_exec($ch);
-    $http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $err = curl_error($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
 
-    if ($http_code !== 200 || !$response) {
-        file_put_contents("log.txt", "TTS failed for: $text
-HTTP Code: $http_code
-Error: $err
-", FILE_APPEND);
+    if ($httpCode !== 200) {
         return null;
     }
 
@@ -62,16 +71,32 @@ Error: $err
     return base64_decode($data['audioContent'] ?? '');
 }
 
-$audio1 = $text1 ? generateTTS($text1, $voiceMap[$lang1], $googleApiKey) : '';
-$audio2 = $text2 ? generateTTS($text2, $voiceMap[$lang2], $googleApiKey) : '';
-$final = $audio1 . $silence . $audio2;
+// Fetch and generate individual snippets
+$query = "SELECT `$col1`, `$col2` FROM `$table`";
+$result = $conn->query($query);
 
-if (!$final) {
-    http_response_code(500);
-    die("Failed to generate audio.");
+if ($result) {
+    $index = 1;
+    while ($row = $result->fetch_assoc()) {
+        $src = trim($row[$col1]);
+        $tgt = trim($row[$col2]);
+
+        if (!$src || !$tgt) continue;
+
+        $srcMp3 = googleTTS($src, $sourceVoice, $apiKey);
+        $tgtMp3 = googleTTS($tgt, $targetVoice, $apiKey);
+
+        if ($srcMp3 && $tgtMp3) {
+            $filename = sprintf("%s/row_%03d_src.mp3", $folder, $index);
+            file_put_contents($filename, $srcMp3);
+            $filename2 = sprintf("%s/row_%03d_tgt.mp3", $folder, $index);
+            file_put_contents($filename2, $tgtMp3);
+        }
+
+        $index++;
+    }
 }
 
-header("Content-Type: audio/mpeg");
-echo $final;
+$conn->close();
+header("Location: main.php");
 exit;
-?>
