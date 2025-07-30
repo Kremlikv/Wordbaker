@@ -3,7 +3,7 @@ session_start();
 require_once 'db_users.php'; // Ensure this uses mysqli, not PDO
 include 'styling.php';
 
-// ✅ Set charset to match utf8mb4_czech_ci
+// ✅ Set charset to  match utf8mb4_czech_ci
 $conn->set_charset("utf8mb4");
 
 // Handle login form submission
