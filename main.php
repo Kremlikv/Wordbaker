@@ -124,8 +124,6 @@ foreach ($folders as $folder => $tableList) {
 
 echo "</div></div>";  // Close folder-view and directory-panel
 
-
-echo "</div>"; 
 echo "<input type='hidden' name='table' id='selectedTableInput' value='" . htmlspecialchars($selectedFullTable) . "'>";
 echo "<input type='hidden' name='col1' value='" . htmlspecialchars($column1) . "'>";
 echo "<input type='hidden' name='col2' value='" . htmlspecialchars($column2) . "'>";
@@ -191,6 +189,8 @@ echo <<<HTML
 HTML;
 
 echo "</div>";
+echo "</div>";
+
 ?>
 <script>
 function autoResize(textarea) {
