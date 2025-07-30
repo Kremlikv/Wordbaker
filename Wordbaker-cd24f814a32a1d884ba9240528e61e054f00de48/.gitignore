@@ -1,0 +1,16 @@
+# Ignore SQL backups in main/code branches
+*.sql
+backup_output/
+temp_db_push/
+
+# Ignore backup files unless we’re in db_backups branch 
+# (GitHub Actions uses 'git add -f' to force them in anyway)
+
+# Ignore system files
+.DS_Store
+Thumbs.db
+
+# Ignore editor and environment files
+.vscode/
+*.log
+.env
