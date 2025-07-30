@@ -109,9 +109,6 @@ echo "👋 Logged in as " . htmlspecialchars($username) . " | <a href='logout.ph
 
 echo "<form method='POST' action='' id='tableActionForm'>";
 echo "<label>Select a table:</label><br>";
-
-echo "<form method='POST' action='' id='tableActionForm'>";
-echo "<label>Select a table:</label><br>";
 echo "<div class='directory-panel'><div id='folder-view'>";
 
 foreach ($folders as $folder => $tableList) {
@@ -134,6 +131,7 @@ echo "<input type='hidden' name='col1' value='" . htmlspecialchars($column1) . "
 echo "<input type='hidden' name='col2' value='" . htmlspecialchars($column2) . "'>";
 echo "</form><br><br>";
 
+echo "<div>"; 
 echo "<h3>Selected Table: <span class='selected-table'>" . htmlspecialchars($selectedFullTable) . "</span></h3>";
 
 $audioFile = "cache/$selectedFullTable.mp3";
