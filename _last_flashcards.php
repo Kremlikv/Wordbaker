@@ -16,10 +16,7 @@ function getTables($conn) {
 }
 
 $tables = getTables($conn);
-$selectedTable = $_POST['table'] ?? ($_GET['table'] ?? ($tables[0] ?? ''));
-
-// Store in session for snippet use
-$_SESSION['table'] = $selectedTable;
+$selectedTable = $_POST['table'] ?? ($tables[0] ?? '');
 
 $rows = [];
 $column1 = '';
@@ -32,9 +29,6 @@ if (!empty($selectedTable)) {
         $columns = $result->fetch_fields();
         $col1 = $columns[0]->name;
         $col2 = $columns[1]->name;
-
-        $_SESSION['col1'] = $col1;
-        $_SESSION['col2'] = $col2;
 
         while ($row = $result->fetch_assoc()) {
             if ($selectedTable === 'difficult_words') {
@@ -130,6 +124,7 @@ $conn->close();
 <script>
 const data = <?php echo json_encode($rows); ?>;
 const tableName = <?php echo json_encode($selectedTable); ?>;
+
 let index = 0;
 let showingFront = true;
 let frontText = data[0]?.cz ?? '';
@@ -141,14 +136,16 @@ let playingNow = false;
 const cardElement = document.getElementById('card'); 
 const audioElement = document.getElementById('ttsAudio');
 
-function getSnippetUrl(rowNum, side) {
-  return `play_snippet.php?table=${encodeURIComponent(tableName)}&row=${rowNum}&side=${side}`;
+function getFileName(rowIndex, side) {
+  const padded = String(rowIndex + 1).padStart(3, '0');
+  const letter = side === 'cz' ? 'A' : 'B';
+  return `cache/${tableName}/word_${padded}${letter}.mp3`;
 }
 
-function playTTS(rowNum, side, onEnded = null) {
-  if ((side === 'A' && !ttsEnabled.cz) || (side === 'B' && !ttsEnabled.foreign)) return;
-  audioElement.src = getSnippetUrl(rowNum, side);
-  audioElement.onended = onEnded;
+function playFromFile(side) {
+  if (!ttsEnabled[side]) return;
+  const file = getFileName(index, side);
+  audioElement.src = file;
   audioElement.play();
 }
 
@@ -157,15 +154,13 @@ function updateCard() {
   backText = data[index]?.foreign ?? '';
   showingFront = true;
   cardElement.textContent = frontText;
-  if (ttsEnabled.cz) playTTS(index + 1, 'A');
+  setTimeout(() => playFromFile('cz'), 300);
 }
 
 function flipCard() {
   showingFront = !showingFront;
   cardElement.textContent = showingFront ? frontText : backText;
-  const side = showingFront ? 'A' : 'B';
-  const rowNum = index + 1;
-  playTTS(rowNum, side);
+  setTimeout(() => playFromFile(showingFront ? 'cz' : 'foreign'), 300);
 }
 
 function nextCard() {
@@ -225,26 +220,36 @@ function playCardWithAudio() {
   cardElement.textContent = frontText;
   showingFront = true;
 
-  const rowNum = index + 1;
-
-  function playForeign() {
-    if (ttsEnabled.foreign) {
-      cardElement.textContent = backText;
-      showingFront = false;
-      playTTS(rowNum, 'B', () => {
+  if (ttsEnabled.cz) {
+    audioElement.src = getFileName(index, 'cz');
+    audioElement.onended = () => {
+      if (ttsEnabled.foreign) {
+        cardElement.textContent = backText;
+        showingFront = false;
+        audioElement.src = getFileName(index, 'foreign');
+        audioElement.onended = () => {
+          index++;
+          setTimeout(playCardWithAudio, 1000);
+        };
+        audioElement.play();
+      } else {
         index++;
         setTimeout(playCardWithAudio, 1000);
-      });
-    } else {
+      }
+    };
+    audioElement.play();
+  } else if (ttsEnabled.foreign) {
+    cardElement.textContent = backText;
+    showingFront = false;
+    audioElement.src = getFileName(index, 'foreign');
+    audioElement.onended = () => {
       index++;
       setTimeout(playCardWithAudio, 1000);
-    }
-  }
-
-  if (ttsEnabled.cz) {
-    playTTS(rowNum, 'A', playForeign);
+    };
+    audioElement.play();
   } else {
-    playForeign();
+    index++;
+    setTimeout(playCardWithAudio, 1000);
   }
 }
 

@@ -18,7 +18,7 @@ if (!$table || !$col1 || !$col2) {
 $voiceMap = [
     'czech'   => 'cs-CZ-Standard-B',
     'english' => 'en-GB-Standard-O',
-    'german'  => 'de-DE-Wavenet-H'
+    'german'  => 'de-DE-Standard-H'
 ];
 
 $srcKey = strtolower($col1);
