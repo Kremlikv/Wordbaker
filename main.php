@@ -151,7 +151,7 @@ if (!empty($selectedTable) && $res && $res->num_rows > 0) {
     echo "<tr>";
     echo "<td><textarea name='new_row[col1]' oninput='autoResize(this)' placeholder='New " . htmlspecialchars($heading1) . "' style='min-height: 40px; width: 100%; resize: none;'></textarea></td>";
     echo "<td><textarea name='new_row[col2]' oninput='autoResize(this)' placeholder='New " . htmlspecialchars($heading2) . "' style='min-height: 40px; width: 100%; resize: none;'></textarea></td>";
-    echo "<td><em>Add New</em></td>";
+    echo "<td><button type='button' onclick='translateNewRow()'>🌐 Translate</button></td>";
     echo "</tr>";
 
     echo "</table><br>";
@@ -191,10 +191,43 @@ function autoResize(textarea) {
 }
 
 document.addEventListener("DOMContentLoaded", function () {
-    document.querySelectorAll("textarea").forEach(function (el) {
-        autoResize(el);
-    });
+    document.querySelectorAll("textarea").forEach(autoResize);
 });
+
+// Function to translate new row text                    
+function translateNewRow() {
+    const source = document.querySelector("textarea[name='new_row[col2]']");
+    const target = document.querySelector("textarea[name='new_row[col1]']");
+    const text = source.value.trim();
+
+    if (!text) {
+        alert("Please enter a word or phrase to translate.");
+        return;
+    }
+
+    fetch('translate_api.php', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+            text: text,
+            source: 'auto',
+            target: 'cs'
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.translated) {
+            target.value = data.translated;
+            autoResize(target);
+        } else {
+            alert("❌ Translation failed.");
+        }
+    })
+    .catch(err => {
+        console.error(err);
+        alert("❌ Translation request failed.");
+    });
+}
 </script>
 
 </body></html>
