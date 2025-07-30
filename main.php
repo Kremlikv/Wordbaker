@@ -36,12 +36,16 @@ function getUserFoldersAndTables($conn, $username) {
     $result = $conn->query("SHOW TABLES");
     while ($row = $result->fetch_array()) {
         $table = $row[0];
-        if (strpos($table, "$username/") === 0) {
-            $parts = explode('/', $table);
-            if (count($parts) === 3) {
-                $folder = $parts[1];
-                $tableName = $parts[2];
-                $allTables[$folder][] = $tableName;
+        if (strpos($table, $username . '_') === 0) {
+            $suffix = substr($table, strlen($username) + 1); // Remove username_
+            $parts = explode('_', $suffix, 2); // folder_file
+            if (count($parts) === 2) {
+                $folder = $parts[0];
+                $file = $parts[1];
+                $allTables[$folder][] = [
+                    'table_name' => $table,
+                    'display_name' => $file
+                ];
             }
         }
     }
@@ -109,9 +113,10 @@ echo "<div id='folder-view'>";
 foreach ($folders as $folder => $tableList) {
     echo "<div class='folder' onclick=\"toggleFolder('$folder')\">📁 $folder</div>";
     echo "<div class='subtable' id='sub_$folder'>";
-    foreach ($tableList as $tableOnly) {
-        $fullName = "$username/$folder/$tableOnly";
-        echo "<span onclick=\"selectTable('$fullName')\">📄 $tableOnly</span>";
+    foreach ($tableList as $entry) {
+        $fullTable = $entry['table_name'];
+        $display = $entry['display_name'];
+        echo "<span onclick=\"selectTable('$fullTable')\">📄 $display</span>";
     }
     echo "</div>";
 }
@@ -144,10 +149,8 @@ if (!empty($selectedFullTable) && $res && $res->num_rows > 0) {
         echo "<tr>";
         echo "<input type='hidden' name='rows[$rowIndex][orig_col1]' value='" . htmlspecialchars($row[$column1]) . "'>";
         echo "<input type='hidden' name='rows[$rowIndex][orig_col2]' value='" . htmlspecialchars($row[$column2]) . "'>";
-        echo "<td><textarea name='rows[$rowIndex][col1]' oninput='autoResize(this)' style='min-height: 40px; width: 100%; resize: none;'>" .
-            htmlspecialchars($row[$column1]) . "</textarea></td>";
-        echo "<td><textarea name='rows[$rowIndex][col2]' oninput='autoResize(this)' style='min-height: 40px; width: 100%; resize: none;'>" .
-            htmlspecialchars($row[$column2]) . "</textarea></td>";
+        echo "<td><textarea name='rows[$rowIndex][col1]' oninput='autoResize(this)' style='min-height: 40px; width: 100%; resize: none;'>" . htmlspecialchars($row[$column1]) . "</textarea></td>";
+        echo "<td><textarea name='rows[$rowIndex][col2]' oninput='autoResize(this)' style='min-height: 40px; width: 100%; resize: none;'>" . htmlspecialchars($row[$column2]) . "</textarea></td>";
         echo "<td><input type='checkbox' name='rows[$rowIndex][delete]'> Delete</td>";
         $rowIndex++;
         echo "</tr>";
@@ -191,11 +194,7 @@ function autoResize(textarea) {
 
 function toggleFolder(folder) {
     const el = document.getElementById("sub_" + folder);
-    if (el.style.display === "block") {
-        el.style.display = "none";
-    } else {
-        el.style.display = "block";
-    }
+    el.style.display = (el.style.display === "block") ? "none" : "block";
 }
 
 function selectTable(fullTableName) {
