@@ -1,4 +1,8 @@
 <?php
+// Optional: enable for debugging
+// error_reporting(E_ALL);
+// ini_set('display_errors', 1);
+
 require_once 'db.php'; 
 require_once 'session.php';
 include 'styling.php';
@@ -47,20 +51,21 @@ if (!empty($selectedTable)) {
         $column1 = $col1;
         $column2 = $col2;
         $targetLanguage = strtolower($col2);
-  }
+    }
 
     // Auto-generate TTS snippets if not already cached
     $snippetDir = "cache/" . $selectedTable;
     if (!is_dir($snippetDir)) {
-        // Trigger snippet generation in the background (no delay to user)
-        ignore_user_abort(true);
-        exec("curl -s 'generate_tts_snippets.php?table=" . urlencode($selectedTable) . "' > /dev/null &");
+        // Safe method for shared hosting (no exec)
+        $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https://' : 'http://';
+        $host = $_SERVER['HTTP_HOST'];
+        $url = $protocol . $host . "/generate_tts_snippets.php?table=" . urlencode($selectedTable);
+        file_get_contents($url);
     }
 }
 
 $conn->close();
 ?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -205,7 +210,7 @@ function toggleTTS(side) {
   ttsEnabled[side] = !ttsEnabled[side];
 }
 
-updateCard();
+updateCard(); 
 </script>
 
 </div>
