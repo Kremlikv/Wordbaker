@@ -54,7 +54,8 @@ function getUserFoldersAndTables($conn, $username) {
 
 $username = $_SESSION['username'] ?? '';
 $folders = getUserFoldersAndTables($conn, $username);
-$selectedFullTable = $_POST['table'] ?? '';
+$selectedFullTable = $_POST['table'] ?? $_GET['table'] ?? '';
+
 $column1 = '';
 $column2 = '';
 $heading1 = '';

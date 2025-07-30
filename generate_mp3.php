@@ -111,5 +111,6 @@ if ($final_audio === '') {
 }
 
 file_put_contents("cache/$table.mp3", $final_audio);
-header("Location: main.php");
+header("Location: main.php?table=" . urlencode($_POST['table']));
+
 exit;
