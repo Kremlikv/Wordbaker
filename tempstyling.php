@@ -247,7 +247,7 @@
       background-color: #ddd;
     }
 
-    /* Responsive editable screens  */
+    /* Responsive editable screens.  */
 
     @media screen and (max-width: 600px) {
       textarea {
