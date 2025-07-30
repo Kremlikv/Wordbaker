@@ -126,35 +126,20 @@ if (file_exists($audioFile)) {
 }
 
 // Show table
-
 if (!empty($selectedTable) && $res && $res->num_rows > 0) {
-    echo "<form method='POST' action='update_table.php'>";
-    echo "<input type='hidden' name='table' value='" . htmlspecialchars($selectedTable) . "'>";
     echo "<table border='1' cellpadding='5' cellspacing='0'>";
-    echo "<tr><th>" . htmlspecialchars($heading1) . "</th><th>" . htmlspecialchars($heading2) . "</th><th>Action</th></tr>";
+    echo "<tr><th>" . htmlspecialchars($heading1) . "</th><th>" . htmlspecialchars($heading2) . "</th></tr>";
     $res->data_seek(0);
-    $rowIndex = 0;
     while ($row = $res->fetch_assoc()) {
         echo "<tr>";
-        echo "<td><input type='text' name='rows[$rowIndex][col1]' value='" . htmlspecialchars($row[$column1]) . "'></td>";
-        echo "<td><input type='text' name='rows[$rowIndex][col2]' value='" . htmlspecialchars($row[$column2]) . "'></td>";
-        echo "<td><input type='checkbox' name='rows[$rowIndex][delete]'> Delete</td>";
-        $rowIndex++;
+        echo "<td>" . htmlspecialchars($row[$column1]) . "</td>";
+        echo "<td>" . htmlspecialchars($row[$column2]) . "</td>";
         echo "</tr>";
     }
-
-    // Blank row for new entry
-    echo "<tr>";
-    echo "<td><input type='text' name='new_row[col1]' placeholder='New " . htmlspecialchars($heading1) . "'></td>";
-    echo "<td><input type='text' name='new_row[col2]' placeholder='New " . htmlspecialchars($heading2) . "'></td>";
-    echo "<td><em>Add New</em></td>";
-    echo "</tr>";
-
     echo "</table><br>";
-    echo "<button type='submit'>💾 Save Changes</button>";
-    echo "</form><br>";
+} elseif (!empty($selectedTable)) {
+    echo "<p>No data found in the table.</p>";
 }
-
 
 // Protect important tables
 $protectedTables = ['difficult_words', 'mastered_words', 'users', 'example_table'];
