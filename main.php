@@ -184,6 +184,8 @@ echo <<<HTML
 <form method="POST" action="upload_handler.php" enctype="multipart/form-data">
     <label>Table Name: <input type="text" name="new_table_name" required></label><br><br>
     <label>Naming convention: FolderName_FileName</label><br><br> 
+    <label>CSV files must have Utf8mb4 (Czech) encoding without BOM</label><br><br> 
+    <label>The first column must have a "Czech" header and the other one German, English or other language.</label><br><br>
     <label>CSV File: <input type="file" name="csv_file" accept=".csv" required></label><br><br>
     <button type="submit">Upload</button>
 </form>
