@@ -9,8 +9,9 @@ if (!$table) {
     die("Missing table name.");
 }
 
-$col1 = $_SESSION['col1'] ?? '';
-$col2 = $_SESSION['col2'] ?? '';
+$col1 = $_POST['col1'] ?? '';
+$col2 = $_POST['col2'] ?? '';
+
 
 if (!$col1 || !$col2) {
     die("Missing column definitions.");

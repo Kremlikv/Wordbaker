@@ -123,6 +123,8 @@ if (file_exists($audioFile)) {
 if (!empty($selectedTable) && $res && $res->num_rows > 0) {
     echo "<form method='POST' action='update_table.php'>";
     echo "<input type='hidden' name='table' value='" . htmlspecialchars($selectedTable) . "'>";
+    echo "<input type='hidden' name='col1' value='" . htmlspecialchars($column1) . "'>";  // <-- ADD THIS
+    echo "<input type='hidden' name='col2' value='" . htmlspecialchars($column2) . "'>";  // <-- AND THIS
     echo "<table border='1' cellpadding='5' cellspacing='0'>";
     echo "<tr><th>" . htmlspecialchars($heading1) . "</th><th>" . htmlspecialchars($heading2) . "</th><th>Action</th></tr>";
     $res->data_seek(0);
