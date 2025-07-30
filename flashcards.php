@@ -47,6 +47,14 @@ if (!empty($selectedTable)) {
         $column1 = $col1;
         $column2 = $col2;
         $targetLanguage = strtolower($col2);
+  }
+
+    // Auto-generate TTS snippets if not already cached
+    $snippetDir = "cache/" . $selectedTable;
+    if (!is_dir($snippetDir)) {
+        // Trigger snippet generation in the background (no delay to user)
+        ignore_user_abort(true);
+        exec("curl -s 'generate_tts_snippets.php?table=" . urlencode($selectedTable) . "' > /dev/null &");
     }
 }
 

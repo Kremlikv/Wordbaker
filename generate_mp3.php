@@ -12,9 +12,11 @@ $voices = [
     'german' => 'de-DE-Wavenet-H'       // Male German
 ];
 
-$table = $_SESSION['table'] ?? '';
+$table = $_GET['table'] ?? ($_SESSION['table'] ?? '');
 $col1  = $_SESSION['col1'] ?? '';
 $col2  = $_SESSION['col2'] ?? '';
+
+
 
 if (!$table || !$col1 || !$col2) {
     die("❌ Missing table or column names.");
