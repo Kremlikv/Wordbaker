@@ -35,7 +35,7 @@ GITHUB ACTIONS
 Na Githubu v sekci Actions vidím, zda se yaml skript zálohování obou věcí
 (databáze AlwaysData, php adresář na Byethost) podařilo... 
 
-EDITABLE TABLES
+EDITABLE TABLES 
 After revert we are back to editable tables where you can add a row.
 Or delete a row. And we still use ElevenLabs.
 
