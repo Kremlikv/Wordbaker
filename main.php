@@ -92,12 +92,13 @@ echo "<style>
 .subtable span { cursor: pointer; display: block; margin: 2px 0; }
 .subtable span:hover { background-color: #eef; }
 </style>";
-echo "</head><body>";
+echo "</head><body>"; 
 
 // MENU BAR
 echo "<div style='text-align: center; margin-bottom: 20px;'>";
 echo "<a href='flashcards.php'><button>📘 Study Flashcards</button></a> ";
-echo "<a href='generate_mp3.php'><button>🎿 Generate Audio</button></a> ";
+// echo "<a href='generate_mp3.php'><button>🎿 Generate Audio</button></a> "; 
+echo "<a href='generate_mp3_google_ssml.php'>🎧 Generate MP3</a> ";
 echo "<a href='review_difficult.php'><button>🧠 Difficult Words</button></a> ";
 echo "<a href='mastered.php'><button>🌟 Mastered</button></a> ";
 echo "<a href='translator.php'><button>🌐 Translate</button></a> ";
