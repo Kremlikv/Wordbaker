@@ -33,7 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_table'])) {
 
 // Get visible tables
 function getTables($conn) {
-    $hiddenTables = ['users'];  // Tables to hide from dropdown
+    $hiddenTables = ['users'];  // Tables to hide from UI
     $tables = [];
     $result = $conn->query("SHOW TABLES");
     while ($row = $result->fetch_array()) {
@@ -45,7 +45,7 @@ function getTables($conn) {
 }
 
 $tables = getTables($conn);
-$selectedTable = $_POST['table'] ?? ($tables[0] ?? '');
+$selectedTable = $_POST['table'] ?? ($_SESSION['table'] ?? ($tables[0] ?? ''));
 $column1 = '';
 $column2 = '';
 $heading1 = '';
@@ -68,7 +68,6 @@ if (!empty($selectedTable)) {
             $heading2 = $column2;
         }
 
-        // Store selections in session
         $_SESSION['table'] = $selectedTable;
         $_SESSION['col1'] = $column1;
         $_SESSION['col2'] = $column2;
@@ -77,6 +76,15 @@ if (!empty($selectedTable)) {
 
 echo "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>Manage Tables</title>";
 include 'styling.php';
+echo "<style>
+.tree-view ul { list-style-type: none; padding-left: 20px; }
+.tree-view li { margin: 5px 0; cursor: pointer; }
+.folder-toggle::before { content: '▶ '; margin-right: 5px; }
+.folder-toggle.open::before { content: '▼ '; }
+ul ul { display: none; }
+ul ul.open { display: block; }
+.table-leaf:hover { background-color: #eef; }
+</style>";
 echo "</head><body>";
 
 // MENU BAR
@@ -94,18 +102,47 @@ echo "<div class='content'>";
 echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Logout</a><br><br>";
 
 echo "<form method='POST' action='' id='tableActionForm'>";
-echo "<label for='table'>Select a table:</label> ";
-echo "<select name='table' id='table'>";
-foreach ($tables as $table) {
-    $selected = ($table === $selectedTable) ? 'selected' : '';
-    echo "<option value='$table' $selected>$table</option>";
-}
-echo "</select> ";
+echo "<label>Select a table:</label><br>";
+echo "<div id='table-tree' class='tree-view'>";
 
+// Build virtual directory tree from table names
+function buildTableTree($tables) {
+    $tree = [];
+    foreach ($tables as $table) {
+        $parts = explode('/', $table);
+        $ref = &$tree;
+        foreach ($parts as $part) {
+            if (!isset($ref[$part])) {
+                $ref[$part] = [];
+            }
+            $ref = &$ref[$part];
+        }
+    }
+    return $tree;
+}
+
+function renderTree($tree, $prefix = '') {
+    $html = '<ul>';
+    foreach ($tree as $key => $subtree) {
+        $fullPath = ltrim("$prefix/$key", '/');
+        if (empty($subtree)) {
+            $html .= "<li><span class='table-leaf' data-table='$fullPath'>📄 $key</span></li>";
+        } else {
+            $html .= "<li><span class='folder-toggle'>📁 $key</span>";
+            $html .= renderTree($subtree, $fullPath);
+            $html .= "</li>";
+        }
+    }
+    $html .= '</ul>';
+    return $html;
+}
+
+echo renderTree(buildTableTree($tables));
+
+echo "</div>";
+echo "<input type='hidden' name='table' id='selectedTableInput' value='" . htmlspecialchars($selectedTable) . "'>";
 echo "<input type='hidden' name='col1' value='" . htmlspecialchars($column1) . "'>";
 echo "<input type='hidden' name='col2' value='" . htmlspecialchars($column2) . "'>";
-
-echo "<button type='submit' title='Load Table' style='font-size: 1.5em; background-color: #ccc; color: black; border: none; padding: 10px 16px; border-radius: 6px; cursor: pointer;'>⬆️</button>";
 echo "</form><br><br>";
 
 echo "<h3>Selected Table: <span class='selected-table'>" . htmlspecialchars($selectedTable) . "</span></h3>";
@@ -123,29 +160,25 @@ if (file_exists($audioFile)) {
 if (!empty($selectedTable) && $res && $res->num_rows > 0) {
     echo "<form method='POST' action='update_table.php'>";
     echo "<input type='hidden' name='table' value='" . htmlspecialchars($selectedTable) . "'>";
-    echo "<input type='hidden' name='col1' value='" . htmlspecialchars($column1) . "'>";  // <-- ADD THIS
-    echo "<input type='hidden' name='col2' value='" . htmlspecialchars($column2) . "'>";  // <-- AND THIS
+    echo "<input type='hidden' name='col1' value='" . htmlspecialchars($column1) . "'>";
+    echo "<input type='hidden' name='col2' value='" . htmlspecialchars($column2) . "'>";
     echo "<table border='1' cellpadding='5' cellspacing='0'>";
     echo "<tr><th>" . htmlspecialchars($heading1) . "</th><th>" . htmlspecialchars($heading2) . "</th><th>Action</th></tr>";
     $res->data_seek(0);
     $rowIndex = 0;
 
-  while ($row = $res->fetch_assoc()) {
-    echo "<tr>";
-
-    // Hidden original values for update reference
-    echo "<input type='hidden' name='rows[$rowIndex][orig_col1]' value='" . htmlspecialchars($row[$column1]) . "'>";
-    echo "<input type='hidden' name='rows[$rowIndex][orig_col2]' value='" . htmlspecialchars($row[$column2]) . "'>";
-
-    echo "<td><textarea name='rows[$rowIndex][col1]' oninput='autoResize(this)' style='min-height: 40px; width: 100%; resize: none;'>" . 
-        htmlspecialchars($row[$column1]) . "</textarea></td>";
-    echo "<td><textarea name='rows[$rowIndex][col2]' oninput='autoResize(this)' style='min-height: 40px; width: 100%; resize: none;'>" . 
-        htmlspecialchars($row[$column2]) . "</textarea></td>";
-    echo "<td><input type='checkbox' name='rows[$rowIndex][delete]'> Delete</td>";
-    $rowIndex++;
-    echo "</tr>";
-}
-
+    while ($row = $res->fetch_assoc()) {
+        echo "<tr>";
+        echo "<input type='hidden' name='rows[$rowIndex][orig_col1]' value='" . htmlspecialchars($row[$column1]) . "'>";
+        echo "<input type='hidden' name='rows[$rowIndex][orig_col2]' value='" . htmlspecialchars($row[$column2]) . "'>";
+        echo "<td><textarea name='rows[$rowIndex][col1]' oninput='autoResize(this)' style='min-height: 40px; width: 100%; resize: none;'>" . 
+            htmlspecialchars($row[$column1]) . "</textarea></td>";
+        echo "<td><textarea name='rows[$rowIndex][col2]' oninput='autoResize(this)' style='min-height: 40px; width: 100%; resize: none;'>" . 
+            htmlspecialchars($row[$column2]) . "</textarea></td>";
+        echo "<td><input type='checkbox' name='rows[$rowIndex][delete]'> Delete</td>";
+        $rowIndex++;
+        echo "</tr>";
+    }
 
     // Blank row for new entry
     echo "<tr>";
@@ -183,7 +216,7 @@ HTML;
 echo "</div>";
 ?>
 
-<!-- JavaScript to auto-resize textareas -->
+<!-- JavaScript to auto-resize textareas and handle tree navigation -->
 <script>
 function autoResize(textarea) {
     textarea.style.height = 'auto';
@@ -194,7 +227,25 @@ document.addEventListener("DOMContentLoaded", function () {
     document.querySelectorAll("textarea").forEach(function (el) {
         autoResize(el);
     });
+
+    document.querySelectorAll(".folder-toggle").forEach(folder => {
+        folder.addEventListener("click", () => {
+            const sublist = folder.nextElementSibling;
+            if (sublist && sublist.tagName === 'UL') {
+                sublist.classList.toggle("open");
+                folder.classList.toggle("open");
+            }
+        });
+    });
+
+    document.querySelectorAll(".table-leaf").forEach(leaf => {
+        leaf.addEventListener("click", () => {
+            const table = leaf.getAttribute("data-table");
+            document.getElementById("selectedTableInput").value = table;
+            document.getElementById("tableActionForm").submit();
+        });
+    });
 });
 </script>
-
-</body></html>
+</body>
+</html>

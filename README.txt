@@ -33,6 +33,10 @@ jinak neumožní zveřejnit adresář jako "veřejný".
 
 GITHUB ACTIONS
 Na Githubu v sekci Actions vidím, zda se yaml skript zálohování obou věcí
-(databáze AlwaysData, php adresář na Byethost) podařilo...   
+(databáze AlwaysData, php adresář na Byethost) podařilo... 
+
+EDITABLE TABLES
+After revert we are back to editable tables where you can add a row.
+Or delete a row. And we still use ElevenLabs.
 
 

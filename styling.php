@@ -268,13 +268,44 @@
       }
     }
 
+/* Explorer-like table selection with folders */ 
+
+<style>
+.tree-view ul {
+    list-style-type: none;
+    padding-left: 20px;
+}
+
+.tree-view li {
+    margin: 5px 0;
+    cursor: pointer;
+}
+
+.folder-toggle::before {
+    content: '▶ ';
+    display: inline-block;
+    margin-right: 5px;
+}
+
+.folder-toggle.open::before {
+    content: '▼ ';
+}
+
+ul ul {
+    display: none;
+}
+
+ul ul.open {
+    display: block;
+}
+
+.table-leaf:hover {
+    background-color: #eef;
+}
+
 </style>
 
-
-
-
-
-    </style>
+  
   </head>
 
 <body>

@@ -4,19 +4,19 @@ require_once 'session.php';
 include 'styling.php';
 
 // Fetch tables
-// function getTables($conn) {
-//    $tables = [];
-//    $result = $conn->query("SHOW TABLES");
-//    if ($result) {
-//        while ($row = $result->fetch_array()) {
-//            $tables[] = $row[0];
-//        }
-//    }
-//    return $tables;
-// }
+function getTables($conn) {
+    $tables = [];
+    $result = $conn->query("SHOW TABLES");
+    if ($result) {
+        while ($row = $result->fetch_array()) {
+            $tables[] = $row[0];
+        }
+    }
+    return $tables;
+}
 
-// $tables = getTables($conn);
-// $selectedTable = $_POST['table'] ?? ($tables[0] ?? '');
+$tables = getTables($conn);
+$selectedTable = $_POST['table'] ?? ($tables[0] ?? '');
 
 $rows = [];
 $column1 = '';
