@@ -135,9 +135,9 @@ if (!empty($selectedTable) && $res && $res->num_rows > 0) {
     $res->data_seek(0);
     $rowIndex = 0;
     while ($row = $res->fetch_assoc()) {
-        echo "<tr>";
-        echo "<td><input type='text' name='rows[$rowIndex][col1]' value='" . htmlspecialchars($row[$column1]) . "'></td>";
-        echo "<td><input type='text' name='rows[$rowIndex][col2]' value='" . htmlspecialchars($row[$column2]) . "'></td>";
+        echo "<tr>";        
+        echo "<td><textarea name='rows[$rowIndex][col1]' rows='2' cols='40'>" . htmlspecialchars($row[$column1]) . "</textarea></td>";
+        echo "<td><textarea name='rows[$rowIndex][col2]' rows='2' cols='40'>" . htmlspecialchars($row[$column2]) . "</textarea></td>";
         echo "<td><input type='checkbox' name='rows[$rowIndex][delete]'> Delete</td>";
         $rowIndex++;
         echo "</tr>";
@@ -145,8 +145,8 @@ if (!empty($selectedTable) && $res && $res->num_rows > 0) {
 
     // Blank row for new entry
     echo "<tr>";
-    echo "<td><input type='text' name='new_row[col1]' placeholder='New " . htmlspecialchars($heading1) . "'></td>";
-    echo "<td><input type='text' name='new_row[col2]' placeholder='New " . htmlspecialchars($heading2) . "'></td>";
+    echo "<td><textarea name='new_row[col1]' rows='2' cols='40' placeholder='New " . htmlspecialchars($heading1) . "'></textarea></td>";
+    echo "<td><textarea name='new_row[col2]' rows='2' cols='40' placeholder='New " . htmlspecialchars($heading2) . "'></textarea></td>";
     echo "<td><em>Add New</em></td>";
     echo "</tr>";
 
