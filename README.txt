@@ -31,4 +31,8 @@ SECRETS
 Hesla v Githubu uložit v samostatném šuplíku,
 jinak neumožní zveřejnit adresář jako "veřejný".
 
+GITHUB ACTIONS
+Na Githubu v sekci Actions vidím, zda se yaml skript zálohování obou věcí
+(databáze AlwaysData, php adresář na Byethost) podařilo.
+
 
