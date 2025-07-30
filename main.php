@@ -129,14 +129,23 @@ if (!empty($selectedTable) && $res && $res->num_rows > 0) {
     echo "<tr><th>" . htmlspecialchars($heading1) . "</th><th>" . htmlspecialchars($heading2) . "</th><th>Action</th></tr>";
     $res->data_seek(0);
     $rowIndex = 0;
-    while ($row = $res->fetch_assoc()) {
-        echo "<tr>";
-        echo "<td><textarea name='rows[$rowIndex][col1]' oninput='autoResize(this)' style='min-height: 40px; width: 100%; resize: none;'>" . htmlspecialchars($row[$column1]) . "</textarea></td>";
-        echo "<td><textarea name='rows[$rowIndex][col2]' oninput='autoResize(this)' style='min-height: 40px; width: 100%; resize: none;'>" . htmlspecialchars($row[$column2]) . "</textarea></td>";
-        echo "<td><input type='checkbox' name='rows[$rowIndex][delete]'> Delete</td>";
-        $rowIndex++;
-        echo "</tr>";
-    }
+
+  while ($row = $res->fetch_assoc()) {
+    echo "<tr>";
+
+    // Hidden original values for update reference
+    echo "<input type='hidden' name='rows[$rowIndex][orig_col1]' value='" . htmlspecialchars($row[$column1]) . "'>";
+    echo "<input type='hidden' name='rows[$rowIndex][orig_col2]' value='" . htmlspecialchars($row[$column2]) . "'>";
+
+    echo "<td><textarea name='rows[$rowIndex][col1]' oninput='autoResize(this)' style='min-height: 40px; width: 100%; resize: none;'>" . 
+        htmlspecialchars($row[$column1]) . "</textarea></td>";
+    echo "<td><textarea name='rows[$rowIndex][col2]' oninput='autoResize(this)' style='min-height: 40px; width: 100%; resize: none;'>" . 
+        htmlspecialchars($row[$column2]) . "</textarea></td>";
+    echo "<td><input type='checkbox' name='rows[$rowIndex][delete]'> Delete</td>";
+    $rowIndex++;
+    echo "</tr>";
+}
+
 
     // Blank row for new entry
     echo "<tr>";
