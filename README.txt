@@ -27,3 +27,8 @@ db_backup.yaml také vyžaduje, abych v nastavení projektu v githubu
 šel na: Settings → Actions → General... Scroll to Workflow permissions.
 Make sure this is selected: 🔘 Read and write permissions
 
+SECRETS
+Hesla v Githubu uložit v samostatném šuplíku,
+jinak neumožní zveřejnit adresář jako "veřejný".
+
+
