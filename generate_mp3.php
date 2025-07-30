@@ -16,6 +16,8 @@ $voices = [
     'german'  => 'de-DE-Standard-H',
 ];
 
+// https://cloud.google.com/text-to-speech/docs/list-voices-and-types
+
 // === Get session table/column info ===
 $table = $_SESSION['table'] ?? '';
 $col1  = $_SESSION['col1'] ?? '';
