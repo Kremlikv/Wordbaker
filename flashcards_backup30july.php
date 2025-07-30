@@ -127,38 +127,32 @@ const targetLanguage = <?php echo json_encode($targetLanguage); ?>;
 
 let index = 0;
 let showingFront = true;
+let frontText = data[0]?.cz ?? '';
+let backText = data[0]?.foreign ?? '';
 let ttsEnabled = { cz: true, foreign: true };
 
 const cardElement = document.getElementById('card');
 const audioElement = document.getElementById('ttsAudio');
 
-function getAudioPath(rowIndex, part) {
-  const indexStr = String(rowIndex + 1).padStart(3, '0');
-  return `cache/${tableName}/row_${indexStr}_${part}.mp3`;
-}
-
-function playSnippet(part) {
-  if (!ttsEnabled[part]) return;
-  const path = getAudioPath(index, part);
-  audioElement.src = path;
+function playTTS(text, language) {
+  if (!text || !language || !ttsEnabled[language]) return;
+  const url = `generate_tts_snippet.php?text=${encodeURIComponent(text)}&lang=${encodeURIComponent(language === 'cz' ? 'czech' : (data[index].language || targetLanguage))}`;
+  audioElement.src = url;
   audioElement.play();
 }
 
 function updateCard() {
-  if (data.length === 0) {
-    cardElement.textContent = "No data.";
-    return;
-  }
-
+  frontText = data[index]?.cz ?? '';
+  backText = data[index]?.foreign ?? '';
   showingFront = true;
-  cardElement.textContent = data[index]?.cz ?? '';
-  setTimeout(() => playSnippet('cz'), 300);
+  cardElement.textContent = frontText;
+  setTimeout(() => playTTS(frontText, 'cz'), 300);
 }
 
 function flipCard() {
   showingFront = !showingFront;
-  cardElement.textContent = showingFront ? data[index]?.cz : data[index]?.foreign;
-  setTimeout(() => playSnippet(showingFront ? 'cz' : 'foreign'), 300);
+  cardElement.textContent = showingFront ? frontText : backText;
+  setTimeout(() => playTTS(showingFront ? frontText : backText, showingFront ? 'cz' : 'foreign'), 300);
 }
 
 function nextCard() {
@@ -179,7 +173,7 @@ function markDifficult() {
   fetch('mark_difficult.php', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: `source_word=${encodeURIComponent(data[index].cz)}&target_word=${encodeURIComponent(data[index].foreign)}&language=${encodeURIComponent(data[index].language || targetLanguage)}`
+    body: `source_word=${encodeURIComponent(frontText)}&target_word=${encodeURIComponent(backText)}&language=${encodeURIComponent(data[index].language || targetLanguage)}`
   });
   nextCard();
 }
@@ -188,7 +182,7 @@ function markKnown() {
   fetch('unmark_difficult.php', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: `source_word=${encodeURIComponent(data[index].cz)}&target_word=${encodeURIComponent(data[index].foreign)}`
+    body: `source_word=${encodeURIComponent(frontText)}&target_word=${encodeURIComponent(backText)}`
   });
   nextCard();
 }
@@ -199,7 +193,6 @@ function toggleTTS(side) {
 
 updateCard();
 </script>
-
 </div>
 </body>
 </html>
