@@ -16,29 +16,23 @@ $voices = [
     'german' => 'zl7GSCFv2aKISCB2LjZz',  // Wilhelm
 ];
 
-// Retrieve table from session, POST, or GET
-$table = $_SESSION['table'] ?? $_POST['table'] ?? $_GET['table'] ?? '';
-$col1  = $_SESSION['col1'] ?? $_POST['col1'] ?? '';
-$col2  = $_SESSION['col2'] ?? $_POST['col2'] ?? '';
+// Retrieve from session
+$table = $_SESSION['table'] ?? '';
+$col1  = $_SESSION['col1'] ?? '';
+$col2  = $_SESSION['col2'] ?? '';
 
-// Attempt fallback: dynamically get first 2 columns if still missing
-if ($table && (empty($col1) || empty($col2))) {
-    $colResult = $conn->query("SHOW COLUMNS FROM `$table`");
-    if ($colResult) {
-        $fields = [];
-        while ($row = $colResult->fetch_assoc()) {
-            $fields[] = $row['Field'];
-        }
-        if (count($fields) >= 2) {
-            $col1 = $fields[0];
-            $col2 = $fields[1];
-        }
-    }
-}
+// DEBUG
+// echo "<pre>";
+// print_r($_SESSION);
+// echo "</pre>";
 
-if (empty($table) || empty($col1) || empty($col2)) {
-    die("❌ Missing table or column names.");
-}
+//if (empty($table) || empty($col1) || empty($col2)) {
+//    echo "DEBUG info:<br>";
+//    echo "Table: $table<br>";
+//    echo "Col1: $col1<br>";
+//    echo "Col2: $col2<br>";
+//    die("❌ Missing table or column names.");
+// }
 
 // Normalize for voice selection
 $source_key = strtolower($col1);
@@ -117,7 +111,6 @@ if ($final_audio === '') {
 }
 
 file_put_contents("cache/$table.mp3", $final_audio);
+header("Location: main.php?table=" . urlencode($_POST['table']));
 
-// Redirect to main.php and keep table selected
-header("Location: main.php?table=" . urlencode($table));
 exit;
