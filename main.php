@@ -31,32 +31,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_table'])) {
     exit;
 }
 
-// Get visible tables
-function getTables($conn) {
-    $hiddenTables = ['users'];  // Tables to hide from UI
-    $tables = [];
+function getUserFoldersAndTables($conn, $username) {
+    $allTables = [];
     $result = $conn->query("SHOW TABLES");
     while ($row = $result->fetch_array()) {
-        if (!in_array($row[0], $hiddenTables)) {
-            $tables[] = $row[0];
+        $table = $row[0];
+        if (strpos($table, "$username/") === 0) {
+            $parts = explode('/', $table);
+            if (count($parts) === 3) {
+                $folder = $parts[1];
+                $tableName = $parts[2];
+                $allTables[$folder][] = $tableName;
+            }
         }
     }
-    return $tables;
+    return $allTables;
 }
 
-$tables = getTables($conn);
-$selectedTable = $_POST['table'] ?? ($_SESSION['table'] ?? ($tables[0] ?? ''));
+$username = $_SESSION['username'] ?? '';
+$folders = getUserFoldersAndTables($conn, $username);
+$selectedFullTable = $_POST['table'] ?? '';
 $column1 = '';
 $column2 = '';
 $heading1 = '';
 $heading2 = '';
 
-if (!empty($selectedTable)) {
-    $res = $conn->query("SELECT * FROM `$selectedTable`");
+if (!empty($selectedFullTable)) {
+    $res = $conn->query("SELECT * FROM `$selectedFullTable`");
     if ($res && $res->num_rows > 0) {
         $columns = $res->fetch_fields();
 
-        if ($selectedTable === "difficult_words") {
+        if ($selectedFullTable === "difficult_words") {
             $column1 = "source_word";
             $column2 = "target_word";
             $heading1 = "Czech";
@@ -68,7 +73,7 @@ if (!empty($selectedTable)) {
             $heading2 = $column2;
         }
 
-        $_SESSION['table'] = $selectedTable;
+        $_SESSION['table'] = $selectedFullTable;
         $_SESSION['col1'] = $column1;
         $_SESSION['col2'] = $column2;
     }
@@ -77,13 +82,10 @@ if (!empty($selectedTable)) {
 echo "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>Manage Tables</title>";
 include 'styling.php';
 echo "<style>
-.tree-view ul { list-style-type: none; padding-left: 20px; }
-.tree-view li { margin: 5px 0; cursor: pointer; }
-.folder-toggle::before { content: '▶ '; margin-right: 5px; }
-.folder-toggle.open::before { content: '▼ '; }
-ul ul { display: none; }
-ul ul.open { display: block; }
-.table-leaf:hover { background-color: #eef; }
+.folder { cursor: pointer; margin: 5px 0; color: goldenrod; font-weight: bold; }
+.subtable { margin-left: 20px; display: none; }
+.subtable span { cursor: pointer; display: block; margin: 2px 0; }
+.subtable span:hover { background-color: #eef; }
 </style>";
 echo "</head><body>";
 
@@ -99,56 +101,29 @@ echo "</div>";
 
 // MAIN CONTENT
 echo "<div class='content'>";
-echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Logout</a><br><br>";
+echo "👋 Logged in as " . htmlspecialchars($username) . " | <a href='logout.php'>Logout</a><br><br>";
 
 echo "<form method='POST' action='' id='tableActionForm'>";
 echo "<label>Select a table:</label><br>";
-echo "<div id='table-tree' class='tree-view'>";
-
-// Build virtual directory tree from table names
-function buildTableTree($tables) {
-    $tree = [];
-    foreach ($tables as $table) {
-        $parts = explode('/', $table);
-        $ref = &$tree;
-        foreach ($parts as $part) {
-            if (!isset($ref[$part])) {
-                $ref[$part] = [];
-            }
-            $ref = &$ref[$part];
-        }
+echo "<div id='folder-view'>";
+foreach ($folders as $folder => $tableList) {
+    echo "<div class='folder' onclick=\"toggleFolder('$folder')\">📁 $folder</div>";
+    echo "<div class='subtable' id='sub_$folder'>";
+    foreach ($tableList as $tableOnly) {
+        $fullName = "$username/$folder/$tableOnly";
+        echo "<span onclick=\"selectTable('$fullName')\">📄 $tableOnly</span>";
     }
-    return $tree;
+    echo "</div>";
 }
-
-function renderTree($tree, $prefix = '') {
-    $html = '<ul>';
-    foreach ($tree as $key => $subtree) {
-        $fullPath = ltrim("$prefix/$key", '/');
-        if (empty($subtree)) {
-            $html .= "<li><span class='table-leaf' data-table='$fullPath'>📄 $key</span></li>";
-        } else {
-            $html .= "<li><span class='folder-toggle'>📁 $key</span>";
-            $html .= renderTree($subtree, $fullPath);
-            $html .= "</li>";
-        }
-    }
-    $html .= '</ul>';
-    return $html;
-}
-
-echo renderTree(buildTableTree($tables));
-
 echo "</div>";
-echo "<input type='hidden' name='table' id='selectedTableInput' value='" . htmlspecialchars($selectedTable) . "'>";
+echo "<input type='hidden' name='table' id='selectedTableInput' value='" . htmlspecialchars($selectedFullTable) . "'>";
 echo "<input type='hidden' name='col1' value='" . htmlspecialchars($column1) . "'>";
 echo "<input type='hidden' name='col2' value='" . htmlspecialchars($column2) . "'>";
 echo "</form><br><br>";
 
-echo "<h3>Selected Table: <span class='selected-table'>" . htmlspecialchars($selectedTable) . "</span></h3>";
+echo "<h3>Selected Table: <span class='selected-table'>" . htmlspecialchars($selectedFullTable) . "</span></h3>";
 
-// Audio preview
-$audioFile = "cache/$selectedTable.mp3";
+$audioFile = "cache/$selectedFullTable.mp3";
 if (file_exists($audioFile)) {
     echo "<audio controls src='$audioFile'></audio><br>";
     echo "<a href='$audioFile' download class='button'>Download MP3</a><br><br>";
@@ -156,54 +131,47 @@ if (file_exists($audioFile)) {
     echo "<em>No audio generated yet for this table.</em><br><br>";
 }
 
-// Show table
-if (!empty($selectedTable) && $res && $res->num_rows > 0) {
+if (!empty($selectedFullTable) && $res && $res->num_rows > 0) {
     echo "<form method='POST' action='update_table.php'>";
-    echo "<input type='hidden' name='table' value='" . htmlspecialchars($selectedTable) . "'>";
+    echo "<input type='hidden' name='table' value='" . htmlspecialchars($selectedFullTable) . "'>";
     echo "<input type='hidden' name='col1' value='" . htmlspecialchars($column1) . "'>";
     echo "<input type='hidden' name='col2' value='" . htmlspecialchars($column2) . "'>";
     echo "<table border='1' cellpadding='5' cellspacing='0'>";
     echo "<tr><th>" . htmlspecialchars($heading1) . "</th><th>" . htmlspecialchars($heading2) . "</th><th>Action</th></tr>";
     $res->data_seek(0);
     $rowIndex = 0;
-
     while ($row = $res->fetch_assoc()) {
         echo "<tr>";
         echo "<input type='hidden' name='rows[$rowIndex][orig_col1]' value='" . htmlspecialchars($row[$column1]) . "'>";
         echo "<input type='hidden' name='rows[$rowIndex][orig_col2]' value='" . htmlspecialchars($row[$column2]) . "'>";
-        echo "<td><textarea name='rows[$rowIndex][col1]' oninput='autoResize(this)' style='min-height: 40px; width: 100%; resize: none;'>" . 
+        echo "<td><textarea name='rows[$rowIndex][col1]' oninput='autoResize(this)' style='min-height: 40px; width: 100%; resize: none;'>" .
             htmlspecialchars($row[$column1]) . "</textarea></td>";
-        echo "<td><textarea name='rows[$rowIndex][col2]' oninput='autoResize(this)' style='min-height: 40px; width: 100%; resize: none;'>" . 
+        echo "<td><textarea name='rows[$rowIndex][col2]' oninput='autoResize(this)' style='min-height: 40px; width: 100%; resize: none;'>" .
             htmlspecialchars($row[$column2]) . "</textarea></td>";
         echo "<td><input type='checkbox' name='rows[$rowIndex][delete]'> Delete</td>";
         $rowIndex++;
         echo "</tr>";
     }
-
-    // Blank row for new entry
     echo "<tr>";
     echo "<td><textarea name='new_row[col1]' oninput='autoResize(this)' placeholder='New " . htmlspecialchars($heading1) . "' style='min-height: 40px; width: 100%; resize: none;'></textarea></td>";
     echo "<td><textarea name='new_row[col2]' oninput='autoResize(this)' placeholder='New " . htmlspecialchars($heading2) . "' style='min-height: 40px; width: 100%; resize: none;'></textarea></td>";
     echo "<td><em>Add New</em></td>";
     echo "</tr>";
-
     echo "</table><br>";
     echo "<button type='submit'>💾 Save Changes</button>";
     echo "</form><br>";
 }
 
-// Protect important tables
 $protectedTables = ['difficult_words', 'mastered_words', 'users', 'example_table'];
-if (in_array($selectedTable, $protectedTables)) {
-    echo "<p style='color: red;'><strong>⚠️ The '$selectedTable' table is protected and cannot be deleted.</strong></p><br><br>";
-} else {
-    echo "<form method='post' onsubmit=\"return confirm('Are you sure you want to permanently delete the table " . htmlspecialchars($selectedTable) . "? This action cannot be undone.');\">";
-    echo "<input type='hidden' name='delete_table' value='" . htmlspecialchars($selectedTable) . "'>";
+if (in_array($selectedFullTable, $protectedTables)) {
+    echo "<p style='color: red;'><strong>⚠️ The '$selectedFullTable' table is protected and cannot be deleted.</strong></p><br><br>";
+} elseif (!empty($selectedFullTable)) {
+    echo "<form method='post' onsubmit=\"return confirm('Are you sure you want to permanently delete the table " . htmlspecialchars($selectedFullTable) . "? This action cannot be undone.');\">";
+    echo "<input type='hidden' name='delete_table' value='" . htmlspecialchars($selectedFullTable) . "'>";
     echo "<button type='submit' class='delete-button'>🗑️ Delete This Table</button>";
     echo "</form><br><br>";
 }
 
-// Upload CSV
 echo <<<HTML
 <h2>Upload New CSV Table</h2>
 <form method="POST" action="upload_handler.php" enctype="multipart/form-data">
@@ -215,37 +183,30 @@ HTML;
 
 echo "</div>";
 ?>
-
-<!-- JavaScript to auto-resize textareas and handle tree navigation -->
 <script>
 function autoResize(textarea) {
     textarea.style.height = 'auto';
     textarea.style.height = textarea.scrollHeight + 'px';
 }
 
+function toggleFolder(folder) {
+    const el = document.getElementById("sub_" + folder);
+    if (el.style.display === "block") {
+        el.style.display = "none";
+    } else {
+        el.style.display = "block";
+    }
+}
+
+function selectTable(fullTableName) {
+    document.getElementById("selectedTableInput").value = fullTableName;
+    document.getElementById("tableActionForm").submit();
+}
+
 document.addEventListener("DOMContentLoaded", function () {
     document.querySelectorAll("textarea").forEach(function (el) {
         autoResize(el);
     });
-
-    document.querySelectorAll(".folder-toggle").forEach(folder => {
-        folder.addEventListener("click", () => {
-            const sublist = folder.nextElementSibling;
-            if (sublist && sublist.tagName === 'UL') {
-                sublist.classList.toggle("open");
-                folder.classList.toggle("open");
-            }
-        });
-    });
-
-    document.querySelectorAll(".table-leaf").forEach(leaf => {
-        leaf.addEventListener("click", () => {
-            const table = leaf.getAttribute("data-table");
-            document.getElementById("selectedTableInput").value = table;
-            document.getElementById("tableActionForm").submit();
-        });
-    });
 });
 </script>
-</body>
-</html>
+</body></html>
