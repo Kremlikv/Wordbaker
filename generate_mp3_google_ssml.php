@@ -18,7 +18,7 @@ if (!$table || !$col1 || !$col2) {
 $voices = [
     'czech'   => ['name' => 'cs-CZ-Standard-B', 'code' => 'cs-CZ'],
     'english' => ['name' => 'en-GB-Standard-O', 'code' => 'en-GB'],
-    'german'  => ['name' => 'de-DE-Standard-H',  'code' => 'de-DE'] 
+    'german'  => ['name' => 'de-DE-Standard-H', 'code' => 'de-DE'] 
 ];
 
 

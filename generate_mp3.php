@@ -11,8 +11,8 @@ if (!$silence) {
 // === Google Cloud API setup ===
 $api_key = 'AIzaSyCTj5ksARALCyr7tXmQhgJBx8_tvgT76xU';  // Replace with your actual API key
 $voices = [
-    'czech'   => 'cs-CZ-Wavenet-A',
-    'english' => 'en-US-Wavenet-D',
+    'czech'   => 'cs-CZ-Standard-B',
+    'english' => 'en-GB-Standard-D',
     'german'  => 'de-DE-Standard-H',
 ];
 
