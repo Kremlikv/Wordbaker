@@ -247,6 +247,33 @@
       background-color: #ddd;
     }
 
+    /* Responsive editable screens  */
+
+    @media screen and (max-width: 600px) {
+      textarea {
+          width: 100%;
+          font-size: 1em;
+      }
+
+      table {
+          font-size: 0.9em;
+      }
+
+      th, td {
+          padding: 6px;
+      }
+
+      .delete-button {
+          font-size: 0.9em;
+      }
+    }
+
+</style>
+
+
+
+
+
     </style>
   </head>
 
