@@ -124,7 +124,6 @@ $conn->close();
 <script>
 const data = <?php echo json_encode($rows); ?>;
 const tableName = <?php echo json_encode($selectedTable); ?>;
-const targetLanguage = <?php echo json_encode($targetLanguage); ?>;
 
 let index = 0;
 let showingFront = true;
@@ -137,10 +136,16 @@ let playingNow = false;
 const cardElement = document.getElementById('card'); 
 const audioElement = document.getElementById('ttsAudio');
 
-function playTTS(text, language) {
-  if (!text || !language || !ttsEnabled[language]) return;
-  const url = `generate_tts_snippet.php?text=${encodeURIComponent(text)}&lang=${encodeURIComponent(language === 'cz' ? 'czech' : (data[index].language || targetLanguage))}`;
-  audioElement.src = url;
+function getFileName(rowIndex, side) {
+  const padded = String(rowIndex + 1).padStart(3, '0');
+  const letter = side === 'cz' ? 'A' : 'B';
+  return `cache/${tableName}/word_${padded}${letter}.mp3`;
+}
+
+function playFromFile(side) {
+  if (!ttsEnabled[side]) return;
+  const file = getFileName(index, side);
+  audioElement.src = file;
   audioElement.play();
 }
 
@@ -149,13 +154,13 @@ function updateCard() {
   backText = data[index]?.foreign ?? '';
   showingFront = true;
   cardElement.textContent = frontText;
-  setTimeout(() => playTTS(frontText, 'cz'), 300);
+  setTimeout(() => playFromFile('cz'), 300);
 }
 
 function flipCard() {
   showingFront = !showingFront;
   cardElement.textContent = showingFront ? frontText : backText;
-  setTimeout(() => playTTS(showingFront ? frontText : backText, showingFront ? 'cz' : 'foreign'), 300);
+  setTimeout(() => playFromFile(showingFront ? 'cz' : 'foreign'), 300);
 }
 
 function nextCard() {
@@ -176,7 +181,7 @@ function markDifficult() {
   fetch('mark_difficult.php', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: `source_word=${encodeURIComponent(frontText)}&target_word=${encodeURIComponent(backText)}&language=${encodeURIComponent(data[index].language || targetLanguage)}`
+    body: `source_word=${encodeURIComponent(frontText)}&target_word=${encodeURIComponent(backText)}&language=${encodeURIComponent(data[index].language || '')}`
   });
   nextCard();
 }
@@ -210,22 +215,18 @@ function playCardWithAudio() {
   }
 
   playingNow = true;
-  const czText = data[index]?.cz ?? '';
-  const foreignText = data[index]?.foreign ?? '';
-  const lang = data[index]?.language || targetLanguage;
-
-  cardElement.textContent = czText;
+  frontText = data[index]?.cz ?? '';
+  backText = data[index]?.foreign ?? '';
+  cardElement.textContent = frontText;
   showingFront = true;
 
   if (ttsEnabled.cz) {
-    const czUrl = `generate_tts_snippet.php?text=${encodeURIComponent(czText)}&lang=czech`;
-    audioElement.src = czUrl;
+    audioElement.src = getFileName(index, 'cz');
     audioElement.onended = () => {
       if (ttsEnabled.foreign) {
-        cardElement.textContent = foreignText;
+        cardElement.textContent = backText;
         showingFront = false;
-        const foreignUrl = `generate_tts_snippet.php?text=${encodeURIComponent(foreignText)}&lang=${encodeURIComponent(lang)}`;
-        audioElement.src = foreignUrl;
+        audioElement.src = getFileName(index, 'foreign');
         audioElement.onended = () => {
           index++;
           setTimeout(playCardWithAudio, 1000);
@@ -238,10 +239,9 @@ function playCardWithAudio() {
     };
     audioElement.play();
   } else if (ttsEnabled.foreign) {
-    cardElement.textContent = foreignText;
+    cardElement.textContent = backText;
     showingFront = false;
-    const foreignUrl = `generate_tts_snippet.php?text=${encodeURIComponent(foreignText)}&lang=${encodeURIComponent(lang)}`;
-    audioElement.src = foreignUrl;
+    audioElement.src = getFileName(index, 'foreign');
     audioElement.onended = () => {
       index++;
       setTimeout(playCardWithAudio, 1000);
