@@ -60,6 +60,7 @@ $column1 = '';
 $column2 = '';
 $heading1 = '';
 $heading2 = '';
+$res = false;
 
 if (!empty($selectedFullTable)) {
     $res = $conn->query("SELECT * FROM `$selectedFullTable`");
@@ -194,7 +195,6 @@ HTML;
 
 echo "</div>";
 echo "</div>";
-
 ?>
 <script>
 function autoResize(textarea) {
