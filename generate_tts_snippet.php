@@ -1,106 +1,101 @@
 <?php
+session_start();
+require_once 'db.php';
 
-// ✅ Enable error reporting for debugging (optional)
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
+// Google Cloud TTS API Key
+$apiKey = 'AIzaSyCTj5ksARALCyr7tXmQhgJBx8_tvgT76xU'; // Replace this securely
 
-// ✅ Use GET parameters for TTS
-$text = $_GET['text'] ?? '';
-$lang = strtolower(trim($_GET['lang'] ?? ''));
+// Get session context
+$table = $_SESSION['table'] ?? '';
+$col1 = $_SESSION['col1'] ?? '';
+$col2 = $_SESSION['col2'] ?? '';
 
-if (!$text || !$lang) {
-    http_response_code(400);
-    exit("Missing 'text' or 'lang'.");
+if (!$table || !$col1 || !$col2) {
+    die("❌ Missing table or column session info.");
 }
 
-// ✅ Normalize and map language values
+// Voice map
 $voiceMap = [
-    'czech' => 'czech', 'cz' => 'czech',
-    'english' => 'english', 'en' => 'english',
-    'german' => 'german', 'de' => 'german',
-    'french' => 'french', 'fr' => 'french',
-    'italian' => 'italian', 'it' => 'italian',
+    'czech' => 'cs-CZ-Standard-B',
+    'english' => 'en-GB-Standard-O',
+    'german' => 'de-DE-Wavenet-H'
 ];
 
-$lang = $voiceMap[$lang] ?? '';
-if (!$lang) {
-    http_response_code(400);
-    exit("Unsupported language value.");
+$sourceKey = strtolower($col1);
+$targetKey = strtolower($col2);
+
+$sourceVoice = $voiceMap[$sourceKey] ?? null;
+$targetVoice = $voiceMap[$targetKey] ?? null;
+
+if (!$sourceVoice || !$targetVoice) {
+    die("❌ Voice not configured for columns: $col1 / $col2");
 }
 
-// ✅ Set correct voice IDs per language
-$api_key = 'sk_3fd1ed62c6431f562064ece5d9e46dbb3e9cdf4b96451734';  // Replace with your actual key
-$voices = [
-    'czech' => 'OAAjJsQDvpg3sVjiLgyl',
-    'english' => 'goT3UYdM9bhm0n2lmKQx',
-    'german' => 'zl7GSCFv2aKISCB2LjZz',
-    'french' => 'INSERT_FRENCH_VOICE_ID_HERE', // Optional
-    'italian' => 'gANhjQSlAkHRXHeKewFT',
-];
-
-$voice_id = $voices[$lang] ?? '';
-if (!$voice_id) {
-    http_response_code(400);
-    exit("No voice ID configured for: $lang");
+// Ensure cache directory exists
+$folder = "cache/$table";
+if (!is_dir($folder)) {
+    mkdir($folder, 0777, true);
 }
 
-// ✅ Create cache folder if it doesn't exist
-$cacheDir = __DIR__ . '/cache';
-if (!file_exists($cacheDir)) {
-    mkdir($cacheDir, 0777, true);
+// Google TTS helper
+function googleTTS($text, $voiceName, $apiKey) {
+    $langCode = substr($voiceName, 0, 5);  // e.g. cs-CZ
+    $url = "https://texttospeech.googleapis.com/v1/text:synthesize?key=$apiKey";
+
+    $payload = json_encode([
+        'input' => ['text' => $text],
+        'voice' => [
+            'languageCode' => $langCode,
+            'name' => $voiceName
+        ],
+        'audioConfig' => ['audioEncoding' => 'MP3']
+    ]);
+
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => $payload,
+        CURLOPT_HTTPHEADER => ['Content-Type: application/json']
+    ]);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($httpCode !== 200) {
+        file_put_contents("log.txt", "TTS failed [$voiceName]: $text\n", FILE_APPEND);
+        return null;
+    }
+
+    $data = json_decode($response, true);
+    return base64_decode($data['audioContent'] ?? '');
 }
 
-// ✅ Generate a safe filename based on text and language
-$hash = md5($text . $lang);
-$cachedFile = "$cacheDir/$hash.mp3";
+// Generate and save snippets
+$query = "SELECT `$col1`, `$col2` FROM `$table`";
+$result = $conn->query($query);
 
-// ✅ Serve from cache if available
-if (file_exists($cachedFile)) {
-    header('Content-Type: audio/mpeg');
-    header('Content-Disposition: inline; filename="snippet.mp3"');
-    readfile($cachedFile);
-    exit;
+if ($result) {
+    $index = 1;
+    while ($row = $result->fetch_assoc()) {
+        $src = trim($row[$col1]);
+        $tgt = trim($row[$col2]);
+
+        if (!$src || !$tgt) continue;
+
+        $srcMp3 = googleTTS($src, $sourceVoice, $apiKey);
+        $tgtMp3 = googleTTS($tgt, $targetVoice, $apiKey);
+
+        if ($srcMp3 && $tgtMp3) {
+            file_put_contents(sprintf("%s/row_%03d_src.mp3", $folder, $index), $srcMp3);
+            file_put_contents(sprintf("%s/row_%03d_tgt.mp3", $folder, $index), $tgtMp3);
+        }
+
+        $index++;
+    }
 }
 
-// ✅ Call ElevenLabs API to generate audio
-$url = "https://api.elevenlabs.io/v1/text-to-speech/$voice_id/stream";
-$payload = json_encode([
-    'text' => $text,
-    'model_id' => 'eleven_multilingual_v2',
-    'voice_settings' => [
-        'stability' => 0.4,
-        'similarity_boost' => 0.8
-    ]
-]);
-
-$ch = curl_init($url);
-curl_setopt_array($ch, [
-    CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_POST => true,
-    CURLOPT_POSTFIELDS => $payload,
-    CURLOPT_HTTPHEADER => [
-        "xi-api-key: $api_key",
-        "Content-Type: application/json",
-        "Accept: audio/mpeg"
-    ]
-]);
-
-$response = curl_exec($ch);
-$http_code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-$error = curl_error($ch);
-curl_close($ch);
-
-if ($http_code !== 200 || !$response) {
-    http_response_code(500);
-    echo "TTS generation failed. [$http_code] $error";
-    exit;
-}
-
-// ✅ Save the response to cache
-file_put_contents($cachedFile, $response);
-
-// ✅ Serve the generated audio
-header('Content-Type: audio/mpeg');
-header('Content-Disposition: inline; filename="snippet.mp3"');
-echo $response;
+$conn->close();
+header("Location: main.php");
 exit;
