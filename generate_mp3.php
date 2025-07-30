@@ -13,7 +13,7 @@ $api_key = 'AIzaSyCTj5ksARALCyr7tXmQhgJBx8_tvgT76xU';  // Replace with your actu
 $voices = [
     'czech'   => 'cs-CZ-Wavenet-A',
     'english' => 'en-US-Wavenet-D',
-    'german'  => 'de-DE-Wavenet-B'
+    'german'  => 'de-DE-Standard-H',
 ];
 
 // === Get session table/column info ===

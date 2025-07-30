@@ -134,7 +134,7 @@ let ttsEnabled = { cz: true, foreign: true };
 let autoPlay = false;
 let playingNow = false;
 
-const cardElement = document.getElementById('card');
+const cardElement = document.getElementById('card'); 
 const audioElement = document.getElementById('ttsAudio');
 
 function playTTS(text, language) {
