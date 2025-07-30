@@ -3,7 +3,7 @@ require_once 'db.php';
 require_once 'session.php';
 include 'styling.php';
 
-// Fetch tables
+// Fetch tables 
 function getTables($conn) {
     $tables = [];
     $result = $conn->query("SHOW TABLES");
@@ -115,7 +115,8 @@ $conn->close();
   <button onclick="markDifficult()">❌ Study more</button>
   <button onclick="nextCard()">Next ➡️</button><br><br>
   🔊 Czech Audio: <input type="checkbox" id="toggleCz" checked onchange="toggleTTS('cz')">
-  🔊 Foreign Audio: <input type="checkbox" id="toggleForeign" checked onchange="toggleTTS('foreign')">
+  🔊 Foreign Audio: <input type="checkbox" id="toggleForeign" checked onchange="toggleTTS('foreign')"><br><br>
+  <button onclick="toggleAutoPlay()" id="autoPlayBtn">🔁 Auto Play All</button>
 </div>
 
 <audio id="ttsAudio" src="" hidden></audio>
@@ -130,6 +131,8 @@ let showingFront = true;
 let frontText = data[0]?.cz ?? '';
 let backText = data[0]?.foreign ?? '';
 let ttsEnabled = { cz: true, foreign: true };
+let autoPlay = false;
+let playingNow = false;
 
 const cardElement = document.getElementById('card');
 const audioElement = document.getElementById('ttsAudio');
@@ -189,6 +192,65 @@ function markKnown() {
 
 function toggleTTS(side) {
   ttsEnabled[side] = !ttsEnabled[side];
+}
+
+function toggleAutoPlay() {
+  autoPlay = !autoPlay;
+  document.getElementById('autoPlayBtn').textContent = autoPlay ? '⏸️ Stop Auto Play' : '🔁 Auto Play All';
+  if (autoPlay && !playingNow) {
+    index = 0;
+    playCardWithAudio();
+  }
+}
+
+function playCardWithAudio() {
+  if (index >= data.length || !autoPlay) {
+    playingNow = false;
+    return;
+  }
+
+  playingNow = true;
+  const czText = data[index]?.cz ?? '';
+  const foreignText = data[index]?.foreign ?? '';
+  const lang = data[index]?.language || targetLanguage;
+
+  cardElement.textContent = czText;
+  showingFront = true;
+
+  if (ttsEnabled.cz) {
+    const czUrl = `generate_tts_snippet.php?text=${encodeURIComponent(czText)}&lang=czech`;
+    audioElement.src = czUrl;
+    audioElement.onended = () => {
+      if (ttsEnabled.foreign) {
+        cardElement.textContent = foreignText;
+        showingFront = false;
+        const foreignUrl = `generate_tts_snippet.php?text=${encodeURIComponent(foreignText)}&lang=${encodeURIComponent(lang)}`;
+        audioElement.src = foreignUrl;
+        audioElement.onended = () => {
+          index++;
+          setTimeout(playCardWithAudio, 1000);
+        };
+        audioElement.play();
+      } else {
+        index++;
+        setTimeout(playCardWithAudio, 1000);
+      }
+    };
+    audioElement.play();
+  } else if (ttsEnabled.foreign) {
+    cardElement.textContent = foreignText;
+    showingFront = false;
+    const foreignUrl = `generate_tts_snippet.php?text=${encodeURIComponent(foreignText)}&lang=${encodeURIComponent(lang)}`;
+    audioElement.src = foreignUrl;
+    audioElement.onended = () => {
+      index++;
+      setTimeout(playCardWithAudio, 1000);
+    };
+    audioElement.play();
+  } else {
+    index++;
+    setTimeout(playCardWithAudio, 1000);
+  }
 }
 
 updateCard();
