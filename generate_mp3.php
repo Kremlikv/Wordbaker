@@ -88,7 +88,7 @@ if ($result) {
         $tgt_audio = googleTTS($target_text, $target_voice, substr($target_voice, 0, 5), $api_key);
 
         if ($src_audio && $tgt_audio) {
-            // Add 2 seconds silence after each voice (1s × 2)
+            // Add 2 seconds silence after each voice (1s × 2) 
             $final_audio .= $src_audio . $silence . $silence . $tgt_audio . $silence . $silence;
         }
     }
