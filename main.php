@@ -109,7 +109,11 @@ echo "👋 Logged in as " . htmlspecialchars($username) . " | <a href='logout.ph
 
 echo "<form method='POST' action='' id='tableActionForm'>";
 echo "<label>Select a table:</label><br>";
-echo "<div id='folder-view'>";
+
+echo "<form method='POST' action='' id='tableActionForm'>";
+echo "<label>Select a table:</label><br>";
+echo "<div class='directory-panel'><div id='folder-view'>";
+
 foreach ($folders as $folder => $tableList) {
     echo "<div class='folder' onclick=\"toggleFolder('$folder')\">📁 $folder</div>";
     echo "<div class='subtable' id='sub_$folder'>";
@@ -120,7 +124,11 @@ foreach ($folders as $folder => $tableList) {
     }
     echo "</div>";
 }
-echo "</div>";
+
+echo "</div></div>";  // Close folder-view and directory-panel
+
+
+echo "</div>"; 
 echo "<input type='hidden' name='table' id='selectedTableInput' value='" . htmlspecialchars($selectedFullTable) . "'>";
 echo "<input type='hidden' name='col1' value='" . htmlspecialchars($column1) . "'>";
 echo "<input type='hidden' name='col2' value='" . htmlspecialchars($column2) . "'>";

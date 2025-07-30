@@ -303,6 +303,27 @@ ul ul.open {
     background-color: #eef;
 }
 
+/* Direcstory panel frame */ 
+
+.directory-panel {
+    max-width: 100%;
+    max-height: 300px;
+    overflow-y: auto;
+    border: 1px solid #ccc;
+    padding: 10px;
+    margin-bottom: 15px;
+    border-radius: 6px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    background-color: #fdfdfd;
+}
+@media (max-width: 600px) {
+    .directory-panel {
+        max-height: 200px;
+        padding: 8px;
+    }
+}
+
+
 </style>
 
   
