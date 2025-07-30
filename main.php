@@ -1,9 +1,4 @@
 <?php
-// ini_set('display_errors', 1);
-// ini_set('display_startup_errors', 1);
-// error_reporting(E_ALL);
-// session_start();
-
 require_once 'db.php';
 require_once 'session.php';
 
@@ -17,7 +12,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_table'])) {
     }
 
     $tableToDelete = $conn->real_escape_string($_POST['delete_table']);
-
     $tables = [];
     $result = $conn->query("SHOW TABLES");
     while ($row = $result->fetch_array()) {
@@ -126,7 +120,6 @@ if (file_exists($audioFile)) {
 }
 
 // Show table
-
 if (!empty($selectedTable) && $res && $res->num_rows > 0) {
     echo "<form method='POST' action='update_table.php'>";
     echo "<input type='hidden' name='table' value='" . htmlspecialchars($selectedTable) . "'>";
@@ -135,9 +128,9 @@ if (!empty($selectedTable) && $res && $res->num_rows > 0) {
     $res->data_seek(0);
     $rowIndex = 0;
     while ($row = $res->fetch_assoc()) {
-        echo "<tr>";        
-        echo "<td><textarea name='rows[$rowIndex][col1]' rows='2' cols='25'>" . htmlspecialchars($row[$column1]) . "</textarea></td>";
-        echo "<td><textarea name='rows[$rowIndex][col2]' rows='2' cols='25'>" . htmlspecialchars($row[$column2]) . "</textarea></td>";
+        echo "<tr>";
+        echo "<td><textarea name='rows[$rowIndex][col1]' oninput='autoResize(this)' style='min-height: 40px; width: 100%; resize: none;'>" . htmlspecialchars($row[$column1]) . "</textarea></td>";
+        echo "<td><textarea name='rows[$rowIndex][col2]' oninput='autoResize(this)' style='min-height: 40px; width: 100%; resize: none;'>" . htmlspecialchars($row[$column2]) . "</textarea></td>";
         echo "<td><input type='checkbox' name='rows[$rowIndex][delete]'> Delete</td>";
         $rowIndex++;
         echo "</tr>";
@@ -145,8 +138,8 @@ if (!empty($selectedTable) && $res && $res->num_rows > 0) {
 
     // Blank row for new entry
     echo "<tr>";
-    echo "<td><textarea name='new_row[col1]' rows='2' cols='25' placeholder='New " . htmlspecialchars($heading1) . "'></textarea></td>";
-    echo "<td><textarea name='new_row[col2]' rows='2' cols='25' placeholder='New " . htmlspecialchars($heading2) . "'></textarea></td>";
+    echo "<td><textarea name='new_row[col1]' oninput='autoResize(this)' placeholder='New " . htmlspecialchars($heading1) . "' style='min-height: 40px; width: 100%; resize: none;'></textarea></td>";
+    echo "<td><textarea name='new_row[col2]' oninput='autoResize(this)' placeholder='New " . htmlspecialchars($heading2) . "' style='min-height: 40px; width: 100%; resize: none;'></textarea></td>";
     echo "<td><em>Add New</em></td>";
     echo "</tr>";
 
@@ -154,7 +147,6 @@ if (!empty($selectedTable) && $res && $res->num_rows > 0) {
     echo "<button type='submit'>💾 Save Changes</button>";
     echo "</form><br>";
 }
-
 
 // Protect important tables
 $protectedTables = ['difficult_words', 'mastered_words', 'users', 'example_table'];
@@ -177,5 +169,21 @@ echo <<<HTML
 </form>
 HTML;
 
-echo "</div></body></html>";
+echo "</div>";
 ?>
+
+<!-- JavaScript to auto-resize textareas -->
+<script>
+function autoResize(textarea) {
+    textarea.style.height = 'auto';
+    textarea.style.height = textarea.scrollHeight + 'px';
+}
+
+document.addEventListener("DOMContentLoaded", function () {
+    document.querySelectorAll("textarea").forEach(function (el) {
+        autoResize(el);
+    });
+});
+</script>
+
+</body></html>
