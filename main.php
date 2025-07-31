@@ -97,7 +97,6 @@ echo "</head><body>";
 // MENU BAR
 echo "<div style='text-align: center; margin-bottom: 20px;'>";
 echo "<a href='flashcards.php'><button>📘 Study Flashcards</button></a> ";
-// echo "<a href='generate_mp3.php'><button>🎿 Generate Audio</button></a> "; 
 echo "<a href='generate_mp3_google_ssml.php'><button>🎧 Generate MP3</a> ";
 echo "<a href='review_difficult.php'><button>🧠 Difficult Words</button></a> ";
 echo "<a href='mastered.php'><button>🌟 Mastered</button></a> ";
@@ -114,89 +113,37 @@ echo "<label>Select a table:</label><br>";
 echo "<div class='directory-panel'><div id='folder-view'>";
 
 foreach ($folders as $folder => $tableList) {
-    echo "<div class='folder' onclick=\"toggleFolder('$folder')\">📁 $folder</div>";
-    echo "<div class='subtable' id='sub_$folder'>";
+    echo "<details><summary class='folder'>📁 " . htmlspecialchars($folder) . "</summary><div class='subtable' id='sub_$folder'>";
     foreach ($tableList as $entry) {
         $fullTable = $entry['table_name'];
         $display = $entry['display_name'];
-        echo "<span onclick=\"selectTable('$fullTable')\">📄 $display</span>";
+        echo "<span onclick=\"selectTable('$fullTable')\">📄 " . htmlspecialchars($display) . "</span>";
     }
-    echo "</div>";
+    echo "</div></details>";
 }
 
-echo "</div></div>";  // Close folder-view and directory-panel
+echo "</div></div>";
 
 echo "<input type='hidden' name='table' id='selectedTableInput' value='" . htmlspecialchars($selectedFullTable) . "'>";
 echo "<input type='hidden' name='col1' value='" . htmlspecialchars($column1) . "'>";
 echo "<input type='hidden' name='col2' value='" . htmlspecialchars($column2) . "'>";
 echo "</form><br><br>";
 
-echo "<div>"; 
-echo "<h3>Selected Table: <span class='selected-table'>" . htmlspecialchars($selectedFullTable) . "</span></h3>";
-
-$audioFile = "cache/$selectedFullTable.mp3";
-if (file_exists($audioFile)) {
-    echo "<audio controls src='$audioFile'></audio><br>";
-    echo "<a href='$audioFile' download class='button'>Download MP3</a><br><br>";
-} else {
-    echo "<em>No audio generated yet for this table.</em><br><br>";
-}
-
-if (!empty($selectedFullTable) && $res && $res->num_rows > 0) {
-    echo "<form method='POST' action='update_table.php'>";
-    echo "<input type='hidden' name='table' value='" . htmlspecialchars($selectedFullTable) . "'>";
-    echo "<input type='hidden' name='col1' value='" . htmlspecialchars($column1) . "'>";
-    echo "<input type='hidden' name='col2' value='" . htmlspecialchars($column2) . "'>";
-    echo "<table border='1' cellpadding='5' cellspacing='0'>";
-    echo "<tr><th>" . htmlspecialchars($heading1) . "</th><th>" . htmlspecialchars($heading2) . "</th><th>Action</th></tr>";
-    $res->data_seek(0);
-    $rowIndex = 0;
-    while ($row = $res->fetch_assoc()) {
-        echo "<tr>";
-        echo "<input type='hidden' name='rows[$rowIndex][orig_col1]' value='" . htmlspecialchars($row[$column1]) . "'>";
-        echo "<input type='hidden' name='rows[$rowIndex][orig_col2]' value='" . htmlspecialchars($row[$column2]) . "'>";
-        echo "<td><textarea name='rows[$rowIndex][col1]' oninput='autoResize(this)' style='min-height: 40px; width: 100%; resize: none;'>" . htmlspecialchars($row[$column1]) . "</textarea></td>";
-        echo "<td><textarea name='rows[$rowIndex][col2]' oninput='autoResize(this)' style='min-height: 40px; width: 100%; resize: none;'>" . htmlspecialchars($row[$column2]) . "</textarea></td>";
-        echo "<td><input type='checkbox' name='rows[$rowIndex][delete]'> Delete</td>";
-        $rowIndex++;
-        echo "</tr>";
-    }
-    echo "<tr>";
-    echo "<td><textarea name='new_row[col1]' oninput='autoResize(this)' placeholder='New " . htmlspecialchars($heading1) . "' style='min-height: 40px; width: 100%; resize: none;'></textarea></td>";
-    echo "<td><textarea name='new_row[col2]' oninput='autoResize(this)' placeholder='New " . htmlspecialchars($heading2) . "' style='min-height: 40px; width: 100%; resize: none;'></textarea></td>";
-    echo "<td><em>Add New</em></td>";
-    echo "</tr>";
-    echo "</table><br>";
-    echo "<button type='submit'>💾 Save Changes</button>";
-    echo "</form><br>";
-}
-
-$protectedTables = ['difficult_words', 'mastered_words', 'users', 'example_table'];
-if (in_array($selectedFullTable, $protectedTables)) {
-    echo "<p style='color: red;'><strong>⚠️ The '$selectedFullTable' table is protected and cannot be deleted.</strong></p><br><br>";
-} elseif (!empty($selectedFullTable)) {
-    echo "<form method='post' onsubmit=\"return confirm('Are you sure you want to permanently delete the table " . htmlspecialchars($selectedFullTable) . "? This action cannot be undone.');\">";
-    echo "<input type='hidden' name='delete_table' value='" . htmlspecialchars($selectedFullTable) . "'>";
-    echo "<button type='submit' class='delete-button'>🗑️ Delete This Table</button>";
-    echo "</form><br><br>";
-}
-
+// Upload section
 echo <<<HTML
 <h2>📤 Upload</h2>
 <form method="POST" action="upload_handler.php" enctype="multipart/form-data">
     <label>Select Folder:</label>
     <select name="folder" required>
         <option value="">-- Choose Folder --</option>
-        <?php
-        foreach ($folders as $folder => $tableList) {
-            echo "<option value=\"" . htmlspecialchars($folder) . "\">" . htmlspecialchars(ucfirst($folder)) . "</option>";
-        }
-        ?>
+HTML;
+foreach ($folders as $folder => $tableList) {
+    echo "<option value=\"" . htmlspecialchars($folder) . "\">" . htmlspecialchars(ucfirst($folder)) . "</option>";
+}
+echo <<<HTML
     </select><br><br>
-
     <label>Select CSV Files:</label>
     <input type="file" name="csv_files[]" accept=".csv" multiple required><br><br>
-
     <p style="font-size: 0.9em; color: gray;">
         ➤ Filenames will be used to create table names.<br>
         ➤ System will generate: <code>username_folder_filename</code><br>
@@ -204,14 +151,11 @@ echo <<<HTML
         ➤ CSVs must have <strong>“Czech”</strong> as one of the headers and at least one other column.<br>
         ➤ Encoding must be UTF-8 without BOM.
     </p>
-
     <button type="submit">Upload Files</button>
 </form>
 HTML;
 
-echo "</div>";
-echo "</div>";
-
+echo "</div></body></html>";
 ?>
 <script>
 function autoResize(textarea) {
@@ -235,4 +179,3 @@ document.addEventListener("DOMContentLoaded", function () {
     });
 });
 </script>
-</body></html>
