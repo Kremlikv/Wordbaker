@@ -52,7 +52,9 @@ function getUserFoldersAndTables($conn, $username) {
     return $allTables;
 }
 
-$username = $_SESSION['username'] ?? '';
+// $username = $_SESSION['username'] ?? '';
+$username = strtolower($_SESSION['username'] ?? '');
+
 $folders = getUserFoldersAndTables($conn, $username);
 $selectedFullTable = $_POST['table'] ?? $_GET['table'] ?? '';
 
@@ -133,27 +135,22 @@ echo "</form><br><br>";
 echo <<<HTML
 <h2>📤 Upload</h2>
 <form method="POST" action="upload_handler.php" enctype="multipart/form-data">
-    <label>Select Folder:</label>
-    <select name="folder" required>
-        <option value="">-- Choose Folder --</option>
-HTML;
-foreach ($folders as $folder => $tableList) {
-    echo "<option value=\"" . htmlspecialchars($folder) . "\">" . htmlspecialchars(ucfirst($folder)) . "</option>";
-}
-echo <<<HTML
-    </select><br><br>
     <label>Select CSV Files:</label>
     <input type="file" name="csv_files[]" accept=".csv" multiple required><br><br>
+
     <p style="font-size: 0.9em; color: gray;">
-        ➤ Filenames will be used to create table names.<br>
-        ➤ System will generate: <code>username_folder_filename</code><br>
-        ➤ If a filename already starts with your username, it will be used as-is.<br>
-        ➤ CSVs must have <strong>“Czech”</strong> as one of the headers and at least one other column.<br>
-        ➤ Encoding must be UTF-8 without BOM.
+        ➤ Your <strong>filenames</strong> will be used to create tables.<br>
+        ➤ Recommended format: <code>FolderName_FileName.csv</code><br>
+        ➤ The system will automatically name tables like: <code>username_folder_filename</code><br>
+        ➤ If your filename already starts with your username (e.g. <code>kremlik_...</code>), it will be used as-is.<br>
+        ➤ CSVs must have a <strong>“Czech”</strong> column and at least one other language column.<br>
+        ➤ Encoding must be <strong>UTF-8</strong> without BOM.
     </p>
+
     <button type="submit">Upload Files</button>
 </form>
 HTML;
+
 
 echo "</div></body></html>";
 ?>

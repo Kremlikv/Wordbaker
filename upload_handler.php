@@ -4,7 +4,9 @@ require_once 'db.php';
 
 $conn->set_charset("utf8mb4");
 
-$username = $_SESSION['username'] ?? '';
+// $username = $_SESSION['username'] ?? '';
+$username = strtolower($_SESSION['username'] ?? '');
+
 if (!$username) {
     die("Not logged in.");
 }
