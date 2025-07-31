@@ -3,13 +3,9 @@ ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
-// Safe test to confirm file started
 use Smalot\PdfParser\Parser;
 echo "<!-- PDF Scan Start -->";
 
-
-
-// Try-catch to catch fatal errors
 try {
     require_once 'pdfparser/alt_autoload.php';
     echo "<!-- PDF Parser loaded -->";
@@ -18,7 +14,6 @@ try {
     exit;
 }
 ?>
-
 
 <?php
 require_once 'session.php';
@@ -51,7 +46,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['pdf_file'])) {
             try {
                 $parser = new Parser();
                 $pdf = $parser->parseFile($fullPath);
-                $text = $pdf->getText();
+                $pages = $pdf->getPages();
+                $pageRangeInput = $_POST['page_range'] ?? '';
+                $text = '';
+
+                if ($pageRangeInput) {
+                    $pageNumbers = [];
+                    $parts = explode(',', $pageRangeInput);
+                    foreach ($parts as $part) {
+                        if (strpos($part, '-') !== false) {
+                            list($start, $end) = explode('-', $part);
+                            $start = max(1, (int)$start);
+                            $end = min(count($pages), (int)$end);
+                            for ($i = $start; $i <= $end; $i++) {
+                                $pageNumbers[] = $i;
+                            }
+                        } else {
+                            $i = (int)$part;
+                            if ($i >= 1 && $i <= count($pages)) {
+                                $pageNumbers[] = $i;
+                            }
+                        }
+                    }
+                    $pageNumbers = array_unique($pageNumbers);
+                    sort($pageNumbers);
+
+                    foreach ($pageNumbers as $pageIndex) {
+                        $text .= $pages[$pageIndex - 1]->getText() . ' ';
+                    }
+                } else {
+                    $text = $pdf->getText();
+                }
 
                 if (!$text || trim($text) === '') {
                     $error = "❌ No text extracted from the PDF.";
@@ -85,7 +110,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['pdf_file'])) {
       padding: 10px;
       font-size: 1em;
     }
-    textarea { height: 300px; resize: vertical; }
+    textarea {
+      height: 300px;
+      resize: vertical;
+      user-select: text;
+      -webkit-user-select: text;
+      -ms-user-select: text;
+      touch-action: manipulation;
+      padding: 12px;
+      line-height: 1.5;
+    }
     iframe { width: 100%; height: 500px; border: 1px solid #aaa; }
     button {
       background-color: #4CAF50;
@@ -176,19 +210,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['pdf_file'])) {
       });
     }
 
+    function copyText() {
+      const textArea = document.getElementById("textArea");
+      textArea.select();
+      textArea.setSelectionRange(0, 99999);
+      document.execCommand("copy");
+      alert("Text copied to clipboard.");
+    }
+
     window.addEventListener('DOMContentLoaded', updateLabels);
   </script>
 </head>
 <body>
 
-<!-- Login info -->
 <?php echo "<div class='content'>";
 echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Logout</a>"; ?>
 
 <h2 style="text-align:center;">📄 Scan PDF → Review → Translate</h2>
 
 <?php if ($error): ?>
-  <p style="color: red; text-align:center;"><?php echo htmlspecialchars($error); ?></p>
+  <p style="color: red; text-align:center;">
+    <?php echo htmlspecialchars($error); ?>
+  </p>
 <?php endif; ?>
 
 <?php if (!$extractedText): ?>
@@ -196,10 +239,14 @@ echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Log
     <label>Select PDF File:
       <input type="file" name="pdf_file" accept=".pdf" required>
     </label>
+
+    <label>Page Range (optional):
+      <input type="text" name="page_range" placeholder="e.g. 1-3 or 2,4,6">
+    </label>
+
     <button type="submit">📤 Extract Text</button>
 
     <label>using: https://github.com/smalot/pdfparser</label><br><br>
-
   </form>
 <?php else: ?>
   <form method="POST" action="translator.php" onsubmit="return validateLangSelection(event)">
@@ -210,7 +257,6 @@ echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Log
     <label>Source Language:
       <select name="sourceLang" id="sourceLang" onchange="updateLabels()" required>
         <option value="" disabled selected>Select source language</option>
-        <!-- <option value="auto">Auto Detect</option> -->
         <option value="en">English</option>
         <option value="de">German</option>
         <option value="fr">French</option>
@@ -257,6 +303,7 @@ echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Log
     </label>
 
     <button type="button" onclick="cleanWithAI()">🧠 Clean Text with AI</button>
+    <button type="button" onclick="copyText()">📋 Copy Text</button>
     <button type="submit">🌍 Translate</button>
   </form>
 
