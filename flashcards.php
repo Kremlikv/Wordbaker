@@ -96,7 +96,8 @@ $conn->close();
 <p>👤 Logged in as: <strong><?php echo htmlspecialchars($_SESSION['username']); ?></strong> | <a href='logout.php'>Logout</a></p>
 
 <!-- Table selection form -->
-<form method='POST' action=''>
+<!--
+  <form method='POST' action=''>
   <label for='table'>Select a table:</label>
   <select name='table' id='table'>
     <?php foreach ($tables as $table): ?>
@@ -106,6 +107,7 @@ $conn->close();
   <button type='submit'>⬆️ Load</button>
 </form>
 <br><br>
+ -->
 
 <h2>Flashcards for Table: <?php echo htmlspecialchars($selectedTable); ?></h2>
 
