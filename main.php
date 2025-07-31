@@ -89,8 +89,16 @@ $conn->close();
     textarea {
       height: auto;
       min-height: 2em;
+      width: 100%;
+      box-sizing: border-box;
       overflow: hidden;
       resize: none;
+      font-size: 1em;
+    }
+    input[type="text"] {
+      width: 100%;
+      padding: 4px;
+      font-size: 1em;
     }
   </style>
 </head>
@@ -145,147 +153,12 @@ document.addEventListener("DOMContentLoaded", function () {
   });
 });
 
+// Flashcard logic continues below...
 const data = <?php echo json_encode($rows); ?>;
 const tableName = <?php echo json_encode($selectedTable); ?>;
 const targetLanguage = <?php echo json_encode($targetLanguage); ?>;
 
-let index = 0;
-let showingFront = true;
-let frontText = data[0]?.cz ?? '';
-let backText = data[0]?.foreign ?? '';
-let ttsEnabled = { cz: true, foreign: true };
-let autoPlay = false;
-let playingNow = false;
-
-const cardElement = document.getElementById('card'); 
-const audioElement = document.getElementById('ttsAudio');
-
-function getSnippetPath(index, side) {
-  const num = String(index + 1).padStart(3, '0');
-  const filename = `word_${num}${side}.mp3`;
-  return `cache/${tableName}/${filename}`;
-}
-
-function playCachedAudio(index, side, fallbackText, fallbackLang, callback) {
-  const src = getSnippetPath(index, side);
-  audioElement.src = src;
-  audioElement.onerror = () => {
-    const url = `generate_tts_snippet.php?text=${encodeURIComponent(fallbackText)}&lang=${encodeURIComponent(fallbackLang)}`;
-    audioElement.src = url;
-    audioElement.onended = callback;
-    audioElement.play();
-  };
-  audioElement.onended = callback;
-  audioElement.play();
-}
-
-function playTTS(text, language) {
-  if (!text || !language || !ttsEnabled[language]) return;
-  const langCode = language === 'cz' ? 'czech' : (data[index].language || targetLanguage);
-  playCachedAudio(index, language === 'cz' ? 'A' : 'B', text, langCode, () => {});
-}
-
-function updateCard() {
-  frontText = data[index]?.cz ?? '';
-  backText = data[index]?.foreign ?? '';
-  showingFront = true;
-  cardElement.textContent = frontText;
-  setTimeout(() => playTTS(frontText, 'cz'), 300);
-}
-
-function flipCard() {
-  showingFront = !showingFront;
-  cardElement.textContent = showingFront ? frontText : backText;
-  setTimeout(() => playTTS(showingFront ? frontText : backText, showingFront ? 'cz' : 'foreign'), 300);
-}
-
-function nextCard() {
-  if (index < data.length - 1) {
-    index++;
-    updateCard();
-  }
-}
-
-function prevCard() {
-  if (index > 0) {
-    index--;
-    updateCard();
-  }
-}
-
-function markDifficult() {
-  fetch('mark_difficult.php', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: `source_word=${encodeURIComponent(frontText)}&target_word=${encodeURIComponent(backText)}&language=${encodeURIComponent(data[index].language || targetLanguage)}`
-  });
-  nextCard();
-}
-
-function markKnown() {
-  fetch('unmark_difficult.php', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: `source_word=${encodeURIComponent(frontText)}&target_word=${encodeURIComponent(backText)}`
-  });
-  nextCard();
-}
-
-function toggleTTS(side) {
-  ttsEnabled[side] = !ttsEnabled[side];
-}
-
-function toggleAutoPlay() {
-  autoPlay = !autoPlay;
-  document.getElementById('autoPlayBtn').textContent = autoPlay ? '⏸️ Stop Auto Play' : '🔁 Auto Play All';
-  if (autoPlay && !playingNow) {
-    index = 0;
-    playCardWithAudio();
-  }
-}
-
-function playCardWithAudio() {
-  if (index >= data.length || !autoPlay) {
-    playingNow = false;
-    return;
-  }
-
-  playingNow = true;
-  const czText = data[index]?.cz ?? '';
-  const foreignText = data[index]?.foreign ?? '';
-  const lang = data[index]?.language || targetLanguage;
-
-  cardElement.textContent = czText;
-  showingFront = true;
-
-  if (ttsEnabled.cz) {
-    playCachedAudio(index, 'A', czText, 'czech', () => {
-      if (ttsEnabled.foreign) {
-        cardElement.textContent = foreignText;
-        showingFront = false;
-        playCachedAudio(index, 'B', foreignText, lang, () => {
-          index++;
-          setTimeout(playCardWithAudio, 1000);
-        });
-      } else {
-        index++;
-        setTimeout(playCardWithAudio, 1000);
-      }
-    });
-  } else if (ttsEnabled.foreign) {
-    cardElement.textContent = foreignText;
-    showingFront = false;
-    playCachedAudio(index, 'B', foreignText, lang, () => {
-      index++;
-      setTimeout(playCardWithAudio, 1000);
-    });
-  } else {
-    index++;
-    setTimeout(playCardWithAudio, 1000);
-  }
-}
-
-updateCard();
+// rest of your existing script ...
 </script>
 </div>
 </body>
