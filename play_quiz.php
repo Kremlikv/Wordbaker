@@ -3,11 +3,19 @@ require_once 'db.php';
 require_once 'session.php';
 
 session_start();
+
+if (isset($_POST['restart'])) {
+    unset($_SESSION['score'], $_SESSION['question_index'], $_SESSION['questions'], $_SESSION['quiz_table']);
+    header("Location: play_quiz.php");
+    exit;
+}
+
 if (!isset($_SESSION['score'])) {
     $_SESSION['score'] = 0;
     $_SESSION['question_index'] = 0;
     $_SESSION['questions'] = [];
 }
+
 
 // Load available quiz_choices_* tables
 $quizTables = [];
