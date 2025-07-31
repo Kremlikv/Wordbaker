@@ -11,10 +11,11 @@ if (!$username) {
     die("Not logged in.");
 }
 
-$folder = $_POST['folder'] ?? '';
-if (!$folder || !isset($_FILES['csv_files'])) {
-    die("Missing folder or files.");
+
+if (!isset($_FILES['csv_files'])) {
+    die("Missing uploaded files.");
 }
+
 
 foreach ($_FILES['csv_files']['tmp_name'] as $i => $tmpName) {
     $originalName = $_FILES['csv_files']['name'][$i];
@@ -22,11 +23,17 @@ foreach ($_FILES['csv_files']['tmp_name'] as $i => $tmpName) {
 
     // Determine table name
     if (stripos($filenameOnly, $username . "_") === 0) {
-        $table = $filenameOnly;
+    $table = $filenameOnly;
     } else {
-        $table = "{$username}_{$folder}_{$filenameOnly}";
+        $table = $username . "_" . $filenameOnly;
     }
+
+
     $table = strtolower(preg_replace('/[^a-zA-Z0-9_]/', '_', $table));
+    $table = preg_replace('/_+/', '_', $table); // Collapse multiple underscores into one
+    $table = trim(preg_replace('/_+/', '_', preg_replace('/[^a-zA-Z0-9_]/', '_', $table)), '_');
+
+
 
     // Check if table already exists
     $result = $conn->query("SHOW TABLES LIKE '$table'");
