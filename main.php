@@ -1,165 +1,224 @@
 <?php
-require_once 'db.php'; 
+require_once 'db.php';
 require_once 'session.php';
-include 'styling.php';
 
-function getTables($conn) {
+// Handle table deletion BEFORE any output
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_table'])) {
+    $conn = new mysqli($host, $user, $password, $database);
+    $conn->set_charset("utf8mb4");
+
+    if ($conn->connect_error) {
+        die("Connection failed: " . $conn->connect_error);
+    }
+
+    $tableToDelete = $conn->real_escape_string($_POST['delete_table']);
     $tables = [];
     $result = $conn->query("SHOW TABLES");
-    if ($result) {
-        while ($row = $result->fetch_array()) {
-            $tables[] = $row[0];
+    while ($row = $result->fetch_array()) {
+        $tables[] = $row[0];
+    }
+
+    if (in_array($tableToDelete, $tables)) {
+        $conn->query("DROP TABLE `$tableToDelete`");
+        $audioPath = "cache/$tableToDelete.mp3";
+        if (file_exists($audioPath)) {
+            unlink($audioPath);
         }
     }
-    return $tables;
+
+    $conn->close();
+    header("Location: " . $_SERVER['PHP_SELF']);
+    exit;
 }
 
-$tables = getTables($conn);
-$selectedTable = $_POST['table'] ?? ($_GET['table'] ?? ($_SESSION['table'] ?? ($tables[0] ?? '')));
+function getUserFoldersAndTables($conn, $username) {
+    $allTables = [];
+    $result = $conn->query("SHOW TABLES");
+    while ($row = $result->fetch_array()) {
+        $table = $row[0];
+        if (stripos($table, $username . '_') === 0) {
+            $suffix = substr($table, strlen($username) + 1);
+            $suffix = preg_replace('/_+/', '_', $suffix);
+            $parts = explode('_', $suffix, 2);
+            if (count($parts) === 2 && trim($parts[0]) !== '') {
+                $folder = $parts[0];
+                $file = $parts[1];
+            } else {
+                $folder = 'Uncategorized';
+                $file = $suffix;
+            }
+            $allTables[$folder][] = [
+                'table_name' => $table,
+                'display_name' => $file
+            ];
+        }
+    }
+    return $allTables;
+}
 
-$_SESSION['table'] = $selectedTable;
+$username = strtolower($_SESSION['username'] ?? '');
 
-$rows = [];
+$conn->set_charset("utf8mb4");
+$folders = getUserFoldersAndTables($conn, $username);
+$selectedFullTable = $_POST['table'] ?? $_GET['table'] ?? '';
+
 $column1 = '';
 $column2 = '';
-$targetLanguage = '';
+$heading1 = '';
+$heading2 = '';
 
-if (!empty($selectedTable)) {
-    $result = $conn->query("SELECT * FROM `$selectedTable`");
-    if ($result && $result->num_rows > 0) {
-        $columns = $result->fetch_fields();
-        $col1 = $columns[0]->name;
-        $col2 = $columns[1]->name;
+$res = false;
+if (!empty($selectedFullTable)) {
+    $res = $conn->query("SELECT * FROM `$selectedFullTable`");
+    if ($res && $res->num_rows > 0) {
+        $columns = $res->fetch_fields();
 
-        $_SESSION['col1'] = $col1;
-        $_SESSION['col2'] = $col2;
-
-        while ($row = $result->fetch_assoc()) {
-            if ($selectedTable === 'difficult_words') {
-                $rows[] = [
-                    'cz' => $row['source_word'],
-                    'foreign' => $row['target_word'],
-                    'language' => $row['language']
-                ];
-            } else {
-                $rows[] = [
-                    'cz' => $row[$col1],
-                    'foreign' => $row[$col2]
-                ];
-            }
+        if ($selectedFullTable === "difficult_words") {
+            $column1 = "source_word";
+            $column2 = "target_word";
+            $heading1 = "Czech";
+            $heading2 = "Foreign";
+        } else {
+            $column1 = $columns[0]->name ?? '';
+            $column2 = $columns[1]->name ?? '';
+            $heading1 = $column1;
+            $heading2 = $column2;
         }
-        $column1 = $col1;
-        $column2 = $col2;
-        $targetLanguage = strtolower($col2);
+
+        $_SESSION['table'] = $selectedFullTable;
+        $_SESSION['col1'] = $column1;
+        $_SESSION['col2'] = $column2;
     }
 }
 
-$conn->close();
+// HTML Output
+echo "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>Manage Tables</title>";
+include 'styling.php';
+echo "<style>
+.folder { cursor: pointer; margin: 5px 0; color: goldenrod; font-weight: bold; }
+.subtable { margin-left: 20px; display: none; }
+.subtable span { cursor: pointer; display: block; margin: 2px 0; }
+.subtable span:hover { background-color: #eef; }
+textarea { width: 100%; min-height: 1.5em; resize: vertical; box-sizing: border-box; font-family: inherit; font-size: 1em; }
+</style>";
+echo "</head><body>";
+
+// MENU BAR
+echo "<div style='text-align: center; margin-bottom: 20px;'>";
+echo "<a href='flashcards.php'><button>📘 Study Flashcards</button></a> ";
+echo "<a href='generate_mp3_google_ssml.php'><button>🎧 Generate MP3</a> ";
+echo "<a href='review_difficult.php'><button>🧠 Difficult Words</button></a> ";
+echo "<a href='mastered.php'><button>🌟 Mastered</button></a> ";
+echo "<a href='translator.php'><button>🌐 Translate</button></a> ";
+echo "<a href='pdf_scan.php'><button>📄 PDF-to-text</button></a>";
+echo "</div>";
+
+// MAIN CONTENT
+echo "<div class='content'>";
+echo "👋 Logged in as " . htmlspecialchars($username) . " | <a href='logout.php'>Logout</a><br><br>";
+
+echo "<form method='POST' action='' id='tableActionForm'>";
+echo "<label>Select a table:</label><br>";
+echo "<div class='directory-panel'><div id='folder-view'>";
+
+foreach ($folders as $folder => $tableList) {
+    $safeFolderId = htmlspecialchars(strtolower($folder));
+    $displayFolderName = ucfirst($folder);
+
+    echo "<details><summary class='folder' onclick=\"toggleFolder('$safeFolderId')\">📁 " . htmlspecialchars($displayFolderName) . "</summary>";
+    echo "<div class='subtable' id='sub_$safeFolderId'>";
+    foreach ($tableList as $entry) {
+        $fullTable = $entry['table_name'];
+        $display = $entry['display_name'];
+        echo "<span onclick=\"selectTable('$fullTable')\">📄 " . htmlspecialchars($display) . "</span>";
+    }
+    echo "</div></details>";
+}
+
+echo "</div></div>";
+echo "<input type='hidden' name='table' id='selectedTableInput' value='" . htmlspecialchars($selectedFullTable) . "'>";
+echo "<input type='hidden' name='col1' value='" . htmlspecialchars($column1) . "'>";
+echo "<input type='hidden' name='col2' value='" . htmlspecialchars($column2) . "'>";
+echo "</form><br><br>";
+
+// Display selected table
+if (!empty($selectedFullTable) && $res && $res->num_rows > 0) {
+    echo "<h3>Selected Table: " . htmlspecialchars($selectedFullTable) . "</h3>";
+
+    // AUDIO section
+    $audioFile = "cache/$selectedFullTable.mp3";
+    if (file_exists($audioFile)) {
+        echo "<audio controls src='$audioFile'></audio><br>";
+        echo "<a href='$audioFile' download class='button'>Download MP3</a><br><br>";
+    } else {
+        echo "<em>No audio generated yet for this table.</em><br><br>";
+    }
+
+    echo "<form method='POST' action='update_table.php'>";
+    echo "<input type='hidden' name='table' value='" . htmlspecialchars($selectedFullTable) . "'>";
+    echo "<input type='hidden' name='col1' value='" . htmlspecialchars($column1) . "'>";
+    echo "<input type='hidden' name='col2' value='" . htmlspecialchars($column2) . "'>";
+    echo "<table border='1' cellpadding='5' cellspacing='0'>";
+    echo "<tr><th>" . htmlspecialchars($heading1) . "</th><th>" . htmlspecialchars($heading2) . "</th><th>Action</th></tr>";
+    $res->data_seek(0);
+    $i = 0;
+    while ($row = $res->fetch_assoc()) {
+        echo "<tr>";
+        echo "<td><textarea name='rows[$i][col1]' oninput='autoResize(this)'>" . htmlspecialchars($row[$column1]) . "</textarea></td>";
+        echo "<td><textarea name='rows[$i][col2]' oninput='autoResize(this)'>" . htmlspecialchars($row[$column2]) . "</textarea></td>";
+        echo "<td><input type='checkbox' name='rows[$i][delete]'> Delete</td>";
+        echo "<input type='hidden' name='rows[$i][orig_col1]' value='" . htmlspecialchars($row[$column1]) . "'>";
+        echo "<input type='hidden' name='rows[$i][orig_col2]' value='" . htmlspecialchars($row[$column2]) . "'>";
+        echo "</tr>";
+        $i++;
+    }
+    echo "<tr><td><textarea name='new_row[col1]' placeholder='New $heading1' oninput='autoResize(this)'></textarea></td>
+              <td><textarea name='new_row[col2]' placeholder='New $heading2' oninput='autoResize(this)'></textarea></td>
+              <td><em>Add New</em></td></tr>";
+    echo "</table><br><button type='submit'>💾 Save Changes</button></form><br>";
+}
+
+// Upload section
+echo <<<HTML
+<h2>📤 Upload</h2>
+<form method="POST" action="upload_handler.php" enctype="multipart/form-data">
+    <label>Select CSV Files:</label>
+    <input type="file" name="csv_files[]" accept=".csv" multiple required><br><br>
+
+    <p style="font-size: 0.9em; color: gray;">
+        ➤ Recommended format: <code>FolderName_FileName.csv</code><br>
+        ➤ CSVs must have a <strong>“Czech”</strong> column and at least one other language column.<br>
+        ➤ Encoding must be <strong>UTF-8</strong> without BOM.
+    </p>
+
+    <button type="submit">Upload Files</button>
+</form>
+HTML;
+
+echo "</div></body></html>";
 ?>
-
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>Flashcards: <?php echo htmlspecialchars($selectedTable); ?></title>
-  <style>
-    body {
-      font-family: Arial;
-      text-align: center;
-      padding: 30px;
-      margin: 0;
-    }
-    .card {
-      font-size: 2em;
-      margin: 20px auto;
-      border: 2px solid #333;
-      padding: 40px;
-      width: 90%;
-      max-width: 400px;
-      cursor: pointer;
-      background: #fdfdfd;
-      border-radius: 10px;
-      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-    }
-    .controls button {
-      margin: 10px;
-      padding: 10px 20px;
-      font-size: 1em;
-    }
-    textarea {
-      height: auto;
-      min-height: 2em;
-      width: 100%;
-      box-sizing: border-box;
-      overflow: hidden;
-      resize: none;
-      font-size: 1em;
-    }
-    input[type="text"] {
-      width: 100%;
-      padding: 4px;
-      font-size: 1em;
-    }
-  </style>
-</head>
-<body>
-
-<div class='content'>
-<p>👤 Logged in as: <strong><?php echo htmlspecialchars($_SESSION['username']); ?></strong> | <a href='logout.php'>Logout</a></p>
-
-<form method='POST' action=''>
-  <label for='table'>Select a table:</label>
-  <select name='table' id='table'>
-    <?php foreach ($tables as $table): ?>
-      <option value='<?php echo $table; ?>' <?php echo ($table === $selectedTable) ? 'selected' : ''; ?>><?php echo $table; ?></option>
-    <?php endforeach; ?>
-  </select>
-  <button type='submit'>⬆️ Load</button>
-</form>
-<br><br>
-
-<h2>Flashcards for Table: <?php echo htmlspecialchars($selectedTable); ?></h2>
-
-<form method="POST" action="review_difficult.php" style="margin-bottom: 20px;">
-  <input type="hidden" name="table" value="<?php echo htmlspecialchars($selectedTable); ?>">
-  <button type="submit">🧠 Review My Difficult Words</button>
-</form>
-
-<div id="card" class="card" onclick="flipCard()"></div>
-<div class="controls">
-  <button onclick="prevCard()">⬅️ Previous</button>
-  <button onclick="markKnown()">✅ I know this</button>
-  <button onclick="markDifficult()">❌ Study more</button>
-  <button onclick="nextCard()">Next ➡️</button><br><br>
-  🔊 Czech Audio: <input type="checkbox" id="toggleCz" checked onchange="toggleTTS('cz')">
-  🔊 Foreign Audio: <input type="checkbox" id="toggleForeign" checked onchange="toggleTTS('foreign')"><br><br>
-  <button onclick="toggleAutoPlay()" id="autoPlayBtn">🔁 Auto Play All</button>
-</div>
-
-<audio id="ttsAudio" src="" hidden></audio>
-
 <script>
 function autoResize(textarea) {
-  textarea.style.height = 'auto';
-  textarea.style.height = textarea.scrollHeight + 'px';
+    textarea.style.height = 'auto';
+    textarea.style.height = textarea.scrollHeight + 'px';
+}
+
+function toggleFolder(folder) {
+    const el = document.getElementById("sub_" + folder);
+    if (el) {
+        el.style.display = (el.style.display === "block") ? "none" : "block";
+    }
+}
+
+function selectTable(fullTableName) {
+    console.log("Selecting table:", fullTableName);
+    document.getElementById("selectedTableInput").value = fullTableName;
+    document.getElementById("tableActionForm").submit();
 }
 
 document.addEventListener("DOMContentLoaded", function () {
-  document.querySelectorAll("textarea").forEach(function (el) {
-    autoResize(el);
-    el.addEventListener('input', function () {
-      autoResize(this);
+    document.querySelectorAll("textarea").forEach(function (el) {
+        autoResize(el); 
     });
-  });
 });
-
-// Flashcard logic continues below...
-const data = <?php echo json_encode($rows); ?>;
-const tableName = <?php echo json_encode($selectedTable); ?>;
-const targetLanguage = <?php echo json_encode($targetLanguage); ?>;
-
-// rest of your existing script ...
 </script>
-</div>
-</body>
-</html>
