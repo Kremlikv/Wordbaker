@@ -31,7 +31,7 @@ function callOpenRouter($apiKey, $model, $czechWord, $correctAnswer, $targetLang
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_HTTPHEADER, [
         "Content-Type: application/json",
-        "Authorization: Bearer YOUR_API_KEY_HERE", // Replace with your actual key
+        "Authorization: Bearer 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", // Replace with your actual key
         "HTTP-Referer: https://kremlik.byethost15.com",
         "X-Title: KahootGenerator"
     ]);
