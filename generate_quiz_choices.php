@@ -2,6 +2,13 @@
 require_once 'db.php';
 require_once 'session.php';
 
+// === CONFIG ===
+$OPENROUTER_API_KEY = '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';
+$OPENROUTER_MODEL = 'tngtech/deepseek-r1t2-chimera:free';
+$OPENROUTER_REFERER = 'https://kremlik.byethost15.com';
+$APP_TITLE = 'KahootGenerator';
+$THROTTLE_SECONDS = 1;
+
 function getUserTables($conn, $username) {
     $tables = [];
     $result = $conn->query("SHOW TABLES");
@@ -14,7 +21,7 @@ function getUserTables($conn, $username) {
     return $tables;
 }
 
-function callOpenRouter($apiKey, $model, $czechWord, $correctAnswer, $targetLang, $referer) {
+function callOpenRouter($apiKey, $model, $czechWord, $correctAnswer, $targetLang, $referer, $appTitle) {
     $prompt = "The correct translation of the Czech word \"$czechWord\" into $targetLang is \"$correctAnswer\". "
             . "Generate 3 plausible wrong alternatives based on typical mistakes students make. "
             . "Use errors like wrong articles, false friends, misspellings, or common confusion. "
@@ -31,30 +38,38 @@ function callOpenRouter($apiKey, $model, $czechWord, $correctAnswer, $targetLang
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_HTTPHEADER, [
         "Content-Type: application/json",
-        "Authorization: Bearer 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", // Replace with your actual key
-        "HTTP-Referer: https://kremlik.byethost15.com",
-        "X-Title: KahootGenerator"
+        "Authorization: Bearer $apiKey",
+        "HTTP-Referer: $referer",
+        "X-Title: $appTitle"
     ]);
     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
     $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
 
-    $decoded = json_decode($response, true);
-    if (!isset($decoded['choices'][0]['message']['content'])) return [];
+    if (!$response) return [[], $httpCode];
 
-    $output = trim($decoded['choices'][0]['message']['content']);
+    $decoded = json_decode($response, true);
+    $output = $decoded['choices'][0]['message']['content'] ?? '';
+
     preg_match_all('/^\d+[\).\s-]+(.+)$/m', $output, $matches);
-    return $matches[1] ?? [];
+    return [$matches[1] ?? [], $httpCode];
 }
 
-// --- Begin Page Logic ---
+function naiveWrongAnswers($correct, $lang) {
+    $wrong1 = strrev($correct);
+    $wrong2 = substr($correct, 0, -1);
+    $wrong3 = $correct . 'x';
+    return [$wrong1, $wrong2, $wrong3];
+}
+
 $username = strtolower($_SESSION['username'] ?? '');
 $conn->set_charset("utf8mb4");
 $tables = getUserTables($conn, $username);
 
 $generatedTable = '';
 
-// Handle save edits
+// === Save Changes Handler ===
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_table']) && isset($_POST['edited_rows'])) {
     $editTable = $conn->real_escape_string($_POST['save_table']);
     foreach ($_POST['edited_rows'] as $id => $row) {
@@ -69,12 +84,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_table']) && isse
     $generatedTable = $editTable;
 }
 
-// Handle quiz generation
+// === Generation Handler ===
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['table'], $_POST['source_lang'], $_POST['target_lang']) && !isset($_POST['save_table'])) {
     $table = $conn->real_escape_string($_POST['table']);
     $sourceLang = htmlspecialchars($_POST['source_lang']);
     $targetLang = htmlspecialchars($_POST['target_lang']);
-    $model = "tngtech/deepseek-r1t2-chimera:free";
 
     $result = $conn->query("SELECT * FROM `$table`");
     if ($result && $result->num_rows > 0) {
@@ -96,27 +110,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['table'], $_POST['sour
         )");
 
         echo "<h2>Generating quiz entries for table <code>$table</code>...</h2><ul>";
+
         while ($row = $result->fetch_assoc()) {
             $question = trim($row[$col1]);
             $correct = trim($row[$col2]);
             if ($question === '' || $correct === '') continue;
 
-            $wrongAnswers = callOpenRouter("YOUR_API_KEY_HERE", $model, $question, $correct, $targetLang, "https://kremlik.byethost15.com");
-            $wrong1 = $wrongAnswers[0] ?? '';
-            $wrong2 = $wrongAnswers[1] ?? '';
-            $wrong3 = $wrongAnswers[2] ?? '';
+            try {
+                list($wrongs, $httpCode) = callOpenRouter(
+                    $OPENROUTER_API_KEY,
+                    $OPENROUTER_MODEL,
+                    $question,
+                    $correct,
+                    $targetLang,
+                    $OPENROUTER_REFERER,
+                    $APP_TITLE
+                );
 
-            $stmt = $conn->prepare("INSERT INTO `$quizTable` (question, correct_answer, wrong1, wrong2, wrong3, source_lang, target_lang)
-                                    VALUES (?, ?, ?, ?, ?, ?, ?)");
-            $stmt->bind_param("sssssss", $question, $correct, $wrong1, $wrong2, $wrong3, $sourceLang, $targetLang);
-            $stmt->execute();
-            $stmt->close();
+                if (count($wrongs) < 3) {
+                    $wrongs = naiveWrongAnswers($correct, $targetLang);
+                }
 
-            echo "<li><strong>$question</strong>: ✅ $correct | ❌ $wrong1, $wrong2, $wrong3</li>";
-            flush();
-            ob_flush();
-            sleep(1); // avoid flooding
+                $wrong1 = $wrongs[0] ?? '';
+                $wrong2 = $wrongs[1] ?? '';
+                $wrong3 = $wrongs[2] ?? '';
+
+                $stmt = $conn->prepare("INSERT INTO `$quizTable` (question, correct_answer, wrong1, wrong2, wrong3, source_lang, target_lang)
+                                        VALUES (?, ?, ?, ?, ?, ?, ?)");
+                $stmt->bind_param("sssssss", $question, $correct, $wrong1, $wrong2, $wrong3, $sourceLang, $targetLang);
+                $stmt->execute();
+                $stmt->close();
+
+                echo "<li><strong>" . htmlspecialchars($question) . "</strong>: ✅ " . htmlspecialchars($correct)
+                     . " | ❌ " . htmlspecialchars($wrong1) . ", " . htmlspecialchars($wrong2) . ", " . htmlspecialchars($wrong3) . "</li>";
+
+            } catch (Exception $e) {
+                echo "<li style='color:red;'>❌ Error on <strong>" . htmlspecialchars($question) . "</strong>: " . $e->getMessage() . "</li>";
+            }
+
+            @ob_flush(); @flush();
+            if ($THROTTLE_SECONDS > 0) sleep($THROTTLE_SECONDS);
         }
+
         echo "</ul><hr>";
         $generatedTable = $quizTable;
     } else {
@@ -124,7 +159,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['table'], $_POST['sour
     }
 }
 
-// Show editable table after generation or save
+// === Editable Table View ===
 if (!empty($generatedTable)) {
     $editTable = $conn->real_escape_string($generatedTable);
     $res = $conn->query("SELECT * FROM `$editTable`");
@@ -146,7 +181,7 @@ if (!empty($generatedTable)) {
     echo "</table><br><button type='submit'>💾 Save Changes</button></form><br>";
 }
 
-// Initial form
+// === Generator Form ===
 echo "<h2>Generate AI Quiz Choices</h2>";
 echo "<form method='POST'>";
 echo "<label>Select dictionary table:</label><br>";
