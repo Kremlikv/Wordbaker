@@ -200,6 +200,7 @@ echo "</div></body></html>";
 <script>
 function autoResize(textarea) {
     textarea.style.height = 'auto';
+    textarea.style.overflow = 'hidden';
     textarea.style.height = textarea.scrollHeight + 'px';
 }
 

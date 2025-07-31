@@ -249,12 +249,18 @@
 
     /* Responsive editable screens.  */
 
-    @media screen and (max-width: 600px) {
-      textarea {
-          width: 100%;
-          font-size: 1em;
-      }
+    textarea {
+      width: 100%;
+      min-height: 1.5em;
+      resize: none;               /* Disable manual resize handles */
+      overflow: hidden;           /* Prevent scrollbars */
+      box-sizing: border-box;
+      font-family: inherit;
+      font-size: 1em;
+    }
 
+    @media screen and (max-width: 600px) {
+          
       table {
           font-size: 0.9em;
       }
