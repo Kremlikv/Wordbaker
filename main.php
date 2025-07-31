@@ -94,8 +94,7 @@ if (!empty($selectedFullTable)) {
     }
 }
 
-// ... (rest of the code remains unchanged)
-
+// HTML Output
 
 echo "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>Manage Tables</title>";
 include 'styling.php';
@@ -126,7 +125,11 @@ echo "<label>Select a table:</label><br>";
 echo "<div class='directory-panel'><div id='folder-view'>";
 
 foreach ($folders as $folder => $tableList) {
-    echo "<details><summary class='folder'>📁 " . htmlspecialchars($folder) . "</summary><div class='subtable' id='sub_$folder'>";
+    $safeFolderId = htmlspecialchars(strtolower($folder));
+    $displayFolderName = ucfirst($folder);
+
+    echo "<details><summary class='folder' onclick=\"toggleFolder('$safeFolderId')\">📁 " . htmlspecialchars($displayFolderName) . "</summary>";
+    echo "<div class='subtable' id='sub_$safeFolderId'>";
     foreach ($tableList as $entry) {
         $fullTable = $entry['table_name'];
         $display = $entry['display_name'];
@@ -172,7 +175,9 @@ function autoResize(textarea) {
 
 function toggleFolder(folder) {
     const el = document.getElementById("sub_" + folder);
-    el.style.display = (el.style.display === "block") ? "none" : "block";
+    if (el) {
+        el.style.display = (el.style.display === "block") ? "none" : "block";
+    }
 }
 
 function selectTable(fullTableName) {
