@@ -16,7 +16,7 @@ function getUserTables($conn, $username) {
 
 function callOpenRouter($apiKey, $model, $czechWord, $correctAnswer, $targetLang, $referer) {
     $prompt = "The correct translation of the Czech word \"$czechWord\" into $targetLang is \"$correctAnswer\". "
-            . "Generate 3 plausible but incorrect $targetLang alternatives based on typical mistakes students make. "
+            . "Generate 3 plausible wrong alternatives based on typical mistakes students make. "
             . "Use errors like wrong articles, false friends, misspellings, or common confusion. "
             . "Return only the 3 alternatives as a numbered list.";
 
@@ -31,8 +31,8 @@ function callOpenRouter($apiKey, $model, $czechWord, $correctAnswer, $targetLang
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_HTTPHEADER, [
         "Content-Type: application/json",
-        "Authorization: Bearer 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", // <- replace this
-        "HTTP-Referer: $referer",
+        "Authorization: Bearer YOUR_API_KEY_HERE", // Replace with your actual key
+        "HTTP-Referer: https://kremlik.byethost15.com",
         "X-Title: KahootGenerator"
     ]);
     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
@@ -43,17 +43,34 @@ function callOpenRouter($apiKey, $model, $czechWord, $correctAnswer, $targetLang
     if (!isset($decoded['choices'][0]['message']['content'])) return [];
 
     $output = trim($decoded['choices'][0]['message']['content']);
-    preg_match_all('/^\d+[\).\s-]+(.+)$/m', $output, $matches); // Extract lines like: "1. Die Tür"
+    preg_match_all('/^\d+[\).\s-]+(.+)$/m', $output, $matches);
     return $matches[1] ?? [];
 }
 
+// --- Begin Page Logic ---
 $username = strtolower($_SESSION['username'] ?? '');
 $conn->set_charset("utf8mb4");
-
 $tables = getUserTables($conn, $username);
 
-// Handle form submission
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['table'], $_POST['source_lang'], $_POST['target_lang'])) {
+$generatedTable = '';
+
+// Handle save edits
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_table']) && isset($_POST['edited_rows'])) {
+    $editTable = $conn->real_escape_string($_POST['save_table']);
+    foreach ($_POST['edited_rows'] as $id => $row) {
+        $stmt = $conn->prepare("UPDATE `$editTable` SET correct_answer=?, wrong1=?, wrong2=?, wrong3=? WHERE id=?");
+        $stmt->bind_param("ssssi",
+            $row['correct'], $row['wrong1'], $row['wrong2'], $row['wrong3'], $id
+        );
+        $stmt->execute();
+        $stmt->close();
+    }
+    echo "<p style='color: green;'><strong>Changes saved to table:</strong> $editTable</p>";
+    $generatedTable = $editTable;
+}
+
+// Handle quiz generation
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['table'], $_POST['source_lang'], $_POST['target_lang']) && !isset($_POST['save_table'])) {
     $table = $conn->real_escape_string($_POST['table']);
     $sourceLang = htmlspecialchars($_POST['source_lang']);
     $targetLang = htmlspecialchars($_POST['target_lang']);
@@ -78,12 +95,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['table'], $_POST['sour
             target_lang VARCHAR(20)
         )");
 
-        echo "<h2>Generating quiz entries...</h2><ul>";
-
+        echo "<h2>Generating quiz entries for table <code>$table</code>...</h2><ul>";
         while ($row = $result->fetch_assoc()) {
             $question = trim($row[$col1]);
             $correct = trim($row[$col2]);
-
             if ($question === '' || $correct === '') continue;
 
             $wrongAnswers = callOpenRouter("YOUR_API_KEY_HERE", $model, $question, $correct, $targetLang, "https://kremlik.byethost15.com");
@@ -100,17 +115,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['table'], $_POST['sour
             echo "<li><strong>$question</strong>: ✅ $correct | ❌ $wrong1, $wrong2, $wrong3</li>";
             flush();
             ob_flush();
-            sleep(1); // Light delay to avoid flooding API
+            sleep(1); // avoid flooding
         }
-
-        echo "</ul><p><strong>Done!</strong> Saved to table: <code>$quizTable</code></p>";
-        exit;
+        echo "</ul><hr>";
+        $generatedTable = $quizTable;
     } else {
         echo "<p style='color:red;'>No data found in table.</p>";
     }
 }
 
-// Form
+// Show editable table after generation or save
+if (!empty($generatedTable)) {
+    $editTable = $conn->real_escape_string($generatedTable);
+    $res = $conn->query("SELECT * FROM `$editTable`");
+    echo "<h3>📝 Edit Generated Quiz: <code>$editTable</code></h3>";
+    echo "<form method='POST'>";
+    echo "<input type='hidden' name='save_table' value='" . htmlspecialchars($editTable) . "'>";
+    echo "<table border='1' cellpadding='5' cellspacing='0'>";
+    echo "<tr><th>Czech</th><th>Correct</th><th>Wrong 1</th><th>Wrong 2</th><th>Wrong 3</th></tr>";
+    while ($row = $res->fetch_assoc()) {
+        $id = $row['id'];
+        echo "<tr>";
+        echo "<td>" . htmlspecialchars($row['question']) . "</td>";
+        echo "<td><input type='text' name='edited_rows[$id][correct]' value='" . htmlspecialchars($row['correct_answer']) . "'></td>";
+        echo "<td><input type='text' name='edited_rows[$id][wrong1]' value='" . htmlspecialchars($row['wrong1']) . "'></td>";
+        echo "<td><input type='text' name='edited_rows[$id][wrong2]' value='" . htmlspecialchars($row['wrong2']) . "'></td>";
+        echo "<td><input type='text' name='edited_rows[$id][wrong3]' value='" . htmlspecialchars($row['wrong3']) . "'></td>";
+        echo "</tr>";
+    }
+    echo "</table><br><button type='submit'>💾 Save Changes</button></form><br>";
+}
+
+// Initial form
 echo "<h2>Generate AI Quiz Choices</h2>";
 echo "<form method='POST'>";
 echo "<label>Select dictionary table:</label><br>";
@@ -121,10 +157,10 @@ foreach ($tables as $t) {
 echo "</select><br><br>";
 
 echo "<label>Source language (e.g. Czech):</label><br>";
-echo "<input type='text' name='source_lang' placeholder='e.g. Czech' required><br><br>";
+echo "<input type='text' name='source_lang' required><br><br>";
 
 echo "<label>Target language (e.g. German):</label><br>";
-echo "<input type='text' name='target_lang' placeholder='e.g. German' required><br><br>";
+echo "<input type='text' name='target_lang' required><br><br>";
 
 echo "<button type='submit'>🚀 Generate Quiz Set</button>";
 echo "</form>";
