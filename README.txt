@@ -2,6 +2,16 @@ V README uvádím poznámky k průběhu projektu a řešení nastalých problém
 
 **** ****
 
+MOBILE RESPONSIVE DESIGN
+Suitable for mobile phones as well as PC.
+
+TRANSLATOR 
+It translates your text and creates a table 
+with Czech column and foreign language column.
+
+PDF OCR
+It scans a PDF, cleans any garbled text with AI and sends it for translation.
+
 OPRAVY
 - Php soubor musí začínat <?php hned na prvním řádku bez mezery.
 - Include session musí být hned na začátku souboru.
