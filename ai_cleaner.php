@@ -1,54 +1,78 @@
 <?php
-// ai_cleaner.php
 header('Content-Type: application/json');
 
-$apiKey = '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'; //
-
-$input = json_decode(file_get_contents('php://input'), true);
-$text = $input['text'] ?? ''; 
+$data = json_decode(file_get_contents("php://input"), true);
+$text = trim($data['text'] ?? '');
 
 if (!$text) {
-    http_response_code(400);
     echo json_encode(['error' => 'No text provided']);
     exit;
 }
 
-$prompt = "Clean up the following text extracted from a scanned PDF. Fix OCR errors, broken words, strange characters, and punctuation. Do NOT translate or add content. Only correct and restore the original text:\n\n" . $text;
+// === CONFIG SECTION ===
+$useOpenRouter = true;
 
-$data = [
-    "model" => "gpt-3.5-turbo",
-    "messages" => [
-        ["role" => "user", "content" => $prompt]
-    ],
-    "temperature" => 0.4
+$openrouter_key = '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'; // Sign up at https://openrouter.ai
+$openai_key     = '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';     // Optional fallback if needed
+
+$model_openrouter = 'tngtech/deepseek-r1t2-chimera:free';
+$model_openai     = 'gpt-3.5-turbo';
+
+$headers = [
+    'Content-Type: application/json',
 ];
 
-$ch = curl_init('https://api.openai.com/v1/chat/completions');
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($ch, CURLOPT_HTTPHEADER, [
-    'Content-Type: application/json',
-    'Authorization: ' . 'Bearer ' . $apiKey
+// === Prepare Payload ===
+$messages = [
+    ["role" => "system", "content" => "You are a helpful assistant that improves raw OCR text by fixing broken words, punctuation, and structure."],
+    ["role" => "user", "content" => $text]
+];
+
+$payload = json_encode([
+    "model" => $useOpenRouter ? $model_openrouter : $model_openai,
+    "messages" => $messages,
+    "temperature" => 0.2,
 ]);
-curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+
+// === Choose API endpoint ===
+if ($useOpenRouter && $openrouter_key) {
+    $api_url = "https://openrouter.ai/api/v1/chat/completions";
+    $headers[] = "Authorization: Bearer $openrouter_key";
+} elseif ($openai_key) {
+    $api_url = "https://api.openai.com/v1/chat/completions";
+    $headers[] = "Authorization: Bearer $openai_key";
+} else {
+    echo json_encode(['error' => 'No API key configured']);
+    exit;
+}
+
+// === Send request ===
+$ch = curl_init();
+curl_setopt_array($ch, [
+    CURLOPT_URL => $api_url,
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_POST => true,
+    CURLOPT_HTTPHEADER => $headers,
+    CURLOPT_POSTFIELDS => $payload,
+    CURLOPT_TIMEOUT => 30
+]);
 
 $response = curl_exec($ch);
-$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+$error = curl_error($ch);
 curl_close($ch);
 
-if ($httpCode !== 200 || !$response) {
-    http_response_code(500);
-    echo json_encode(['error' => 'Failed to connect to OpenAI API']);
+// === Parse result ===
+if ($error || !$response) {
+    echo json_encode(['error' => 'Connection failed: ' . $error]);
     exit;
 }
 
 $result = json_decode($response, true);
-$cleaned = $result['choices'][0]['message']['content'] ?? '';
 
-if (!$cleaned) {
-    http_response_code(500);
-    echo json_encode(['error' => 'No cleaned content received']);
-    exit;
+$reply = $result['choices'][0]['message']['content'] ?? null;
+
+if ($reply) {
+    echo json_encode(['cleaned' => $reply]);
+} else {
+    echo json_encode(['error' => 'No cleaned response received']);
 }
-
-echo json_encode(['cleaned' => trim($cleaned)]);
-?>
