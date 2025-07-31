@@ -1,78 +1,63 @@
 <?php
+ini_set('display_errors', 1);
+error_reporting(E_ALL);
 header('Content-Type: application/json');
 
-$data = json_decode(file_get_contents("php://input"), true);
-$text = trim($data['text'] ?? '');
+// 1. Read input text from JSON body
+$input = json_decode(file_get_contents('php://input'), true);
+$text = $input['text'] ?? '';
 
 if (!$text) {
-    echo json_encode(['error' => 'No text provided']);
+    echo json_encode(['error' => 'No text provided.']);
     exit;
 }
 
-// === CONFIG SECTION ===
-$useOpenRouter = true;
+// 2. Your OpenRouter API key
+$api_key = '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'; // Sign up at https://openrouter.ai
 
-$openrouter_key = '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'; // Sign up at https://openrouter.ai
-$openai_key     = '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';     // Optional fallback if needed
+// 3. Model to use (must be one that allows free tier, like this one)
+$model = 'tngtech/deepseek-r1t2-chimera:free';
 
-$model_openrouter = 'tngtech/deepseek-r1t2-chimera:free';
-$model_openai     = 'gpt-3.5-turbo';
-
-$headers = [
-    'Content-Type: application/json',
+// 4. Construct the API request
+$data = [
+    'model' => $model,
+    'messages' => [
+        ['role' => 'system', 'content' => 'You are an AI that cleans up OCR-scanned text. Fix spacing, remove hyphen breaks, correct typos and punctuation.'],
+        ['role' => 'user', 'content' => $text]
+    ],
+    'temperature' => 0.3
 ];
 
-// === Prepare Payload ===
-$messages = [
-    ["role" => "system", "content" => "You are a helpful assistant that improves raw OCR text by fixing broken words, punctuation, and structure."],
-    ["role" => "user", "content" => $text]
-];
-
-$payload = json_encode([
-    "model" => $useOpenRouter ? $model_openrouter : $model_openai,
-    "messages" => $messages,
-    "temperature" => 0.2,
+$ch = curl_init('https://openrouter.ai/api/v1/chat/completions');
+curl_setopt($ch, CURLOPT_HTTPHEADER, [
+    "Authorization: Bearer $api_key",
+    "Content-Type: application/json"
 ]);
+curl_setopt($ch, CURLOPT_POST, true);
+curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 
-// === Choose API endpoint ===
-if ($useOpenRouter && $openrouter_key) {
-    $api_url = "https://openrouter.ai/api/v1/chat/completions";
-    $headers[] = "Authorization: Bearer $openrouter_key";
-} elseif ($openai_key) {
-    $api_url = "https://api.openai.com/v1/chat/completions";
-    $headers[] = "Authorization: Bearer $openai_key";
-} else {
-    echo json_encode(['error' => 'No API key configured']);
-    exit;
-}
-
-// === Send request ===
-$ch = curl_init();
-curl_setopt_array($ch, [
-    CURLOPT_URL => $api_url,
-    CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_POST => true,
-    CURLOPT_HTTPHEADER => $headers,
-    CURLOPT_POSTFIELDS => $payload,
-    CURLOPT_TIMEOUT => 30
-]);
-
+// 5. Execute request
 $response = curl_exec($ch);
-$error = curl_error($ch);
+$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+$curlError = curl_error($ch);
 curl_close($ch);
 
-// === Parse result ===
-if ($error || !$response) {
-    echo json_encode(['error' => 'Connection failed: ' . $error]);
+// 6. Handle errors
+if (!$response) {
+    echo json_encode(['error' => "Curl error: $curlError"]);
     exit;
 }
 
 $result = json_decode($response, true);
+$cleaned = $result['choices'][0]['message']['content'] ?? '';
 
-$reply = $result['choices'][0]['message']['content'] ?? null;
-
-if ($reply) {
-    echo json_encode(['cleaned' => $reply]);
+if ($cleaned) {
+    echo json_encode(['cleaned' => $cleaned]);
 } else {
-    echo json_encode(['error' => 'No cleaned response received']);
+    echo json_encode([
+        'error' => 'No cleaned result returned.',
+        'raw_response' => $response,
+        'http_code' => $httpCode
+    ]);
 }
