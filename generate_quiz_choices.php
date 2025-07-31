@@ -3,8 +3,8 @@ require_once 'db.php';
 require_once 'session.php';
 
 // === CONFIG ===
-$OPENROUTER_API_KEY = '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';
-$OPENROUTER_MODEL = 'tngtech/deepseek-r1t2-chimera:free';
+$OPENROUTER_API_KEY = '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';
+$OPENROUTER_MODEL = 'anthropic/claude-3-haiku';
 $OPENROUTER_REFERER = 'https://kremlik.byethost15.com';
 $APP_TITLE = 'KahootGenerator';
 $THROTTLE_SECONDS = 1;
@@ -66,7 +66,12 @@ function callOpenRouter($apiKey, $model, $czechWord, $correctAnswer, $targetLang
     $data = [
         "model" => $model,
         "messages" => [
-            ["role" => "user", "content" => $prompt]
+            [
+                "role" => "user",
+                "content" => [
+                    ["type" => "text", "text" => $prompt]
+                ]
+            ]
         ]
     ];
 
@@ -161,9 +166,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['table'], $_POST['sour
                     $wrongs = naiveWrongAnswers($correct, $targetLang);
                 }
 
-                $wrong1 = $wrongs[0] ?? '';
-                $wrong2 = $wrongs[1] ?? '';
-                $wrong3 = $wrongs[2] ?? '';
+                list($wrong1, $wrong2, $wrong3) = array_pad($wrongs, 3, '');
 
                 $stmt = $conn->prepare("INSERT INTO `$quizTable` (question, correct_answer, wrong1, wrong2, wrong3, source_lang, target_lang)
                                         VALUES (?, ?, ?, ?, ?, ?, ?)");
@@ -220,13 +223,11 @@ foreach ($tables as $t) {
     echo "<option value='" . htmlspecialchars($t) . "'>$t</option>";
 }
 echo "</select><br><br>";
-
 echo "<label>Source language (e.g. Czech):</label><br>";
 echo "<input type='text' name='source_lang' required><br><br>";
-
 echo "<label>Target language (e.g. German):</label><br>";
 echo "<input type='text' name='target_lang' required><br><br>";
-
 echo "<button type='submit'>🚀 Generate Quiz Set</button>";
 echo "</form></body></html>";
 ?>
+
