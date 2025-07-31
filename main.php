@@ -36,25 +36,28 @@ function getUserFoldersAndTables($conn, $username) {
     $result = $conn->query("SHOW TABLES");
     while ($row = $result->fetch_array()) {
         $table = $row[0];
-        if (strpos($table, $username . '_') === 0) {
+        if (stripos($table, $username . '_') === 0) {
             $suffix = substr($table, strlen($username) + 1); // Remove username_
             $parts = explode('_', $suffix, 2); // folder_file
-            if (count($parts) === 2) {
+            if (count($parts) === 2 && trim($parts[0]) !== '') {
                 $folder = $parts[0];
                 $file = $parts[1];
-                $allTables[$folder][] = [
-                    'table_name' => $table,
-                    'display_name' => $file
-                ];
+            } else {
+                $folder = 'Uncategorized';
+                $file = $suffix;
             }
+            $allTables[$folder][] = [
+                'table_name' => $table,
+                'display_name' => $file
+            ];
         }
     }
     return $allTables;
 }
 
-// $username = $_SESSION['username'] ?? '';
 $username = strtolower($_SESSION['username'] ?? '');
 
+$conn->set_charset("utf8mb4");
 $folders = getUserFoldersAndTables($conn, $username);
 $selectedFullTable = $_POST['table'] ?? $_GET['table'] ?? '';
 
@@ -64,8 +67,11 @@ $heading1 = '';
 $heading2 = '';
 
 if (!empty($selectedFullTable)) {
+    echo "<pre>DEBUG: Attempting to load table '$selectedFullTable'</pre>";
     $res = $conn->query("SELECT * FROM `$selectedFullTable`");
-    if ($res && $res->num_rows > 0) {
+    if (!$res) {
+        echo "<pre>SQL ERROR: " . $conn->error . "</pre>";
+    } elseif ($res->num_rows > 0) {
         $columns = $res->fetch_fields();
 
         if ($selectedFullTable === "difficult_words") {
@@ -98,28 +104,28 @@ echo "</head><body>";
 
 // MENU BAR
 echo "<div style='text-align: center; margin-bottom: 20px;'>";
-echo "<a href='flashcards.php'><button>📘 Study Flashcards</button></a> ";
-echo "<a href='generate_mp3_google_ssml.php'><button>🎧 Generate MP3</a> ";
-echo "<a href='review_difficult.php'><button>🧠 Difficult Words</button></a> ";
-echo "<a href='mastered.php'><button>🌟 Mastered</button></a> ";
-echo "<a href='translator.php'><button>🌐 Translate</button></a> ";
-echo "<a href='pdf_scan.php'><button>📄 PDF-to-text</button></a>";
+echo "<a href='flashcards.php'><button>\ud83d\udcd8 Study Flashcards</button></a> ";
+echo "<a href='generate_mp3_google_ssml.php'><button>\ud83c\udfa7 Generate MP3</a> ";
+echo "<a href='review_difficult.php'><button>\ud83e\udde0 Difficult Words</button></a> ";
+echo "<a href='mastered.php'><button>\ud83c\udf1f Mastered</button></a> ";
+echo "<a href='translator.php'><button>\ud83c\udf10 Translate</button></a> ";
+echo "<a href='pdf_scan.php'><button>\ud83d\udcc4 PDF-to-text</button></a>";
 echo "</div>";
 
 // MAIN CONTENT
 echo "<div class='content'>";
-echo "👋 Logged in as " . htmlspecialchars($username) . " | <a href='logout.php'>Logout</a><br><br>";
+echo "\ud83d\udc4b Logged in as " . htmlspecialchars($username) . " | <a href='logout.php'>Logout</a><br><br>";
 
 echo "<form method='POST' action='' id='tableActionForm'>";
 echo "<label>Select a table:</label><br>";
 echo "<div class='directory-panel'><div id='folder-view'>";
 
 foreach ($folders as $folder => $tableList) {
-    echo "<details><summary class='folder'>📁 " . htmlspecialchars($folder) . "</summary><div class='subtable' id='sub_$folder'>";
+    echo "<details><summary class='folder'>\ud83d\udcc1 " . htmlspecialchars($folder) . "</summary><div class='subtable' id='sub_$folder'>";
     foreach ($tableList as $entry) {
         $fullTable = $entry['table_name'];
         $display = $entry['display_name'];
-        echo "<span onclick=\"selectTable('$fullTable')\">📄 " . htmlspecialchars($display) . "</span>";
+        echo "<span onclick=\"selectTable('$fullTable')\">\ud83d\udcc4 " . htmlspecialchars($display) . "</span>";
     }
     echo "</div></details>";
 }
@@ -133,24 +139,23 @@ echo "</form><br><br>";
 
 // Upload section
 echo <<<HTML
-<h2>📤 Upload</h2>
+<h2>\ud83d\udcc4 Upload</h2>
 <form method="POST" action="upload_handler.php" enctype="multipart/form-data">
     <label>Select CSV Files:</label>
     <input type="file" name="csv_files[]" accept=".csv" multiple required><br><br>
 
     <p style="font-size: 0.9em; color: gray;">
-        ➤ Your <strong>filenames</strong> will be used to create tables.<br>
-        ➤ Recommended format: <code>FolderName_FileName.csv</code><br>
-        ➤ The system will automatically name tables like: <code>username_folder_filename</code><br>
-        ➤ If your filename already starts with your username (e.g. <code>kremlik_...</code>), it will be used as-is.<br>
-        ➤ CSVs must have a <strong>“Czech”</strong> column and at least one other language column.<br>
-        ➤ Encoding must be <strong>UTF-8</strong> without BOM.
+        \u27a4 Your <strong>filenames</strong> will be used to create tables.<br>
+        \u27a4 Recommended format: <code>FolderName_FileName.csv</code><br>
+        \u27a4 The system will automatically name tables like: <code>username_folder_filename</code><br>
+        \u27a4 If your filename already starts with your username (e.g. <code>kremlik_...</code>), it will be used as-is.<br>
+        \u27a4 CSVs must have a <strong>“Czech”</strong> column and at least one other language column.<br>
+        \u27a4 Encoding must be <strong>UTF-8</strong> without BOM.
     </p>
 
     <button type="submit">Upload Files</button>
 </form>
 HTML;
-
 
 echo "</div></body></html>";
 ?>
@@ -166,6 +171,7 @@ function toggleFolder(folder) {
 }
 
 function selectTable(fullTableName) {
+    console.log("Selecting table:", fullTableName);
     document.getElementById("selectedTableInput").value = fullTableName;
     document.getElementById("tableActionForm").submit();
 }
