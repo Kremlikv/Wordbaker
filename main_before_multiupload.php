@@ -182,30 +182,14 @@ if (in_array($selectedFullTable, $protectedTables)) {
 }
 
 echo <<<HTML
-<h2>📤 Upload</h2>
+<h2>Upload New CSV Table</h2>
 <form method="POST" action="upload_handler.php" enctype="multipart/form-data">
-    <label>Select Folder:</label>
-    <select name="folder" required>
-        <option value="">-- Choose Folder --</option>
-        <?php
-        foreach ($folders as $folder => $tableList) {
-            echo "<option value=\"" . htmlspecialchars($folder) . "\">" . htmlspecialchars(ucfirst($folder)) . "</option>";
-        }
-        ?>
-    </select><br><br>
-
-    <label>Select CSV Files:</label>
-    <input type="file" name="csv_files[]" accept=".csv" multiple required><br><br>
-
-    <p style="font-size: 0.9em; color: gray;">
-        ➤ Filenames will be used to create table names.<br>
-        ➤ System will generate: <code>username_folder_filename</code><br>
-        ➤ If a filename already starts with your username, it will be used as-is.<br>
-        ➤ CSVs must have <strong>“Czech”</strong> as one of the headers and at least one other column.<br>
-        ➤ Encoding must be UTF-8 without BOM.
-    </p>
-
-    <button type="submit">Upload Files</button>
+    <label>Table Name: <input type="text" name="new_table_name" required></label><br><br>
+    <label>Naming convention: FolderName_FileName</label><br><br> 
+    <label>CSV files must have Utf8mb4 (Czech) encoding without BOM</label><br><br> 
+    <label>The first column must have a "Czech" header and the other one German, English or other language.</label><br><br>
+    <label>CSV File: <input type="file" name="csv_file" accept=".csv" required></label><br><br>
+    <button type="submit">Upload</button>
 </form>
 HTML;
 
