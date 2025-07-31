@@ -185,10 +185,7 @@ echo <<<HTML
     <input type="file" name="csv_files[]" accept=".csv" multiple required><br><br>
 
     <p style="font-size: 0.9em; color: gray;">
-        ➤ Your <strong>filenames</strong> will be used to create tables.<br>
         ➤ Recommended format: <code>FolderName_FileName.csv</code><br>
-        ➤ The system will automatically name tables like: <code>username_folder_filename</code><br>
-        ➤ If your filename already starts with your username (e.g. <code>kremlik_...</code>), it will be used as-is.<br>
         ➤ CSVs must have a <strong>“Czech”</strong> column and at least one other language column.<br>
         ➤ Encoding must be <strong>UTF-8</strong> without BOM.
     </p>
