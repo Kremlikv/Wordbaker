@@ -10,6 +10,7 @@ if (isset($_POST['restart'])) {
     exit;
 }
 
+
 if (!isset($_SESSION['score'])) {
     $_SESSION['score'] = 0;
     $_SESSION['question_index'] = 0;
@@ -160,10 +161,18 @@ $score = $_SESSION['score'];
 <?php else: ?>
     <h2>🏁 Quiz Completed!</h2>
     <p>Your final score: <?= $score ?> out of <?= $total * 3 ?> points</p>
+
     <form method="POST" action="">
-        <button type="submit" name="restart" value="1">Play Again</button>
+    <input type="hidden" name="restart" value="1">
+    <button type="submit">Play Again</button>
     </form>
-    <?php session_destroy(); ?>
+    <?php
+    // Fully reset session when quiz ends
+    unset($_SESSION['score'], $_SESSION['question_index'], $_SESSION['questions'], $_SESSION['quiz_table']);
+?>
+
+
+
 <?php endif; ?>
 </body>
 </html>
