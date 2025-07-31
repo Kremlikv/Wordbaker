@@ -39,4 +39,15 @@ EDITABLE TABLES
 After revert we are back to editable tables where you can add a row.
 Or delete a row. And we still use ElevenLabs.
 
+DIRECTORIES AND FOLDERS
+On the main.php with rules like kremlik_prag_pulverturm.
+
+FREE AUDIO FROM GOOGLE TTS
+Required a full overhaul of the files. 31/7/25
+
+FREE
+Graduaally I switched to free sources. Free AlwaysData hosting (allowign scripted backups in git).
+Free translation (mymemory). Free audio (google tts). It remains to get free AI 
+to clean OCR text from PDF.
+
 
