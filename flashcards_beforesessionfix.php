@@ -16,7 +16,7 @@ function getTables($conn) {
 }
 
 $tables = getTables($conn);
-$selectedTable = $_POST['table'] ?? ($_GET['table'] ?? ($_SESSION['table'] ?? ($tables[0] ?? '')));
+$selectedTable = $_POST['table'] ?? ($_GET['table'] ?? ($tables[0] ?? ''));
 
 // Store current table in session for audio
 $_SESSION['table'] = $selectedTable;
