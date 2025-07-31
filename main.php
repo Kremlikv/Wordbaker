@@ -53,7 +53,6 @@ function getUserFoldersAndTables($conn, $username) {
             ];
         }
     }
-    echo "<pre>DEBUG: Folders and Tables: " . htmlspecialchars(json_encode($allTables, JSON_PRETTY_PRINT)) . "</pre>";
     return $allTables;
 }
 
@@ -68,12 +67,10 @@ $column2 = '';
 $heading1 = '';
 $heading2 = '';
 
+$res = false;
 if (!empty($selectedFullTable)) {
-    echo "<pre>DEBUG: Attempting to load table '$selectedFullTable'</pre>";
     $res = $conn->query("SELECT * FROM `$selectedFullTable`");
-    if (!$res) {
-        echo "<pre>SQL ERROR: " . $conn->error . "</pre>";
-    } elseif ($res->num_rows > 0) {
+    if ($res && $res->num_rows > 0) {
         $columns = $res->fetch_fields();
 
         if ($selectedFullTable === "difficult_words") {
@@ -145,6 +142,41 @@ echo "<input type='hidden' name='col1' value='" . htmlspecialchars($column1) . "
 echo "<input type='hidden' name='col2' value='" . htmlspecialchars($column2) . "'>";
 echo "</form><br><br>";
 
+// Display selected table
+if (!empty($selectedFullTable) && $res && $res->num_rows > 0) {
+    echo "<h3>Selected Table: " . htmlspecialchars($selectedFullTable) . "</h3>";
+
+    // AUDIO section
+    $audioFile = "cache/$selectedFullTable.mp3";
+    if (file_exists($audioFile)) {
+        echo "<audio controls src='$audioFile'></audio><br>";
+        echo "<a href='$audioFile' download class='button'>Download MP3</a><br><br>";
+    } else {
+        echo "<em>No audio generated yet for this table.</em><br><br>";
+    }
+
+    echo "<form method='POST' action='update_table.php'>";
+    echo "<input type='hidden' name='table' value='" . htmlspecialchars($selectedFullTable) . "'>";
+    echo "<input type='hidden' name='col1' value='" . htmlspecialchars($column1) . "'>";
+    echo "<input type='hidden' name='col2' value='" . htmlspecialchars($column2) . "'>";
+    echo "<table border='1' cellpadding='5' cellspacing='0'>";
+    echo "<tr><th>" . htmlspecialchars($heading1) . "</th><th>" . htmlspecialchars($heading2) . "</th><th>Action</th></tr>";
+    $res->data_seek(0);
+    $i = 0;
+    while ($row = $res->fetch_assoc()) {
+        echo "<tr>";
+        echo "<td><input type='text' name='rows[$i][col1]' value='" . htmlspecialchars($row[$column1]) . "'></td>";
+        echo "<td><input type='text' name='rows[$i][col2]' value='" . htmlspecialchars($row[$column2]) . "'></td>";
+        echo "<td><input type='checkbox' name='rows[$i][delete]'> Delete</td>";
+        echo "<input type='hidden' name='rows[$i][orig_col1]' value='" . htmlspecialchars($row[$column1]) . "'>";
+        echo "<input type='hidden' name='rows[$i][orig_col2]' value='" . htmlspecialchars($row[$column2]) . "'>";
+        echo "</tr>";
+        $i++;
+    }
+    echo "<tr><td><input type='text' name='new_row[col1]' placeholder='New $heading1'></td><td><input type='text' name='new_row[col2]' placeholder='New $heading2'></td><td><em>Add New</em></td></tr>";
+    echo "</table><br><button type='submit'>💾 Save Changes</button></form><br>";
+}
+
 // Upload section
 echo <<<HTML
 <h2>📤 Upload</h2>
@@ -188,7 +220,7 @@ function selectTable(fullTableName) {
 
 document.addEventListener("DOMContentLoaded", function () {
     document.querySelectorAll("textarea").forEach(function (el) {
-        autoResize(el);
+        autoResize(el); 
     });
 });
 </script>
