@@ -119,7 +119,7 @@ echo "</head><body>";
 // MENU BAR
 echo "<div style='text-align: center; margin-bottom: 20px;'>";
 echo "<a href='flashcards.php'><button>📘 Study Flashcards</button></a> ";
-echo "<a href='generate_mp3_google_ssml.php'><button>🎧 Generate MP3</a> ";
+echo "<a href='generate_mp3_google_ssml.php'><button>🎧 Audio </a> ";
 echo "<a href='review_difficult.php'><button>🧠 Difficult Words</button></a> ";
 echo "<a href='mastered.php'><button>🌟 Mastered</button></a> ";
 echo "<a href='translator.php'><button>🌐 Translate</button></a> ";
@@ -212,7 +212,7 @@ echo <<<HTML
     <input type="file" name="csv_files[]" accept=".csv" multiple required><br><br>
 
     <p style="font-size: 0.9em; color: gray;">
-        ➤ Recommended format: <code>FolderName_FileName.csv</code><br>
+        ➤ Recommended format: FolderName_FileName.csv <br>
         ➤ CSVs must have a <strong>“Czech”</strong> column and at least one other language column.<br>
         ➤ Encoding must be <strong>UTF-8</strong> without BOM.
     </p>
