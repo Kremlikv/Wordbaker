@@ -46,8 +46,10 @@ FREE AUDIO FROM GOOGLE TTS
 Required a full overhaul of the files. 31/7/25
 
 FREE
-Graduaally I switched to free sources. Free AlwaysData hosting (allowign scripted backups in git).
-Free translation (mymemory). Free audio (google tts). It remains to get free AI 
-to clean OCR text from PDF.
+Graduaally I switched to free sources. 
+a) Free AlwaysData hosting (allowign scripted backups in git).
+b) Free translation (mymemory). 
+c) Free audio (google tts). 
+d) And also I replaced AI with a free version from OpenRouter.ai 
 
 

@@ -303,6 +303,7 @@ echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Log
     </label>
 
     <button type="button" onclick="cleanWithAI()">🧠 Clean Text with AI</button>
+    <label> OpenRouter.ai has 50 free requests a day </label><br><br>
     <button type="button" onclick="copyText()">📋 Copy Text</button>
     <button type="submit">🌍 Translate</button>
   </form>
