@@ -29,7 +29,8 @@ if ($selectedTable && empty($_SESSION['questions'])) {
         $questions[] = [
             'question' => $row['question'],
             'correct' => $row['correct_answer'],
-            'answers' => $answers
+            'answers' => $answers,
+            'image' => $row['image_url'] ?? ''
         ];
     }
     shuffle($questions);
@@ -38,13 +39,18 @@ if ($selectedTable && empty($_SESSION['questions'])) {
     $_SESSION['score'] = 0;
 }
 
-// Handle answer submission
+// Handle answer submission with time bonus
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['answer'])) {
     $index = $_SESSION['question_index'];
     $question = $_SESSION['questions'][$index];
+    $timeTaken = intval($_POST['time_taken'] ?? 15);
+    $bonus = 0;
     if ($_POST['answer'] === $question['correct']) {
-        $_SESSION['score']++;
-        $_SESSION['feedback'] = "✅ Correct!";
+        if ($timeTaken <= 5) $bonus = 3;
+        elseif ($timeTaken <= 10) $bonus = 2;
+        elseif ($timeTaken <= 15) $bonus = 1;
+        $_SESSION['score'] += $bonus;
+        $_SESSION['feedback'] = "✅ Correct! (+$bonus)";
     } else {
         $_SESSION['feedback'] = "❌ Wrong. Correct answer: " . htmlspecialchars($question['correct']);
     }
@@ -58,7 +64,6 @@ $questions = $_SESSION['questions'];
 $total = count($questions);
 $score = $_SESSION['score'];
 
-// HTML output
 ?>
 <!DOCTYPE html>
 <html>
@@ -85,12 +90,18 @@ $score = $_SESSION['score'];
         }
         .feedback { font-size: 1.2em; margin-top: 20px; }
         .score { margin-bottom: 10px; font-weight: bold; }
+        .image-container { margin: 20px auto; }
+        img.question-image { max-width: 80%; max-height: 300px; }
         select, button { padding: 10px; font-size: 1em; }
+        #timer { font-size: 1.3em; color: darkred; margin: 10px; }
     </style>
 </head>
 <body>
+<audio autoplay loop volume="0.2">
+    <source src="background.mp3" type="audio/mpeg">
+    Your browser does not support background music.
+</audio>
 <h1>🎯 Kahoot-style Quiz</h1>
-
 <?php if (!$selectedTable): ?>
     <form method="POST">
         <label>Select quiz set:</label><br><br>
@@ -104,8 +115,15 @@ $score = $_SESSION['score'];
     </form>
 <?php elseif ($index < $total): ?>
     <div class="score">Question <?= $index + 1 ?> of <?= $total ?> | Score: <?= $score ?></div>
+    <div id="timer">⏳ 15</div>
     <div class="question-box">🧠 <?= htmlspecialchars($questions[$index]['question']) ?></div>
-    <form method="POST">
+    <?php if (!empty($questions[$index]['image'])): ?>
+        <div class="image-container">
+            <img src="<?= htmlspecialchars($questions[$index]['image']) ?>" alt="Question image" class="question-image">
+        </div>
+    <?php endif; ?>
+    <form method="POST" id="quizForm">
+        <input type="hidden" name="time_taken" id="time_taken" value="15">
         <?php foreach ($questions[$index]['answers'] as $a): ?>
             <button type="submit" name="answer" value="<?= htmlspecialchars($a) ?>" class="answer-btn">
                 <?= htmlspecialchars($a) ?>
@@ -116,9 +134,24 @@ $score = $_SESSION['score'];
         <div class="feedback"><?= $_SESSION['feedback'] ?></div>
         <?php unset($_SESSION['feedback']); ?>
     <?php endif; ?>
+    <script>
+        let timeLeft = 15;
+        const timerDisplay = document.getElementById("timer");
+        const timeTakenInput = document.getElementById("time_taken");
+        const countdown = setInterval(() => {
+            timeLeft--;
+            timerDisplay.textContent = `⏳ ${timeLeft}`;
+            timeTakenInput.value = 15 - timeLeft;
+            if (timeLeft <= 0) {
+                clearInterval(countdown);
+                document.querySelectorAll(".answer-btn").forEach(btn => btn.disabled = true);
+                timerDisplay.textContent = "⏰ Time's up!";
+            }
+        }, 1000);
+    </script>
 <?php else: ?>
     <h2>🏁 Quiz Completed!</h2>
-    <p>Your final score: <?= $score ?> out of <?= $total ?></p>
+    <p>Your final score: <?= $score ?> out of <?= $total * 3 ?> points</p>
     <form method="POST" action="">
         <button type="submit" name="restart" value="1">Play Again</button>
     </form>
