@@ -9,6 +9,42 @@ $OPENROUTER_REFERER = 'https://kremlik.byethost15.com';
 $APP_TITLE = 'KahootGenerator';
 $THROTTLE_SECONDS = 1;
 
+// === HTML Header ===
+echo <<<HTML
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Generate Quiz Choices</title>
+    <style>
+        textarea {
+            width: 120px;
+            min-height: 1.5em;
+            resize: none;
+            overflow: hidden;
+            box-sizing: border-box;
+            font-family: inherit;
+            font-size: 1em;
+        }
+    </style>
+    <script>
+        function autoResize(el) {
+            el.style.height = "auto";
+            el.style.height = (el.scrollHeight) + "px";
+        }
+        document.addEventListener("DOMContentLoaded", function () {
+            document.querySelectorAll("textarea").forEach(function (el) {
+                autoResize(el);
+                el.addEventListener("input", function () {
+                    autoResize(el);
+                });
+            });
+        });
+    </script>
+</head>
+<body>
+HTML;
+
 function getUserTables($conn, $username) {
     $tables = [];
     $result = $conn->query("SHOW TABLES");
@@ -23,9 +59,9 @@ function getUserTables($conn, $username) {
 
 function callOpenRouter($apiKey, $model, $czechWord, $correctAnswer, $targetLang, $referer, $appTitle) {
     $prompt = "The correct translation of the Czech word \"$czechWord\" into $targetLang is \"$correctAnswer\". "
-            . "Generate 3 plausible wrong alternatives based on typical mistakes students make. "
-            . "Use errors like wrong articles, false friends, misspellings, or common confusion. "
-            . "Return only the 3 alternatives as a numbered list.";
+            . "Generate 3 plausible but incorrect alternatives based on common mistakes language learners make. "
+            . "Avoid unrealistic errors such as reversed words or random characters. "
+            . "The output must look like a human could plausibly confuse it. Return only valid UTF-8 text as a numbered list.";
 
     $data = [
         "model" => $model,
@@ -51,25 +87,20 @@ function callOpenRouter($apiKey, $model, $czechWord, $correctAnswer, $targetLang
 
     $decoded = json_decode($response, true);
     $output = $decoded['choices'][0]['message']['content'] ?? '';
-
     preg_match_all('/^\d+[\).\s-]+(.+)$/m', $output, $matches);
     return [$matches[1] ?? [], $httpCode];
 }
 
 function naiveWrongAnswers($correct, $lang) {
-    $wrong1 = strrev($correct);
-    $wrong2 = substr($correct, 0, -1);
-    $wrong3 = $correct . 'x';
-    return [$wrong1, $wrong2, $wrong3];
+    return [$correct . 'x', '???', mb_substr($correct, 0, -1)];
 }
 
 $username = strtolower($_SESSION['username'] ?? '');
 $conn->set_charset("utf8mb4");
 $tables = getUserTables($conn, $username);
-
 $generatedTable = '';
 
-// === Save Changes Handler ===
+// === Save Edits Handler ===
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_table']) && isset($_POST['edited_rows'])) {
     $editTable = $conn->real_escape_string($_POST['save_table']);
     foreach ($_POST['edited_rows'] as $id => $row) {
@@ -84,7 +115,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_table']) && isse
     $generatedTable = $editTable;
 }
 
-// === Generation Handler ===
+// === Generate Quiz Set Handler ===
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['table'], $_POST['source_lang'], $_POST['target_lang']) && !isset($_POST['save_table'])) {
     $table = $conn->real_escape_string($_POST['table']);
     $sourceLang = htmlspecialchars($_POST['source_lang']);
@@ -110,7 +141,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['table'], $_POST['sour
         )");
 
         echo "<h2>Generating quiz entries for table <code>$table</code>...</h2><ul>";
-
         while ($row = $result->fetch_assoc()) {
             $question = trim($row[$col1]);
             $correct = trim($row[$col2]);
@@ -172,10 +202,10 @@ if (!empty($generatedTable)) {
         $id = $row['id'];
         echo "<tr>";
         echo "<td>" . htmlspecialchars($row['question']) . "</td>";
-        echo "<td><input type='text' name='edited_rows[$id][correct]' value='" . htmlspecialchars($row['correct_answer']) . "'></td>";
-        echo "<td><input type='text' name='edited_rows[$id][wrong1]' value='" . htmlspecialchars($row['wrong1']) . "'></td>";
-        echo "<td><input type='text' name='edited_rows[$id][wrong2]' value='" . htmlspecialchars($row['wrong2']) . "'></td>";
-        echo "<td><input type='text' name='edited_rows[$id][wrong3]' value='" . htmlspecialchars($row['wrong3']) . "'></td>";
+        echo "<td><textarea name='edited_rows[$id][correct]' oninput='autoResize(this)'>" . htmlspecialchars($row['correct_answer']) . "</textarea></td>";
+        echo "<td><textarea name='edited_rows[$id][wrong1]' oninput='autoResize(this)'>" . htmlspecialchars($row['wrong1']) . "</textarea></td>";
+        echo "<td><textarea name='edited_rows[$id][wrong2]' oninput='autoResize(this)'>" . htmlspecialchars($row['wrong2']) . "</textarea></td>";
+        echo "<td><textarea name='edited_rows[$id][wrong3]' oninput='autoResize(this)'>" . htmlspecialchars($row['wrong3']) . "</textarea></td>";
         echo "</tr>";
     }
     echo "</table><br><button type='submit'>💾 Save Changes</button></form><br>";
@@ -198,5 +228,5 @@ echo "<label>Target language (e.g. German):</label><br>";
 echo "<input type='text' name='target_lang' required><br><br>";
 
 echo "<button type='submit'>🚀 Generate Quiz Set</button>";
-echo "</form>";
+echo "</form></body></html>";
 ?>
