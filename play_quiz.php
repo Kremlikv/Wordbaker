@@ -1,4 +1,8 @@
 <?php
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
 session_start();
 require_once 'db.php';
 require_once 'session.php';
@@ -28,7 +32,6 @@ while ($row = $result->fetch_array()) {
     }
 }
 
-// ✅ NEW: Force reset when Start button clicked
 if (isset($_POST['start_new']) && !empty($_POST['quiz_table'])) {
     $_SESSION['quiz_table'] = $_POST['quiz_table'];
     $_SESSION['score'] = 0;
@@ -36,8 +39,19 @@ if (isset($_POST['start_new']) && !empty($_POST['quiz_table'])) {
 
     $selectedTable = $_POST['quiz_table'];
     $res = $conn->query("SELECT * FROM `$selectedTable`");
+    if (!$res) {
+        die("❌ Query failed: " . $conn->error);
+    }
+    
     $questions = [];
     while ($row = $res->fetch_assoc()) {
+        // Debug: Check for missing keys
+        if (!isset($row['question'], $row['correct_answer'], $row['wrong1'], $row['wrong2'], $row['wrong3'])) {
+            echo "❌ Missing expected keys in row:";
+            var_dump($row);
+            exit;
+        }
+        
         $answers = [$row['correct_answer'], $row['wrong1'], $row['wrong2'], $row['wrong3']];
         shuffle($answers);
         $questions[] = [
@@ -47,6 +61,11 @@ if (isset($_POST['start_new']) && !empty($_POST['quiz_table'])) {
             'image' => $row['image_url'] ?? ''
         ];
     }
+    
+    if (empty($questions)) {
+        die("⚠️ No questions found in table '$selectedTable'.");
+    }
+
     shuffle($questions);
     $_SESSION['questions'] = $questions;
     header("Location: play_quiz.php");
@@ -129,7 +148,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['answer'])) {
 
 <h1>🎯 Kahoot-style Quiz</h1>
 
-<!-- Always visible selector -->
 <form method="POST">
     <label>Select quiz set:</label><br><br>
     <select name="quiz_table" required>
@@ -186,7 +204,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['answer'])) {
         }, 1000);
     </script>
 <?php elseif ($selectedTable && $index >= $total): ?>
-    <h2>🏁 Quiz Completed!</h2>
+    <h2>🌟 Quiz Completed!</h2>
     <p>Your final score: <?= $score ?> out of <?= $total * 3 ?> points</p>
     <form method="POST">
         <input type="hidden" name="restart" value="1">
