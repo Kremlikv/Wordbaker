@@ -150,8 +150,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['answer'])) {
         <div class="answer-grid">
             <?php foreach ($questions[$index]['answers'] as $a): ?>
                 <div class="answer-col">
-                    <button type="submit" name="answer" value="<?= htmlspecialchars($a) ?>" class="answer-btn">
-                        <?= htmlspecialchars($a) ?>
+                    <button type="submit" name="answer" value="<?= htmlspecialchars(trim($a, "\"'")) ?>
+" class="answer-btn">
+                        <?= htmlspecialchars(trim($a, "\"'")) ?>
+
                     </button>
                 </div>
             <?php endforeach; ?>
