@@ -76,14 +76,13 @@ function callOpenRouter($apiKey, $model, $czechWord, $correctAnswer, $targetLang
     1. Do NOT return the correct answer.
     2. Make each alternative slightly incorrect — for example:
     - common false friends,
-    - typical student misspellings,
+    - similar-sounding words,    - typical student misspellings,
     - wrong gender or article (for German, French, etc.),
     - incorrect but similar-looking/meaning words.
     3. DO NOT include completely unrelated, random, or reversed words.
     4. DO NOT use unrealistic or AI-like errors.
     5. DO NOT repeat words or return the correct answer in any form.
-    6. Output only the 3 wrong answers as a numbered list.
-    7. Ensure the output is valid UTF-8 text.
+    6. Ensure the output is valid UTF-8 text.
     EOT;
 
 //
