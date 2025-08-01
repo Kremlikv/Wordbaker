@@ -156,7 +156,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_table'])) {
 
     if (!empty($_POST['edited_rows'])) {
         foreach ($_POST['edited_rows'] as $id => $row) {
-            $stmt = $conn->prepare("UPDATE `$editTable` SET correct_answer=?, wrong1=?, wrong2=?, wrong3=? WHERE id=?");
+            $stmt = $conn->prepare("UPDATE `$editTable` SET correct_answer=?, wrong1=?, wrong2=?, wrong3=?, image_url='' WHERE id=?");
             $stmt->bind_param("ssssi",
                 $row['correct'], $row['wrong1'], $row['wrong2'], $row['wrong3'], $id
             );
@@ -190,7 +190,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['table'], $_POST['sour
             wrong2 TEXT,
             wrong3 TEXT,
             source_lang VARCHAR(20),
-            target_lang VARCHAR(20)
+            target_lang VARCHAR(20),
+            image_url TEXT
         )");
 
         echo "<h2>Generating quiz entries for table <code>$table</code>...</h2><ul>";
@@ -214,10 +215,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['table'], $_POST['sour
             }
 
             list($wrong1, $wrong2, $wrong3) = array_pad($wrongs, 3, '');
+            $image = '';
 
-            $stmt = $conn->prepare("INSERT INTO `$quizTable` (question, correct_answer, wrong1, wrong2, wrong3, source_lang, target_lang)
-                                    VALUES (?, ?, ?, ?, ?, ?, ?)");
-            $stmt->bind_param("sssssss", $question, $correct, $wrong1, $wrong2, $wrong3, $sourceLang, $targetLang);
+            $stmt = $conn->prepare("INSERT INTO `$quizTable` (question, correct_answer, wrong1, wrong2, wrong3, source_lang, target_lang, image_url)
+                                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->bind_param("ssssssss", $question, $correct, $wrong1, $wrong2, $wrong3, $sourceLang, $targetLang, $image);
             $stmt->execute();
             $stmt->close();
 
