@@ -124,6 +124,8 @@ echo "<a href='review_difficult.php'><button>🧠 Difficult Words</button></a> "
 echo "<a href='mastered.php'><button>🌟 Mastered</button></a> ";
 echo "<a href='translator.php'><button>🌐 Translate</button></a> ";
 echo "<a href='pdf_scan.php'><button>📄 PDF-to-text</button></a>";
+echo "<a href='generate_quiz_choices.php'><button>🎯 Make Quiz</button></a>";
+echo "<a href='play_quiz.php'><button>🎯 Play Quiz</button></a>";
 echo "</div>";
 
 echo "<div class='content'>";
