@@ -18,7 +18,9 @@ echo <<<HTML
 <html>
 <head>
     <meta charset="UTF-8">
+
     <title>Generate Quiz Choices</title>
+  
     <style>
         textarea {
             width: 120px;
@@ -61,33 +63,51 @@ function getUserTables($conn, $username) {
 }
 
 function callOpenRouter($apiKey, $model, $czechWord, $correctAnswer, $targetLang, $referer, $appTitle) {
+//    $prompt = "The correct translation of the Czech word \"$czechWord\" into $targetLang is \"$correctAnswer\". "
+//            . "Generate 3 incorrect alternatives where a different word will be used instead of the correct word."                
+//            . "Avoid unrealistic mistakes which humans would not make. The words must be somewhat similar in meaning or form."
+//           . "Return only valid UTF-8 text as a numbered list.";
+
     $prompt = <<<EOT
-You are helping build a language-learning quiz.
+        You are helping build a language-learning quiz.
 
-For each Czech word, I will give you the correct translation into $targetLang. 
-Your task is to generate 3 **plausible but incorrect alternatives** — the kind of mistake a student might make. 
+        For each Czech word, I will give you the correct translation into $targetLang. 
+        Your task is to generate 3 **plausible but incorrect alternatives** — the kind of mistake a student might make. 
 
-⚠️ DO NOT:
-- Add random letters or corrupt the correct answer.
-- Modify the correct answer by adding/removing characters.
-- Use gibberish.
-- Return the correct answer in any form.
-- Explain the answers.
-- Use parentheses or notes.
+        ⚠️ DO NOT:
+        - Add random letters or corrupt the correct answer.
+        - Modify the correct answer by adding/removing characters (e.g., "der Hof" → "der Hofx" ❌)
+        - Use gibberish (e.g., "Grgsbslk" ❌ or "dr rmnsch Stl" ❌)
+        - Return the correct answer in any form.
+        - Do NOT explain the answers.
+        - Do NOT use parentheses or add notes.
 
-✅ DO:
-- Use real words that are incorrect but believable.
-- Make mistakes like false friends, wrong gender/article, or overgeneralization.
-- Output only 3 wrong answers in numbered list format:
-1. WrongAnswer1
-2. WrongAnswer2
-3. WrongAnswer3
+        ✅ DO:
+        - Use real words from the target language that are incorrect but believable.
+        - Make mistakes a human might make: false friends, wrong gender, wrong article, wrong word choice.
+        - Choose actual words/phrases students could confuse.
+        - Format as a numbered list (1–3), with each option on its own line.
+        - Output must be valid UTF-8.
 
-Czech: "$czechWord"
-Correct translation: "$correctAnswer"
+        ### Example:
+        Czech word: "město"
+        Correct translation into German: "die Stadt"
+        Wrong alternatives:
+        1. das Stadt (wrong gender)
+        2. die Stelle (false friend)
+        3. die Hauptstadt (too specific)
 
-Wrong alternatives:
-EOT;
+        Now apply this to the following word:
+
+        Czech: "$czechWord"
+        Correct translation: "$correctAnswer"
+
+        Wrong alternatives:
+        EOT;
+
+
+//
+
 
     $data = array(
         "model" => $model,
@@ -121,11 +141,10 @@ EOT;
     preg_match_all('/^\d+[\.\)\s-]+(.+)$/m', $output, $matches);
     $rawAnswers = isset($matches[1]) ? $matches[1] : array();
 
+    // Trim quotes and whitespace
     $cleaned = array();
     foreach ($rawAnswers as $a) {
-        $a = trim($a, " \"“”‘’'");
-        $a = preg_replace('/\s*\([^)]*\)/', '', $a); // remove parentheses content
-        $cleaned[] = trim($a);
+        $cleaned[] = trim($a, " \"“”‘’'");
     }
 
     return array($cleaned, $httpCode);
@@ -147,6 +166,7 @@ $generatedTable = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_table'])) {
     $editTable = $conn->real_escape_string($_POST['save_table']);
 
+    // Deletion
     if (!empty($_POST['delete_rows'])) {
         foreach ($_POST['delete_rows'] as $deleteId) {
             $deleteId = intval($deleteId);
@@ -154,6 +174,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_table'])) {
         }
     }
 
+    // Updates
     if (!empty($_POST['edited_rows'])) {
         foreach ($_POST['edited_rows'] as $id => $row) {
             $stmt = $conn->prepare("UPDATE `$editTable` SET correct_answer=?, wrong1=?, wrong2=?, wrong3=? WHERE id=?");
@@ -169,6 +190,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_table'])) {
     $generatedTable = $editTable;
 }
 
+// === Generate Quiz Set Handler ===
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['table'], $_POST['source_lang'], $_POST['target_lang']) && !isset($_POST['save_table'])) {
     $table = $conn->real_escape_string($_POST['table']);
     $sourceLang = htmlspecialchars($_POST['source_lang']);
@@ -235,10 +257,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['table'], $_POST['sour
     }
 }
 
+// === Editable Table View ===
 if (!empty($generatedTable)) {
     $editTable = $conn->real_escape_string($generatedTable);
     $res = $conn->query("SELECT * FROM `$editTable`");
-    echo "<h3>📜 Edit Generated Quiz: <code>$editTable</code></h3>";
+    echo "<h3>📝 Edit Generated Quiz: <code>$editTable</code></h3>";
     echo "<form method='POST'>";
     echo "<input type='hidden' name='save_table' value='" . htmlspecialchars($editTable) . "'>";
     echo "<table border='1' cellpadding='5' cellspacing='0'>";
@@ -254,7 +277,7 @@ if (!empty($generatedTable)) {
         echo "<td><input type='checkbox' name='delete_rows[]' value='" . intval($id) . "'></td>";
         echo "</tr>";
     }
-    echo "</table><br><button type='submit'>📂 Save Changes</button></form><br>";
+    echo "</table><br><button type='submit'>💾 Save Changes</button></form><br>";
 }
 
 echo "<div class='content'>";
