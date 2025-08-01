@@ -15,7 +15,9 @@ echo <<<HTML
 <html>
 <head>
     <meta charset="UTF-8">
+
     <title>Generate Quiz Choices</title>
+  
     <style>
         textarea {
             width: 120px;
@@ -234,6 +236,7 @@ if (!empty($generatedTable)) {
     echo "</table><br><button type='submit'>💾 Save Changes</button></form><br>";
 }
 
+echo "<div class='content'>";
 echo "<h2>Generate AI Quiz Choices</h2>";
 echo "<form method='POST'>";
 echo "<label>Select dictionary table:</label><br>";
@@ -248,4 +251,5 @@ echo "<label>Target language (e.g. German):</label><br>";
 echo "<input type='text' name='target_lang' required><br><br>";
 echo "<button type='submit'>🚀 Generate Quiz Set</button>";
 echo "</form></body></html>";
+echo "</div>";
 ?>
