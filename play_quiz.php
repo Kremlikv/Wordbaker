@@ -4,19 +4,18 @@ require_once 'session.php';
 
 session_start();
 
+// 🔄 Handle restart request
 if (isset($_POST['restart'])) {
     unset($_SESSION['score'], $_SESSION['question_index'], $_SESSION['questions'], $_SESSION['quiz_table']);
     header("Location: play_quiz.php");
     exit;
 }
 
-
 if (!isset($_SESSION['score'])) {
     $_SESSION['score'] = 0;
     $_SESSION['question_index'] = 0;
     $_SESSION['questions'] = [];
 }
-
 
 // Load available quiz_choices_* tables
 $quizTables = [];
@@ -82,12 +81,21 @@ $score = $_SESSION['score'];
     <style>
         body { font-family: sans-serif; text-align: center; padding: 20px; }
         .question-box { font-size: 1.5em; margin-bottom: 20px; }
+        .answer-grid {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            max-width: 600px;
+            margin: auto;
+        }
+        .answer-col {
+            flex: 0 0 50%;
+            padding: 10px;
+        }
         .answer-btn {
-            display: inline-block;
-            width: 45%;
+            width: 100%;
             padding: 20px;
-            margin: 10px;
-            font-size: 1.2em;
+            font-size: 1.1em;
             cursor: pointer;
             border: none;
             border-radius: 10px;
@@ -133,11 +141,15 @@ $score = $_SESSION['score'];
     <?php endif; ?>
     <form method="POST" id="quizForm">
         <input type="hidden" name="time_taken" id="time_taken" value="15">
-        <?php foreach ($questions[$index]['answers'] as $a): ?>
-            <button type="submit" name="answer" value="<?= htmlspecialchars($a) ?>" class="answer-btn">
-                <?= htmlspecialchars($a) ?>
-            </button><br>
-        <?php endforeach; ?>
+        <div class="answer-grid">
+            <?php foreach ($questions[$index]['answers'] as $a): ?>
+                <div class="answer-col">
+                    <button type="submit" name="answer" value="<?= htmlspecialchars($a) ?>" class="answer-btn">
+                        <?= htmlspecialchars($a) ?>
+                    </button>
+                </div>
+            <?php endforeach; ?>
+        </div>
     </form>
     <?php if (isset($_SESSION['feedback'])): ?>
         <div class="feedback"><?= $_SESSION['feedback'] ?></div>
@@ -161,18 +173,11 @@ $score = $_SESSION['score'];
 <?php else: ?>
     <h2>🏁 Quiz Completed!</h2>
     <p>Your final score: <?= $score ?> out of <?= $total * 3 ?> points</p>
-
-    <form method="POST" action="">
-    <input type="hidden" name="restart" value="1">
-    <button type="submit">Play Again</button>
+    <form method="POST">
+        <input type="hidden" name="restart" value="1">
+        <button type="submit">Play Again</button>
     </form>
-    <?php
-    // Fully reset session when quiz ends
-    unset($_SESSION['score'], $_SESSION['question_index'], $_SESSION['questions'], $_SESSION['quiz_table']);
-?>
-
-
-
+    <?php unset($_SESSION['score'], $_SESSION['question_index'], $_SESSION['questions'], $_SESSION['quiz_table']); ?>
 <?php endif; ?>
 </body>
 </html>
