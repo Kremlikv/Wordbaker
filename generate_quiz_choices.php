@@ -2,7 +2,10 @@
 require_once 'db.php';
 require_once 'session.php';
 include 'styling.php';
+
+echo "<div class='content'>";
 echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Logout</a>"; 
+echo "</div>";
 
 $OPENROUTER_API_KEY = 'sk-or-PLACEHOLDER';
 $OPENROUTER_MODEL = 'anthropic/claude-3-haiku';
@@ -61,8 +64,14 @@ function getUserTables($conn, $username) {
 
 function callOpenRouter($apiKey, $model, $czechWord, $correctAnswer, $targetLang, $referer, $appTitle) {
     $prompt = "The correct translation of the Czech word \"$czechWord\" into $targetLang is \"$correctAnswer\". "
-            . "Generate 3 plausible but incorrect alternatives based on common mistakes language learners make. "
-            . "Avoid unrealistic errors such as reversed words or random characters. "
+            . "Generate 3 incorrect translations of the Czech word \"$czechWord\". "
+            . "Use only such mistakes that are common for human students in real world. "
+            . "Avoid unrealistic errors such as random letters inserted or palindroms."
+            . "Include similar words from other European languages."
+            . "Include mistaken capital letters, mistaken grammatical case or gender, mistaken endings."
+            . "Return 3 wrong answers in the same language as the correct answer, "
+            . "If the mistake is an ommitted letter, it should happen only once in that word."
+            . "Include mistakes based on ommitted auxiliary verbs or missing endings"
             . "Return only valid UTF-8 text as a numbered list.";
 
     $data = array(

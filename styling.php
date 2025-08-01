@@ -309,7 +309,7 @@ ul ul.open {
     background-color: #eef;
 }
 
-/* Direcstory panel frame */ 
+/* Directory panel frame */ 
 
 .directory-panel {
     max-width: 100%;
