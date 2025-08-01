@@ -69,21 +69,40 @@ function callOpenRouter($apiKey, $model, $czechWord, $correctAnswer, $targetLang
 //           . "Return only valid UTF-8 text as a numbered list.";
 
     $prompt = <<<EOT
-    You are generating plausible wrong answers for a language learning quiz.
-    The correct translation of the Czech word "$czechWord" into $targetLang is "$correctAnswer".
-    Generate exactly 3 **plausible but incorrect** alternatives.
-    Rules:
-    1. Do NOT return the correct answer.
-    2. Make each alternative slightly incorrect — for example:
-    - common false friends,
-    - similar-sounding words,    - typical student misspellings,
-    - wrong gender or article (for German, French, etc.),
-    - incorrect but similar-looking/meaning words.
-    3. DO NOT include completely unrelated, random, or reversed words.
-    4. DO NOT use unrealistic or AI-like errors.
-    5. DO NOT repeat words or return the correct answer in any form.
-    6. Ensure the output is valid UTF-8 text.
-    EOT;
+        You are helping build a language-learning quiz.
+
+        For each Czech word, I will give you the correct translation into $targetLang. 
+        Your task is to generate 3 **plausible but incorrect alternatives** — the kind of mistake a student might make. 
+
+        ⚠️ DO NOT:
+        - Add random letters or corrupt the correct answer.
+        - Modify the correct answer by adding/removing characters (e.g., "der Hof" → "der Hofx" ❌)
+        - Use gibberish (e.g., "Grgsbslk" ❌ or "dr rmnsch Stl" ❌)
+        - Return the correct answer in any form.
+
+        ✅ DO:
+        - Use real words from the target language that are incorrect but believable.
+        - Make mistakes a human might make: false friends, wrong gender, wrong article, wrong word choice.
+        - Choose actual words/phrases students could confuse.
+        - Format as a numbered list (1–3), with each option on its own line.
+        - Output must be valid UTF-8.
+
+        ### Example:
+        Czech word: "město"
+        Correct translation into German: "die Stadt"
+        Wrong alternatives:
+        1. das Stadt (wrong gender)
+        2. die Stelle (false friend)
+        3. die Hauptstadt (too specific)
+
+        Now apply this to the following word:
+
+        Czech: "$czechWord"
+        Correct translation: "$correctAnswer"
+
+        Wrong alternatives:
+        EOT;
+
 
 //
 
