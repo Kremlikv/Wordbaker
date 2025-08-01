@@ -1,6 +1,5 @@
 <?php
-session_start(); // ✅ Start session before any use of $_SESSION
-
+session_start();
 require_once 'db.php';
 require_once 'session.php';
 
@@ -18,7 +17,7 @@ if (!isset($_SESSION['score'])) {
     $_SESSION['questions'] = [];
 }
 
-// Load available quiz_choices_* tables
+// Load quiz tables
 $quizTables = [];
 $result = $conn->query("SHOW TABLES");
 while ($row = $result->fetch_array()) {
@@ -27,9 +26,13 @@ while ($row = $result->fetch_array()) {
     }
 }
 
-$selectedTable = $_POST['quiz_table'] ?? $_SESSION['quiz_table'] ?? '';
-if ($selectedTable && empty($_SESSION['questions'])) {
-    $_SESSION['quiz_table'] = $selectedTable;
+// ✅ NEW: Force reset when Start button clicked
+if (isset($_POST['start_new']) && !empty($_POST['quiz_table'])) {
+    $_SESSION['quiz_table'] = $_POST['quiz_table'];
+    $_SESSION['score'] = 0;
+    $_SESSION['question_index'] = 0;
+
+    $selectedTable = $_POST['quiz_table'];
     $res = $conn->query("SELECT * FROM `$selectedTable`");
     $questions = [];
     while ($row = $res->fetch_assoc()) {
@@ -44,13 +47,17 @@ if ($selectedTable && empty($_SESSION['questions'])) {
     }
     shuffle($questions);
     $_SESSION['questions'] = $questions;
-    $_SESSION['question_index'] = 0;
-    $_SESSION['score'] = 0;
     header("Location: play_quiz.php");
     exit;
 }
 
-// Handle answer submission with time bonus
+$selectedTable = $_SESSION['quiz_table'] ?? '';
+$index = $_SESSION['question_index'] ?? 0;
+$questions = $_SESSION['questions'] ?? [];
+$total = count($questions);
+$score = $_SESSION['score'] ?? 0;
+
+// Handle answer
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['answer'])) {
     $index = $_SESSION['question_index'];
     $question = $_SESSION['questions'][$index];
@@ -69,13 +76,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['answer'])) {
     header("Location: play_quiz.php");
     exit;
 }
-
-$index = $_SESSION['question_index'] ?? 0;
-$questions = $_SESSION['questions'] ?? [];
-$total = count($questions);
-$score = $_SESSION['score'] ?? 0;
-
 ?>
+
 <!DOCTYPE html>
 <html>
 <head>
@@ -117,12 +119,15 @@ $score = $_SESSION['score'] ?? 0;
     </style>
 </head>
 <body>
+
 <audio autoplay loop volume="0.2">
     <source src="background.mp3" type="audio/mpeg">
     Your browser does not support background music.
 </audio>
+
 <h1>🎯 Kahoot-style Quiz</h1>
-<!-- Always visible quiz selector -->
+
+<!-- Always visible selector -->
 <form method="POST">
     <label>Select quiz set:</label><br><br>
     <select name="quiz_table" required>
@@ -133,16 +138,18 @@ $score = $_SESSION['score'] ?? 0;
             </option>
         <?php endforeach; ?>
     </select>
-    <button type="submit">Start Quiz</button>
+    <button type="submit" name="start_new">Start Quiz</button>
 </form>
+
 <hr>
+
 <?php if ($selectedTable && $index < $total): ?>
     <div class="score">Question <?= $index + 1 ?> of <?= $total ?> | Score: <?= $score ?></div>
     <div id="timer">⏳ 15</div>
     <div class="question-box">🧠 <?= htmlspecialchars($questions[$index]['question']) ?></div>
     <?php if (!empty($questions[$index]['image'])): ?>
         <div class="image-container">
-            <img src="<?= htmlspecialchars($questions[$index]['image']) ?>" alt="Question image" class="question-image">
+            <img src="<?= htmlspecialchars($questions[$index]['image']) ?>" class="question-image">
         </div>
     <?php endif; ?>
     <form method="POST" id="quizForm">
@@ -184,5 +191,6 @@ $score = $_SESSION['score'] ?? 0;
         <button type="submit">Play Again</button>
     </form>
 <?php endif; ?>
+
 </body>
 </html>
