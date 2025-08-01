@@ -64,14 +64,10 @@ function getUserTables($conn, $username) {
 
 function callOpenRouter($apiKey, $model, $czechWord, $correctAnswer, $targetLang, $referer, $appTitle) {
     $prompt = "The correct translation of the Czech word \"$czechWord\" into $targetLang is \"$correctAnswer\". "
-            . "Generate 3 incorrect translations of the Czech word \"$czechWord\". "
-            . "Use only such mistakes that are common for human students in real world. "
-            . "Avoid unrealistic errors such as random letters inserted or palindroms."
-            . "Include similar words from other European languages."
+            . "Generate 3 incorrect alternatives, where a wrong word is used, like Bookcase instead of Library or Fenster instead of Window."                
+            . "Avoid unrealistic errors such as palindroms or random letters inserted, random letters missing or random letters capitalised."
+            . "The mistakes can include use of a wrong word from the same quiz table."
             . "Include mistaken capital letters, mistaken grammatical case or gender, mistaken endings."
-            . "Return 3 wrong answers in the same language as the correct answer, "
-            . "If the mistake is an ommitted letter, it should happen only once in that word."
-            . "Include mistakes based on ommitted auxiliary verbs or missing endings"
             . "Return only valid UTF-8 text as a numbered list.";
 
     $data = array(
