@@ -1,6 +1,8 @@
 <?php
 require_once 'db.php';
 require_once 'session.php';
+include 'styling.php';
+echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Logout</a>"; 
 
 $OPENROUTER_API_KEY = 'sk-or-PLACEHOLDER';
 $OPENROUTER_MODEL = 'anthropic/claude-3-haiku';
