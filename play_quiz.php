@@ -2,14 +2,14 @@
 require_once 'db.php';
 require_once 'session.php';
 
-session_start();
-
-// 🔄 Handle restart request
 if (isset($_POST['restart'])) {
-    unset($_SESSION['score'], $_SESSION['question_index'], $_SESSION['questions'], $_SESSION['quiz_table']);
+    session_unset();
+    session_destroy();
     header("Location: play_quiz.php");
     exit;
 }
+
+session_start();
 
 if (!isset($_SESSION['score'])) {
     $_SESSION['score'] = 0;
@@ -25,6 +25,7 @@ while ($row = $result->fetch_array()) {
         $quizTables[] = $row[0];
     }
 }
+
 
 $selectedTable = $_POST['quiz_table'] ?? $_SESSION['quiz_table'] ?? '';
 if ($selectedTable && empty($_SESSION['questions'])) {
@@ -173,11 +174,13 @@ $score = $_SESSION['score'];
 <?php else: ?>
     <h2>🏁 Quiz Completed!</h2>
     <p>Your final score: <?= $score ?> out of <?= $total * 3 ?> points</p>
+    
     <form method="POST">
-        <input type="hidden" name="restart" value="1">
-        <button type="submit">Play Again</button>
+    <input type="hidden" name="restart" value="1">
+    <button type="submit">Play Again</button>
     </form>
-    <?php unset($_SESSION['score'], $_SESSION['question_index'], $_SESSION['questions'], $_SESSION['quiz_table']); ?>
-<?php endif; ?>
+
+
+    <?php endif; ?>
 </body>
 </html>
