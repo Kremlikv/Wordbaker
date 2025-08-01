@@ -79,7 +79,7 @@ function callOpenRouter($apiKey, $model, $czechWord, $correctAnswer, $targetLang
         - Modify the correct answer by adding/removing characters (e.g., "der Hof" → "der Hofx" ❌)
         - Use gibberish (e.g., "Grgsbslk" ❌ or "dr rmnsch Stl" ❌)
         - Return the correct answer in any form.
-        - Do not explain why you selected these alternatives.
+        - Do not include the bracketed explanations showing which word is wrong and why, such as: (wrong article) (wrong gender).
 
         ✅ DO:
         - Use real words from the target language that are incorrect but believable.
