@@ -20,17 +20,17 @@ a ne jako několika řádkový skript, co bych musel v každém souboru opakovat
 - Při github zálohování se mi v byethost adresáři zjevuje dávno smazaný Flashcards.php
 A program se rozhodl používat tento neplatn soubor místo nového flashcards.php
 
+YAML 
+Yaml soubory obsahují přístupovéý klíč, takže umožňují Githubu stáhnout 
+data z mého webu i z databáze, vytvořit zálohu. A také mohou github-push commit protlačit na můj web.
+Aby se aktualizoval. Musí v yaml ale být nastavena správná branch (databázi mám v samosatné db branch)
+
 ALWAYS DATA MÁ DÁLKOVÉ SQL
 Free hosting jako byethost obvykle neumožňuje dálkový přístup k databázím. 
 Ale free databázové služby to umožňují, takže stačí propojit tyto dvě služby na dálku.
+To umožňuje na Githubu zálohovat i databáze.
 Na free databázový server mohu soubory nahrávat jen přes FileZillu (win program)
 Ve free databázové službě AlwaysData pak databázi prohlížím v phpadmin.
-
-STEJNÁ BRANCH 
-db_backup.yaml umožňuje na dálku řídit databázi v AlwayData.
-db_backup.yaml funguje až když jsem nastavil push: branch01
-(stejná branch jako u php files).
-skript to pak ale stejně uloží ten sql dump do branche: db_backups.
 
 TOKEN
 db_backup.yaml také vyžaduje, abych v nastavení projektu v githubu
