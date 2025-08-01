@@ -3,7 +3,7 @@ require_once 'db.php';
 require_once 'session.php';
 
 // === CONFIG ===
-$OPENROUTER_API_KEY = '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';
+$OPENROUTER_API_KEY = 'sk-or-PLACEHOLDER';  // Replace with your real key
 $OPENROUTER_MODEL = 'anthropic/claude-3-haiku';
 $OPENROUTER_REFERER = 'https://kremlik.byethost15.com';
 $APP_TITLE = 'KahootGenerator';
@@ -58,7 +58,7 @@ function getUserTables($conn, $username) {
 }
 
 function callOpenRouter($apiKey, $model, $czechWord, $correctAnswer, $targetLang, $referer, $appTitle) {
-    $prompt = "The correct translation of the Czech word \"$czechWord\" into $targetLang is \"$correctAnswer\". "
+    $prompt = "The correct translation of the Czech word "$czechWord" into $targetLang is "$correctAnswer". "
             . "Generate 3 plausible but incorrect alternatives based on common mistakes language learners make. "
             . "Avoid unrealistic errors such as reversed words or random characters. "
             . "The output must look like a human could plausibly confuse it. Return only valid UTF-8 text as a numbered list.";
@@ -92,8 +92,9 @@ function callOpenRouter($apiKey, $model, $czechWord, $correctAnswer, $targetLang
 
     $decoded = json_decode($response, true);
     $output = $decoded['choices'][0]['message']['content'] ?? '';
-    preg_match_all('/^\d+[\).\s-]+(.+)$/m', $output, $matches);
-    return [$matches[1] ?? [], $httpCode];
+    preg_match_all('/^\d+[).\s-]+(.+)$/m', $output, $matches);
+    $cleaned = array_map(fn($a) => trim($a, ""“”‘’' "), $matches[1] ?? []);
+    return [$cleaned, $httpCode];
 }
 
 function naiveWrongAnswers($correct, $lang) {
@@ -230,4 +231,3 @@ echo "<input type='text' name='target_lang' required><br><br>";
 echo "<button type='submit'>🚀 Generate Quiz Set</button>";
 echo "</form></body></html>";
 ?>
-
