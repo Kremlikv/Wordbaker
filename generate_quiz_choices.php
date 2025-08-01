@@ -63,10 +63,31 @@ function getUserTables($conn, $username) {
 }
 
 function callOpenRouter($apiKey, $model, $czechWord, $correctAnswer, $targetLang, $referer, $appTitle) {
-    $prompt = "The correct translation of the Czech word \"$czechWord\" into $targetLang is \"$correctAnswer\". "
-            . "Generate 3 incorrect alternatives where a different word will be used instead of the correct word."                
-            . "Avoid unrealistic mistakes which humans would not make. The words must be somewhat similar in meaning or form."
-            . "Return only valid UTF-8 text as a numbered list.";
+//    $prompt = "The correct translation of the Czech word \"$czechWord\" into $targetLang is \"$correctAnswer\". "
+//            . "Generate 3 incorrect alternatives where a different word will be used instead of the correct word."                
+//            . "Avoid unrealistic mistakes which humans would not make. The words must be somewhat similar in meaning or form."
+//           . "Return only valid UTF-8 text as a numbered list.";
+
+    $prompt = <<<EOT
+    You are generating plausible wrong answers for a language learning quiz.
+    The correct translation of the Czech word "$czechWord" into $targetLang is "$correctAnswer".
+    Generate exactly 3 **plausible but incorrect** alternatives.
+    Rules:
+    1. Do NOT return the correct answer.
+    2. Make each alternative slightly incorrect — for example:
+    - common false friends,
+    - typical student misspellings,
+    - wrong gender or article (for German, French, etc.),
+    - incorrect but similar-looking/meaning words.
+    3. DO NOT include completely unrelated, random, or reversed words.
+    4. DO NOT use unrealistic or AI-like errors.
+    5. DO NOT repeat words or return the correct answer in any form.
+    6. Output only the 3 wrong answers as a numbered list.
+    7. Ensure the output is valid UTF-8 text.
+    EOT;
+
+//
+
 
     $data = array(
         "model" => $model,
