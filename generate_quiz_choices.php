@@ -102,6 +102,11 @@ function callOpenRouter($apiKey, $model, $czechWord, $correctAnswer, $targetLang
 }
 
 function naiveWrongAnswers($correct, $lang) {
+    $wrong1 = $correct . 'x';
+    $wrong2 = preg_replace('/[aeiouáéíóúýäëïöü]/u', '', $correct); // remove vowels
+    $wrong3 = strrev($correct); // reversed version, filtered later
+    return [$wrong1, $wrong2, $wrong3];
+}
     return [$correct . 'x', '???', mb_substr($correct, 0, -1)];
 }
 
@@ -113,6 +118,13 @@ $generatedTable = '';
 // === Save Edits Handler ===
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_table']) && isset($_POST['edited_rows'])) {
     $editTable = $conn->real_escape_string($_POST['save_table']);
+    if (!empty($_POST['delete_rows'])) {
+    foreach ($_POST['delete_rows'] as $deleteId) {
+        $deleteId = intval($deleteId);
+        $conn->query("DELETE FROM `$editTable` WHERE id = $deleteId");
+    }
+}
+
     foreach ($_POST['edited_rows'] as $id => $row) {
         $stmt = $conn->prepare("UPDATE `$editTable` SET correct_answer=?, wrong1=?, wrong2=?, wrong3=? WHERE id=?");
         $stmt->bind_param("ssssi",
@@ -205,7 +217,7 @@ if (!empty($generatedTable)) {
     echo "<form method='POST'>";
     echo "<input type='hidden' name='save_table' value='" . htmlspecialchars($editTable) . "'>";
     echo "<table border='1' cellpadding='5' cellspacing='0'>";
-    echo "<tr><th>Czech</th><th>Correct</th><th>Wrong 1</th><th>Wrong 2</th><th>Wrong 3</th></tr>";
+    echo "<tr><th>Czech</th><th>Correct</th><th>Wrong 1</th><th>Wrong 2</th><th>Wrong 3</th><th>Delete</th></tr>";
     while ($row = $res->fetch_assoc()) {
         $id = $row['id'];
         echo "<tr>";
