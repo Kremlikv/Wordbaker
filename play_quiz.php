@@ -1,5 +1,6 @@
 <?php
-session_start();
+session_start(); // ✅ Start session before any use of $_SESSION
+
 require_once 'db.php';
 require_once 'session.php';
 
@@ -10,7 +11,14 @@ if (isset($_POST['restart'])) {
     exit;
 }
 
-// Load quiz choices tables
+// First-time setup
+if (!isset($_SESSION['score'])) {
+    $_SESSION['score'] = 0;
+    $_SESSION['question_index'] = 0;
+    $_SESSION['questions'] = [];
+}
+
+// Load available quiz_choices_* tables
 $quizTables = [];
 $result = $conn->query("SHOW TABLES");
 while ($row = $result->fetch_array()) {
@@ -19,14 +27,9 @@ while ($row = $result->fetch_array()) {
     }
 }
 
-// Start a new quiz
-if (isset($_POST['start_new']) && !empty($_POST['quiz_table'])) {
-    $_SESSION['quiz_table'] = $_POST['quiz_table'];
-    $_SESSION['score'] = 0;
-    $_SESSION['question_index'] = 0;
-    $_SESSION['questions'] = [];
-
-    $selectedTable = $_POST['quiz_table'];
+$selectedTable = $_POST['quiz_table'] ?? $_SESSION['quiz_table'] ?? '';
+if ($selectedTable && empty($_SESSION['questions'])) {
+    $_SESSION['quiz_table'] = $selectedTable;
     $res = $conn->query("SELECT * FROM `$selectedTable`");
     $questions = [];
     while ($row = $res->fetch_assoc()) {
@@ -41,23 +44,18 @@ if (isset($_POST['start_new']) && !empty($_POST['quiz_table'])) {
     }
     shuffle($questions);
     $_SESSION['questions'] = $questions;
-
+    $_SESSION['question_index'] = 0;
+    $_SESSION['score'] = 0;
     header("Location: play_quiz.php");
     exit;
 }
 
-$selectedTable = $_SESSION['quiz_table'] ?? '';
-$index = $_SESSION['question_index'] ?? 0;
-$questions = $_SESSION['questions'] ?? [];
-$total = count($questions);
-$score = $_SESSION['score'] ?? 0;
-
-// Handle answer
+// Handle answer submission with time bonus
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['answer'])) {
-    $question = $questions[$index];
+    $index = $_SESSION['question_index'];
+    $question = $_SESSION['questions'][$index];
     $timeTaken = intval($_POST['time_taken'] ?? 15);
     $bonus = 0;
-
     if ($_POST['answer'] === $question['correct']) {
         if ($timeTaken <= 5) $bonus = 3;
         elseif ($timeTaken <= 10) $bonus = 2;
@@ -67,11 +65,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['answer'])) {
     } else {
         $_SESSION['feedback'] = "❌ Wrong. Correct answer: " . htmlspecialchars($question['correct']);
     }
-
     $_SESSION['question_index']++;
     header("Location: play_quiz.php");
     exit;
 }
+
+$index = $_SESSION['question_index'] ?? 0;
+$questions = $_SESSION['questions'] ?? [];
+$total = count($questions);
+$score = $_SESSION['score'] ?? 0;
+
 ?>
 <!DOCTYPE html>
 <html>
@@ -116,55 +119,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['answer'])) {
 <body>
 <audio autoplay loop volume="0.2">
     <source src="background.mp3" type="audio/mpeg">
+    Your browser does not support background music.
 </audio>
-
 <h1>🎯 Kahoot-style Quiz</h1>
-
-<!-- File selector always visible -->
-<form method="POST" style="margin-bottom: 20px;">
-    <label><strong>Choose a quiz set:</strong></label>
+<!-- Always visible quiz selector -->
+<form method="POST">
+    <label>Select quiz set:</label><br><br>
     <select name="quiz_table" required>
-        <option value="">-- Select quiz_choices_* table --</option>
+        <option value="">-- Choose a quiz_choices_* table --</option>
         <?php foreach ($quizTables as $table): ?>
             <option value="<?= htmlspecialchars($table) ?>" <?= ($selectedTable === $table) ? 'selected' : '' ?>>
                 <?= htmlspecialchars($table) ?>
             </option>
         <?php endforeach; ?>
     </select>
-    <button type="submit" name="start_new">Start New Quiz</button>
+    <button type="submit">Start Quiz</button>
 </form>
-
-<?php if (!empty($questions) && $index < $total): ?>
+<hr>
+<?php if ($selectedTable && $index < $total): ?>
     <div class="score">Question <?= $index + 1 ?> of <?= $total ?> | Score: <?= $score ?></div>
     <div id="timer">⏳ 15</div>
     <div class="question-box">🧠 <?= htmlspecialchars($questions[$index]['question']) ?></div>
-
     <?php if (!empty($questions[$index]['image'])): ?>
         <div class="image-container">
-            <img src="<?= htmlspecialchars($questions[$index]['image']) ?>" class="question-image">
+            <img src="<?= htmlspecialchars($questions[$index]['image']) ?>" alt="Question image" class="question-image">
         </div>
     <?php endif; ?>
-
     <form method="POST" id="quizForm">
         <input type="hidden" name="time_taken" id="time_taken" value="15">
         <div class="answer-grid">
             <?php foreach ($questions[$index]['answers'] as $a): ?>
                 <div class="answer-col">
-                    <button type="submit" name="answer" value="<?= htmlspecialchars(trim($a, "\"'")) ?>
-" class="answer-btn">
-                        <?= htmlspecialchars(trim($a, "\"'")) ?>
-
+                    <button type="submit" name="answer" value="<?= htmlspecialchars($a) ?>" class="answer-btn">
+                        <?= htmlspecialchars($a) ?>
                     </button>
                 </div>
             <?php endforeach; ?>
         </div>
     </form>
-
     <?php if (isset($_SESSION['feedback'])): ?>
         <div class="feedback"><?= $_SESSION['feedback'] ?></div>
         <?php unset($_SESSION['feedback']); ?>
     <?php endif; ?>
-
     <script>
         let timeLeft = 15;
         const timerDisplay = document.getElementById("timer");
@@ -180,8 +176,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['answer'])) {
             }
         }, 1000);
     </script>
-
-<?php elseif (!empty($questions)): ?>
+<?php elseif ($selectedTable && $index >= $total): ?>
     <h2>🏁 Quiz Completed!</h2>
     <p>Your final score: <?= $score ?> out of <?= $total * 3 ?> points</p>
     <form method="POST">
