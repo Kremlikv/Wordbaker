@@ -64,4 +64,4 @@ d) And also I replaced AI with a free version from OpenRouter.ai
 
 KAHOOT 
 You can load a table and ask A.I. to generate false answers. 
-Then you can play a Kahoot quiz where you can choose from correct and false answers.
+Then you can play a Kahoot quiz where you can choose from correct and false answers. 
