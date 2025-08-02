@@ -1,4 +1,5 @@
 <?php
+// translate_api.php
 header('Content-Type: application/json');
 
 $text = $_POST['text'] ?? '';
@@ -10,39 +11,24 @@ if (!$text) {
     exit;
 }
 
-function translate_line($line, $source, $target) {
-    $url = "https://api.mymemory.translated.net/get?q=" . urlencode($line) . "&langpair={$source}|{$target}";
+function translate_text($text, $source, $target) {
+    $url = "https://api.mymemory.translated.net/get?q=" . urlencode($text) . "&langpair={$source}|{$target}";
     $response = @file_get_contents($url);
     if (!$response) return '[Translation failed]';
-
     $data = json_decode($response, true);
-
-    // Check for best match with a threshold
-    if (!empty($data['matches'])) {
-        foreach ($data['matches'] as $match) {
-            if ($match['match'] >= 0.80 && !empty($match['translation'])) {
-                return $match['translation'];
-            }
-        }
-    }
-
-    // Fallback to default
     return $data['responseData']['translatedText'] ?? '[Translation failed]';
 }
 
+// Use same sentence splitting as in translator.php
+$mergedText = preg_replace("/\s+\n\s+|\n+/", ' ', $text);
+$sentences = preg_split('/(?<=[.!?:])\s+(?=[A-Z\xC0-\xFF])/', $mergedText);
+$lines = array_filter(array_map('trim', $sentences));
 
-
-
-// Clean and split the input text into lines/sentences
-$merged = preg_replace('/\s*\n\s*/', ' ', $text);
-$sentences = preg_split('/(?<=[.!?:])\s+(?=[A-Z\xC0-\xFF])/', $merged);
-$sentences = array_filter(array_map('trim', $sentences));
-
-// Translate each sentence
-$translated = [];
-foreach ($sentences as $s) {
-    $translated[] = translate_line($s, $source, $target);
-    usleep(500000); // wait 500ms between calls
+// Translate sentence by sentence
+$results = [];
+foreach ($lines as $line) {
+    $results[] = translate_text($line, $source, $target);
+    usleep(500000); // 500ms delay to avoid throttling
 }
 
-echo json_encode(['translated' => implode(' ', $translated)]);
+echo json_encode(['translated' => implode(' ', $results)]);
