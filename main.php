@@ -188,9 +188,11 @@ if (!empty($selectedFullTable) && $res && $res->num_rows > 0) {
             echo "</tr>";
             $i++;
         }
-        echo "<tr><td><textarea name='new_row[col1]' placeholder='New $heading1' oninput='autoResize(this)'></textarea></td>
-                  <td><textarea name='new_row[col2]' placeholder='New $heading2' oninput='autoResize(this)'></textarea></td>
-                  <td><button type="button" onclick="translateNewRow()">Translate</button></td>";
+
+
+     echo '<tr><td><textarea name="new_row[col1]" placeholder="New ' . htmlspecialchars($heading1) . '" oninput="autoResize(this)"></textarea></td>
+           <td><textarea name="new_row[col2]" placeholder="New ' . htmlspecialchars($heading2) . '" oninput="autoResize(this)"></textarea></td>
+           <td><button type="button" onclick="translateNewRow()">Translate</button></td></tr>';
 
 
         echo "</table><br><button type='submit'>💾 Save Changes</button></form><br>";
