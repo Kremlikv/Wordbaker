@@ -308,9 +308,24 @@ echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Log
     <button type="submit">🌍 Translate</button>
   </form>
 
+  
+
   <h3 style="text-align:center;">🔍 PDF Preview</h3>
-  <iframe src="<?php echo htmlspecialchars($pdfPreviewPath); ?>"></iframe>
-<?php endif; ?>
+
+<!-- Text-based preview for better mobile copying -->
+<div style="max-height: 400px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; background: #fff; font-size: 16px; line-height: 1.5;">
+  <?php foreach (explode("\n", $extractedText) as $line): ?>
+    <p><?= htmlspecialchars($line) ?></p>
+  <?php endforeach; ?>
+</div>
+
+<!-- Original PDF preview (optional) -->
+<details style="margin-top: 10px;">
+  <summary style="cursor: pointer; font-weight: bold;">🗂️ View Original PDF</summary>
+  <iframe src="<?= htmlspecialchars($pdfPreviewPath) ?>" style="width:100%; height:400px; border: 1px solid #aaa; margin-top:10px;"></iframe>
+</details>
+ 
+  <?php endif; ?>
 
 </body>
 </html>
