@@ -19,9 +19,34 @@ function translate_text($text, $source, $target) {
     $url = "https://api.mymemory.translated.net/get?q=" . urlencode($text) . "&langpair={$source}|{$target}";
     $response = @file_get_contents($url);
     if (!$response) return '[Translation failed]';
+
     $data = json_decode($response, true);
-    return $data['responseData']['translatedText'] ?? '[Translation failed]';
+
+    // Prefer the main responseData
+    $best = $data['responseData']['translatedText'] ?? '';
+
+    // Go through matches to find the highest score (if any)
+    if (!empty($data['matches']) && is_array($data['matches'])) {
+        $maxMatch = 0;
+        $bestMatch = $best;
+
+        foreach ($data['matches'] as $match) {
+            $score = floatval($match['match'] ?? 0);
+            if ($score > $maxMatch && !empty($match['translation'])) {
+                $maxMatch = $score;
+                $bestMatch = $match['translation'];
+            }
+        }
+
+        // Use the best-scoring match only if it's strong enough (e.g. ≥ 0.70)
+        if ($maxMatch >= 0.70) {
+            return $bestMatch;
+        }
+    }
+
+    return $best ?: '[Translation failed]';
 }
+
 
 // Clean and split text into sentences (mimics translator.php)
 $mergedText = preg_replace("/\s+\n\s+|\n+/", ' ', $text);
