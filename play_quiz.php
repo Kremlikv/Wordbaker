@@ -3,10 +3,16 @@ ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
-session_start();
+// session_start();
 require_once 'db.php';
 require_once 'session.php';
-include 'styling.php';
+
+// include 'styling.php';
+require_once 'styling.php';
+printStylingHeader();   // insert <style> block
+printHeaderBar();       // insert the top nav + header
+
+
 echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Logout</a>"; 
 
 // Handle quiz restart
