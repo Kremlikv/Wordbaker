@@ -6,6 +6,19 @@ $text = $_POST['text'] ?? '';
 $source = $_POST['source'] ?? 'auto';
 $target = $_POST['target'] ?? 'cs';
 
+$langLabels = [
+    'en' => 'English',
+    'de' => 'German',
+    'fr' => 'French',
+    'it' => 'Italian',
+    'cs' => 'Czech',
+    'auto' => 'Auto Detect',
+    '' => 'Foreign'
+];
+
+$sourceLabel = $langLabels[$sourceLang] ?? 'Foreign';
+$targetLabel = $langLabels[$targetLang] ?? 'Czech';
+
 if (!$text) {
     echo json_encode(['error' => 'Missing text']);
     exit;
@@ -20,15 +33,15 @@ function translate_text($text, $source, $target) {
 }
 
 // Use same sentence splitting as in translator.php
-$mergedText = preg_replace("/\s+\n\s+|\n+/", ' ', $text);
-$sentences = preg_split('/(?<=[.!?:])\s+(?=[A-Z\xC0-\xFF])/', $mergedText);
-$lines = array_filter(array_map('trim', $sentences));
+// $mergedText = preg_replace("/\s+\n\s+|\n+/", ' ', $text);
+// $sentences = preg_split('/(?<=[.!?:])\s+(?=[A-Z\xC0-\xFF])/', $mergedText);
+// $lines = array_filter(array_map('trim', $sentences));
 
 // Translate sentence by sentence
-$results = [];
-foreach ($lines as $line) {
-    $results[] = translate_text($line, $source, $target);
-    usleep(500000); // 500ms delay to avoid throttling
-}
+//$results = [];
+//foreach ($lines as $line) {
+//    $results[] = translate_text($line, $source, $target);
+//    usleep(500000); // 500ms delay to avoid throttling
+// }
 
 echo json_encode(['translated' => implode(' ', $results)]);
