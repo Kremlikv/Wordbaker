@@ -1,28 +1,19 @@
 <?php
 // translate_api.php
-header('Content-Type: application/json');
+header('Content-Type: application/json; charset=utf-8');
 
+// Validate input
 $text = $_POST['text'] ?? '';
-$source = $_POST['source'] ?? 'auto';
-$target = $_POST['target'] ?? 'cs';
-
-$langLabels = [
-    'en' => 'English',
-    'de' => 'German',
-    'fr' => 'French',
-    'it' => 'Italian',
-    'cs' => 'Czech',
-    'auto' => 'Auto Detect',
-    '' => 'Foreign'
-];
-
-$sourceLabel = $langLabels[$sourceLang] ?? 'Foreign';
-$targetLabel = $langLabels[$targetLang] ?? 'Czech';
+$sourceLang = $_POST['source'] ?? '';
+$targetLang = $_POST['target'] ?? 'cs';
 
 if (!$text) {
     echo json_encode(['error' => 'Missing text']);
     exit;
 }
+
+// Ensure mbstring functions work properly
+mb_internal_encoding("UTF-8");
 
 function translate_text($text, $source, $target) {
     $url = "https://api.mymemory.translated.net/get?q=" . urlencode($text) . "&langpair={$source}|{$target}";
@@ -32,16 +23,17 @@ function translate_text($text, $source, $target) {
     return $data['responseData']['translatedText'] ?? '[Translation failed]';
 }
 
-// Use same sentence splitting as in translator.php
-// $mergedText = preg_replace("/\s+\n\s+|\n+/", ' ', $text);
-// $sentences = preg_split('/(?<=[.!?:])\s+(?=[A-Z\xC0-\xFF])/', $mergedText);
-// $lines = array_filter(array_map('trim', $sentences));
+// Clean and split text into sentences (mimics translator.php)
+$mergedText = preg_replace("/\s+\n\s+|\n+/", ' ', $text);
+$sentences = preg_split('/(?<=[.!?:])\s+(?=[A-Z\xC0-\xFF])/', $mergedText);
+$sentences = array_filter(array_map('trim', $sentences));
 
-// Translate sentence by sentence
-//$results = [];
-//foreach ($lines as $line) {
-//    $results[] = translate_text($line, $source, $target);
-//    usleep(500000); // 500ms delay to avoid throttling
-// }
+// Translate each sentence
+$translated = [];
+foreach ($sentences as $line) {
+    $translated[] = translate_text($line, $sourceLang, $targetLang);
+    usleep(500000); // 500ms delay to avoid throttling
+}
 
-echo json_encode(['translated' => implode(' ', $results)]);
+// Return full translation as string
+echo json_encode(['translated' => implode(' ', $translated)], JSON_UNESCAPED_UNICODE);
