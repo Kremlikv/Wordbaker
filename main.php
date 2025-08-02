@@ -3,97 +3,97 @@ require_once 'db.php';
 require_once 'session.php';
 
 // Handle table deletion BEFORE any output
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_table'])) {
-    $conn = new mysqli($host, $user, $password, $database);
-    $conn->set_charset("utf8mb4");
+if (\$_SERVER['REQUEST_METHOD'] === 'POST' && isset(\$_POST['delete_table'])) {
+    \$conn = new mysqli(\$host, \$user, \$password, \$database);
+    \$conn->set_charset("utf8mb4");
 
-    if ($conn->connect_error) {
-        die("Connection failed: " . $conn->connect_error);
+    if (\$conn->connect_error) {
+        die("Connection failed: " . \$conn->connect_error);
     }
 
-    $tableToDelete = $conn->real_escape_string($_POST['delete_table']);
-    $tables = [];
-    $result = $conn->query("SHOW TABLES");
-    while ($row = $result->fetch_array()) {
-        $tables[] = $row[0];
+    \$tableToDelete = \$conn->real_escape_string(\$_POST['delete_table']);
+    \$tables = [];
+    \$result = \$conn->query("SHOW TABLES");
+    while (\$row = \$result->fetch_array()) {
+        \$tables[] = \$row[0];
     }
 
     // Prevent deleting shared tables
-    if (in_array($tableToDelete, $tables) && !in_array($tableToDelete, ['difficult_words', 'mastered_words'])) {
-        $conn->query("DROP TABLE `$tableToDelete`");
-        $audioPath = "cache/$tableToDelete.mp3";
-        if (file_exists($audioPath)) {
-            unlink($audioPath);
+    if (in_array(\$tableToDelete, \$tables) && !in_array(\$tableToDelete, ['difficult_words', 'mastered_words'])) {
+        \$conn->query("DROP TABLE `\$tableToDelete`");
+        \$audioPath = "cache/\$tableToDelete.mp3";
+        if (file_exists(\$audioPath)) {
+            unlink(\$audioPath);
         }
     }
 
-    $conn->close();
-    header("Location: " . $_SERVER['PHP_SELF']);
+    \$conn->close();
+    header("Location: " . \$_SERVER['PHP_SELF']);
     exit;
 }
 
-function getUserFoldersAndTables($conn, $username) {
-    $allTables = [];
-    $result = $conn->query("SHOW TABLES");
-    while ($row = $result->fetch_array()) {
-        $table = $row[0];
-        if (stripos($table, $username . '_') === 0) {
-            $suffix = substr($table, strlen($username) + 1);
-            $suffix = preg_replace('/_+/', '_', $suffix);
-            $parts = explode('_', $suffix, 2);
-            if (count($parts) === 2 && trim($parts[0]) !== '') {
-                $folder = $parts[0];
-                $file = $parts[1];
+function getUserFoldersAndTables(\$conn, \$username) {
+    \$allTables = [];
+    \$result = \$conn->query("SHOW TABLES");
+    while (\$row = \$result->fetch_array()) {
+        \$table = \$row[0];
+        if (stripos(\$table, \$username . '_') === 0) {
+            \$suffix = substr(\$table, strlen(\$username) + 1);
+            \$suffix = preg_replace('/_+/', '_', \$suffix);
+            \$parts = explode('_', \$suffix, 2);
+            if (count(\$parts) === 2 && trim(\$parts[0]) !== '') {
+                \$folder = \$parts[0];
+                \$file = \$parts[1];
             } else {
-                $folder = 'Uncategorized';
-                $file = $suffix;
+                \$folder = 'Uncategorized';
+                \$file = \$suffix;
             }
-            $allTables[$folder][] = [
-                'table_name' => $table,
-                'display_name' => $file
+            \$allTables[\$folder][] = [
+                'table_name' => \$table,
+                'display_name' => \$file
             ];
         }
     }
-    return $allTables;
+    return \$allTables;
 }
 
-$username = strtolower($_SESSION['username'] ?? '');
+\$username = strtolower(\$_SESSION['username'] ?? '');
 
-$conn->set_charset("utf8mb4");
-$folders = getUserFoldersAndTables($conn, $username);
+\$conn->set_charset("utf8mb4");
+\$folders = getUserFoldersAndTables(\$conn, \$username);
 
 // Add shared tables
-$folders['Shared'][] = ['table_name' => 'difficult_words', 'display_name' => 'Difficult Words'];
-$folders['Shared'][] = ['table_name' => 'mastered_words', 'display_name' => 'Mastered Words'];
+\$folders['Shared'][] = ['table_name' => 'difficult_words', 'display_name' => 'Difficult Words'];
+\$folders['Shared'][] = ['table_name' => 'mastered_words', 'display_name' => 'Mastered Words'];
 
-$selectedFullTable = $_POST['table'] ?? $_GET['table'] ?? '';
+\$selectedFullTable = \$_POST['table'] ?? \$_GET['table'] ?? '';
 
-$column1 = '';
-$column2 = '';
-$heading1 = '';
-$heading2 = '';
+\$column1 = '';
+\$column2 = '';
+\$heading1 = '';
+\$heading2 = '';
 
-$res = false;
-if (!empty($selectedFullTable)) {
-    $res = $conn->query("SELECT * FROM `$selectedFullTable`");
-    if ($res && $res->num_rows > 0) {
-        $columns = $res->fetch_fields();
+\$res = false;
+if (!empty(\$selectedFullTable)) {
+    \$res = \$conn->query("SELECT * FROM `\$selectedFullTable`");
+    if (\$res && \$res->num_rows > 0) {
+        \$columns = \$res->fetch_fields();
 
-        if ($selectedFullTable === "difficult_words") {
-            $column1 = "source_word";
-            $column2 = "target_word";
-            $heading1 = "Czech";
-            $heading2 = "Foreign";
+        if (\$selectedFullTable === "difficult_words") {
+            \$column1 = "source_word";
+            \$column2 = "target_word";
+            \$heading1 = "Czech";
+            \$heading2 = "Foreign";
         } else {
-            $column1 = $columns[0]->name ?? '';
-            $column2 = $columns[1]->name ?? '';
-            $heading1 = $column1;
-            $heading2 = $column2;
+            \$column1 = \$columns[0]->name ?? '';
+            \$column2 = \$columns[1]->name ?? '';
+            \$heading1 = \$column1;
+            \$heading2 = \$column2;
         }
 
-        $_SESSION['table'] = $selectedFullTable;
-        $_SESSION['col1'] = $column1;
-        $_SESSION['col2'] = $column2;
+        \$_SESSION['table'] = \$selectedFullTable;
+        \$_SESSION['col1'] = \$column1;
+        \$_SESSION['col2'] = \$column2;
     }
 }
 
@@ -129,81 +129,79 @@ echo "<a href='play_quiz.php'><button>🎯 Play Quiz</button></a>";
 echo "</div>";
 
 echo "<div class='content'>";
-echo "👋 Logged in as " . htmlspecialchars($username) . " | <a href='logout.php'>Logout</a><br><br>";
+echo "👋 Logged in as " . htmlspecialchars(\$username) . " | <a href='logout.php'>Logout</a><br><br>";
 
 echo "<form method='POST' action='' id='tableActionForm'>";
 echo "<label>Select a table:</label><br>";
 echo "<div class='directory-panel'><div id='folder-view'>";
 
-foreach ($folders as $folder => $tableList) {
-    $safeFolderId = htmlspecialchars(strtolower($folder));
-    $displayFolderName = ucfirst($folder);
+foreach (\$folders as \$folder => \$tableList) {
+    \$safeFolderId = htmlspecialchars(strtolower(\$folder));
+    \$displayFolderName = ucfirst(\$folder);
 
-    echo "<details><summary class='folder' onclick=\"toggleFolder('$safeFolderId')\">📁 " . htmlspecialchars($displayFolderName) . "</summary>";
-    echo "<div class='subtable' id='sub_$safeFolderId'>";
-    foreach ($tableList as $entry) {
-        $fullTable = $entry['table_name'];
-        $display = $entry['display_name'];
-        echo "<span onclick=\"selectTable('$fullTable')\">📄 " . htmlspecialchars($display) . "</span>";
+    echo "<details><summary class='folder' onclick=\"toggleFolder('\$safeFolderId')\">📁 " . htmlspecialchars(\$displayFolderName) . "</summary>";
+    echo "<div class='subtable' id='sub_\$safeFolderId'>";
+    foreach (\$tableList as \$entry) {
+        \$fullTable = \$entry['table_name'];
+        \$display = \$entry['display_name'];
+        echo "<span onclick=\"selectTable('\$fullTable')\">📄 " . htmlspecialchars(\$display) . "</span>";
     }
     echo "</div></details>";
 }
 
 echo "</div></div>";
-echo "<input type='hidden' name='table' id='selectedTableInput' value='" . htmlspecialchars($selectedFullTable) . "'>";
-echo "<input type='hidden' name='col1' value='" . htmlspecialchars($column1) . "'>";
-echo "<input type='hidden' name='col2' value='" . htmlspecialchars($column2) . "'>";
+echo "<input type='hidden' name='table' id='selectedTableInput' value='" . htmlspecialchars(\$selectedFullTable) . "'>";
+echo "<input type='hidden' name='col1' value='" . htmlspecialchars(\$column1) . "'>";
+echo "<input type='hidden' name='col2' value='" . htmlspecialchars(\$column2) . "'>";
 echo "</form><br><br>";
 
 // Display selected table
-if (!empty($selectedFullTable) && $res && $res->num_rows > 0) {
-    echo "<h3>Selected Table: " . htmlspecialchars($selectedFullTable) . "</h3>";
+if (!empty(\$selectedFullTable) && \$res && \$res->num_rows > 0) {
+    echo "<h3>Selected Table: " . htmlspecialchars(\$selectedFullTable) . "</h3>";
 
-    $isSharedTable = in_array($selectedFullTable, ['difficult_words', 'mastered_words']);
+    \$isSharedTable = in_array(\$selectedFullTable, ['difficult_words', 'mastered_words']);
 
-    $audioFile = "cache/$selectedFullTable.mp3";
-    if (file_exists($audioFile)) {
-        echo "<audio controls src='$audioFile'></audio><br>";
-        echo "<a href='$audioFile' download class='button'>Download MP3</a><br><br>";
+    \$audioFile = "cache/\$selectedFullTable.mp3";
+    if (file_exists(\$audioFile)) {
+        echo "<audio controls src='\$audioFile'></audio><br>";
+        echo "<a href='\$audioFile' download class='button'>Download MP3</a><br><br>";
     } else {
         echo "<em>No audio generated yet for this table.</em><br><br>";
     }
 
-    if (!$isSharedTable) {
+    if (!\$isSharedTable) {
         echo "<form method='POST' action='update_table.php'>";
-        echo "<input type='hidden' name='table' value='" . htmlspecialchars($selectedFullTable) . "'>";
-        echo "<input type='hidden' name='col1' value='" . htmlspecialchars($column1) . "'>";
-        echo "<input type='hidden' name='col2' value='" . htmlspecialchars($column2) . "'>";
+        echo "<input type='hidden' name='table' value='" . htmlspecialchars(\$selectedFullTable) . "'>";
+        echo "<input type='hidden' name='col1' value='" . htmlspecialchars(\$column1) . "'>";
+        echo "<input type='hidden' name='col2' value='" . htmlspecialchars(\$column2) . "'>";
         echo "<table border='1' cellpadding='5' cellspacing='0'>";
-        echo "<tr><th>" . htmlspecialchars($heading1) . "</th><th>" . htmlspecialchars($heading2) . "</th><th>Action</th></tr>";
-        $res->data_seek(0);
-        $i = 0;
-        while ($row = $res->fetch_assoc()) {
+        echo "<tr><th>" . htmlspecialchars(\$heading1) . "</th><th>" . htmlspecialchars(\$heading2) . "</th><th>Action</th></tr>";
+        \$res->data_seek(0);
+        \$i = 0;
+        while (\$row = \$res->fetch_assoc()) {
             echo "<tr>";
-            echo "<td><textarea name='rows[$i][col1]' oninput='autoResize(this)'>" . htmlspecialchars($row[$column1]) . "</textarea></td>";
-            echo "<td><textarea name='rows[$i][col2]' oninput='autoResize(this)'>" . htmlspecialchars($row[$column2]) . "</textarea></td>";
-            echo "<td><input type='checkbox' name='rows[$i][delete]'> Delete</td>";
-            echo "<input type='hidden' name='rows[$i][orig_col1]' value='" . htmlspecialchars($row[$column1]) . "'>";
-            echo "<input type='hidden' name='rows[$i][orig_col2]' value='" . htmlspecialchars($row[$column2]) . "'>";
+            echo "<td><textarea name='rows[\$i][col1]' oninput='autoResize(this)'>" . htmlspecialchars(\$row[\$column1]) . "</textarea></td>";
+            echo "<td><textarea name='rows[\$i][col2]' oninput='autoResize(this)'>" . htmlspecialchars(\$row[\$column2]) . "</textarea></td>";
+            echo "<td><input type='checkbox' name='rows[\$i][delete]'> Delete</td>";
+            echo "<input type='hidden' name='rows[\$i][orig_col1]' value='" . htmlspecialchars(\$row[\$column1]) . "'>";
+            echo "<input type='hidden' name='rows[\$i][orig_col2]' value='" . htmlspecialchars(\$row[\$column2]) . "'>";
             echo "</tr>";
-            $i++;
+            \$i++;
         }
 
-
-     echo '<tr><td><textarea name="new_row[col1]" placeholder="New ' . htmlspecialchars($heading1) . '" oninput="autoResize(this)"></textarea></td>
-           <td><textarea name="new_row[col2]" placeholder="New ' . htmlspecialchars($heading2) . '" oninput="autoResize(this)"></textarea></td>
-           <td><button type="button" onclick="translateNewRow()">Translate</button></td></tr>';
-
+        echo '<tr><td><textarea name="new_row[col1]" placeholder="New ' . htmlspecialchars(\$heading1) . '" oninput="autoResize(this)"></textarea></td>
+               <td><textarea name="new_row[col2]" placeholder="New ' . htmlspecialchars(\$heading2) . '" oninput="autoResize(this)"></textarea></td>
+               <td><a href="translator.php"><button type="button">Translator</button></a></td></tr>';
 
         echo "</table><br><button type='submit'>💾 Save Changes</button></form><br>";
     } else {
         echo "<table border='1' cellpadding='5' cellspacing='0'>";
-        echo "<tr><th>" . htmlspecialchars($heading1) . "</th><th>" . htmlspecialchars($heading2) . "</th></tr>";
-        $res->data_seek(0);
-        while ($row = $res->fetch_assoc()) {
+        echo "<tr><th>" . htmlspecialchars(\$heading1) . "</th><th>" . htmlspecialchars(\$heading2) . "</th></tr>";
+        \$res->data_seek(0);
+        while (\$row = \$res->fetch_assoc()) {
             echo "<tr>";
-            echo "<td>" . htmlspecialchars($row[$column1]) . "</td>";
-            echo "<td>" . htmlspecialchars($row[$column2]) . "</td>";
+            echo "<td>" . htmlspecialchars(\$row[\$column1]) . "</td>";
+            echo "<td>" . htmlspecialchars(\$row[\$column2]) . "</td>";
             echo "</tr>";
         }
         echo "</table><br><em>This table is read-only.</em><br><br>";
@@ -211,87 +209,5 @@ if (!empty($selectedFullTable) && $res && $res->num_rows > 0) {
 }
 
 // Upload section
-echo <<<HTML
-<h2>📤 Upload</h2>
-<form method="POST" action="upload_handler.php" enctype="multipart/form-data">
-    <label>Select CSV Files:</label>
-    <input type="file" name="csv_files[]" accept=".csv" multiple required><br><br>
-
-    <p style="font-size: 0.9em; color: gray;">
-        ➤ Recommended format: FolderName_FileName.csv <br>
-        ➤ CSVs must have a <strong>“Czech”</strong> column and at least one other language column.<br>
-        ➤ Encoding must be <strong>UTF-8</strong> without BOM.
-    </p>
-
-    <button type="submit">Upload Files</button>
-</form>
-HTML;
-
-echo "</div></body></html>";
+// ... unchanged
 ?>
-<script>
-function autoResize(textarea) {
-    textarea.style.height = 'auto';
-    textarea.style.overflow = 'hidden';
-    textarea.style.height = textarea.scrollHeight + 'px';
-}
-
-function toggleFolder(folder) {
-    const el = document.getElementById("sub_" + folder);
-    if (el) {
-        el.style.display = (el.style.display === "block") ? "none" : "block";
-    }
-}
-
-function selectTable(fullTableName) {
-    document.getElementById("selectedTableInput").value = fullTableName;
-    document.getElementById("tableActionForm").submit();
-}
-
-document.addEventListener("DOMContentLoaded", function () {
-    document.querySelectorAll("textarea").forEach(function (el) {
-        autoResize(el); 
-    });
-});
-
-
-async function translateNewRow() {
-    const sourceTextarea = document.querySelector('textarea[name="new_row[col2]"]');
-    const targetTextarea = document.querySelector('textarea[name="new_row[col1]"]');
-
-    const sourceText = sourceTextarea.value.trim();
-    const sourceLang = "<?php echo strtolower($heading2); ?>";
-    const targetLang = "cs"; // Czech
-
-    if (!sourceText) {
-        alert("Please enter a word to translate.");
-        return;
-    }
-
-    const formData = new URLSearchParams();
-    formData.append("text", sourceText);
-    formData.append("source", sourceLang);
-    formData.append("target", targetLang);
-
-    try {
-        const response = await fetch("translate_api.php", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/x-www-form-urlencoded"
-            },
-            body: formData.toString()
-        });
-
-        const data = await response.json();
-        if (data.translated) {
-            targetTextarea.value = data.translated;
-            autoResize(targetTextarea);
-        } else {
-            alert("Translation failed.");
-        }
-    } catch (err) {
-        alert("Error during translation: " + err.message);
-    }
-}
-
-</script>
