@@ -7,12 +7,6 @@ error_reporting(E_ALL);
 require_once 'db.php';
 require_once 'session.php';
 
-// include 'styling.php';
-require_once 'styling.php';
-printStylingHeader();   // insert <style> block
-printHeaderBar();       // insert the top nav + header
-
-
 echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Logout</a>"; 
 
 // Handle quiz restart
@@ -103,6 +97,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['answer'])) {
     header("Location: play_quiz.php");
     exit;
 }
+
+include 'styling.php';
+
 ?>
 
 <!DOCTYPE html>
