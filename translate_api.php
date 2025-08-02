@@ -1,5 +1,4 @@
 <?php
-// translate_api.php
 header('Content-Type: application/json');
 
 $text = $_POST['text'] ?? '';
@@ -11,15 +10,24 @@ if (!$text) {
     exit;
 }
 
-$url = "https://api.mymemory.translated.net/get?q=" . urlencode($text) . "&langpair={$source}|{$target}";
-$response = @file_get_contents($url);
-
-if (!$response) {
-    echo json_encode(['error' => 'Translation failed']);
-    exit;
+function translate_line($line, $source, $target) {
+    $url = "https://api.mymemory.translated.net/get?q=" . urlencode($line) . "&langpair={$source}|{$target}";
+    $response = @file_get_contents($url);
+    if (!$response) return '[Translation failed]';
+    $data = json_decode($response, true);
+    return $data['responseData']['translatedText'] ?? '[Translation failed]';
 }
 
-$data = json_decode($response, true);
-$translated = $data['responseData']['translatedText'] ?? '[Translation failed]';
+// Clean and split the input text into lines/sentences
+$merged = preg_replace('/\s*\n\s*/', ' ', $text);
+$sentences = preg_split('/(?<=[.!?:])\s+(?=[A-Z\xC0-\xFF])/', $merged);
+$sentences = array_filter(array_map('trim', $sentences));
 
-echo json_encode(['translated' => $translated]);
+// Translate each sentence
+$translated = [];
+foreach ($sentences as $s) {
+    $translated[] = translate_line($s, $source, $target);
+    usleep(500000); // wait 500ms between calls
+}
+
+echo json_encode(['translated' => implode(' ', $translated)]);
