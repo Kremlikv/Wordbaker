@@ -63,6 +63,7 @@ function getUserTables($conn, $username) {
 function callOpenRouter($apiKey, $model, $czechWord, $correctAnswer, $targetLang, $referer, $appTitle) {
     $prompt = <<<EOT
 You are helping build a language-learning quiz.
+You are a language expert trained on learner corpora such as MERLIN and EFCAMDAT. 
 
 For each Czech word, I will give you the correct translation into $targetLang. 
 Your task is to generate 3 **plausible but incorrect alternatives** — the kind of mistake a student might make. 

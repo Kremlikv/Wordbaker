@@ -190,7 +190,9 @@ if (!empty($selectedFullTable) && $res && $res->num_rows > 0) {
         }
         echo "<tr><td><textarea name='new_row[col1]' placeholder='New $heading1' oninput='autoResize(this)'></textarea></td>
                   <td><textarea name='new_row[col2]' placeholder='New $heading2' oninput='autoResize(this)'></textarea></td>
-                  <td><em>Add New</em></td></tr>";
+                  <td><button type="button" onclick="translateNewRow()">Translate</button></td>";
+
+
         echo "</table><br><button type='submit'>💾 Save Changes</button></form><br>";
     } else {
         echo "<table border='1' cellpadding='5' cellspacing='0'>";
@@ -249,4 +251,45 @@ document.addEventListener("DOMContentLoaded", function () {
         autoResize(el); 
     });
 });
+
+
+async function translateNewRow() {
+    const sourceTextarea = document.querySelector('textarea[name="new_row[col2]"]');
+    const targetTextarea = document.querySelector('textarea[name="new_row[col1]"]');
+
+    const sourceText = sourceTextarea.value.trim();
+    const sourceLang = "<?php echo strtolower($heading2); ?>";
+    const targetLang = "cs"; // Czech
+
+    if (!sourceText) {
+        alert("Please enter a word to translate.");
+        return;
+    }
+
+    const formData = new URLSearchParams();
+    formData.append("text", sourceText);
+    formData.append("source", sourceLang);
+    formData.append("target", targetLang);
+
+    try {
+        const response = await fetch("translate_api.php", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/x-www-form-urlencoded"
+            },
+            body: formData.toString()
+        });
+
+        const data = await response.json();
+        if (data.translated) {
+            targetTextarea.value = data.translated;
+            autoResize(targetTextarea);
+        } else {
+            alert("Translation failed.");
+        }
+    } catch (err) {
+        alert("Error during translation: " + err.message);
+    }
+}
+
 </script>
