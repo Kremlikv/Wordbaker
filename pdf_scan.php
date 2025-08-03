@@ -239,7 +239,8 @@ echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Log
     <label>Select PDF File:
       <input type="file" name="pdf_file" accept=".pdf" required> </label>
       <label>It is recommended to upload only small pdf files.<br><br>
-      You can split pdf files with tools like https://www.ilovepdf.com/split_pdf </label>
+      You can split pdf files with tools like https://www.ilovepdf.com/split_pdf <br><br></label>
+      <br>
 
     </label>
 
