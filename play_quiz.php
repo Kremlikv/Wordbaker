@@ -157,7 +157,7 @@ echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Log
         <input type="url" name="custom_music_url" placeholder="Paste full MP3 URL (e.g., from freetouse.com)" style="width: 60%;">
     </div>
 
-    <div style='text-align: center; margin-bottom: 20px;'>";
+    <div style='text-align: center; margin-bottom: 20px;'>
     <br>
     <button type="button" onclick="previewMusic()">▶️ Preview Music</button>
     <audio id="previewPlayer" controls style="display:none; margin-top: 10px;"></audio>
