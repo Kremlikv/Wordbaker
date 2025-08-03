@@ -7,11 +7,11 @@ error_reporting(E_ALL);
 require_once 'db.php';
 require_once 'session.php';
 
-echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Logout</a>"; 
+echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Logout</a>";
 
 // Handle quiz restart
 if (isset($_POST['restart'])) {
-    unset($_SESSION['score'], $_SESSION['question_index'], $_SESSION['questions'], $_SESSION['quiz_table']);
+    unset($_SESSION['score'], $_SESSION['question_index'], $_SESSION['questions'], $_SESSION['quiz_table'], $_SESSION['bg_music']);
     header("Location: play_quiz.php");
     exit;
 }
@@ -37,21 +37,31 @@ if (isset($_POST['start_new']) && !empty($_POST['quiz_table'])) {
     $_SESSION['score'] = 0;
     $_SESSION['question_index'] = 0;
 
+    // Music selection
+    $musicChoice = $_POST['bg_music_choice'] ?? '';
+    $customURL = $_POST['custom_music_url'] ?? '';
+    if ($musicChoice === 'custom' && filter_var($customURL, FILTER_VALIDATE_URL)) {
+        $_SESSION['bg_music'] = $customURL;
+    } elseif ($musicChoice !== '') {
+        $_SESSION['bg_music'] = $musicChoice;
+    } else {
+        $_SESSION['bg_music'] = 'background.mp3';
+    }
+
     $selectedTable = $_POST['quiz_table'];
     $res = $conn->query("SELECT * FROM `$selectedTable`");
     if (!$res) {
         die("❌ Query failed: " . $conn->error);
     }
-    
+
     $questions = [];
     while ($row = $res->fetch_assoc()) {
-        // Debug: Check for missing keys
         if (!isset($row['question'], $row['correct_answer'], $row['wrong1'], $row['wrong2'], $row['wrong3'])) {
             echo "❌ Missing expected keys in row:";
             var_dump($row);
             exit;
         }
-        
+
         $answers = [$row['correct_answer'], $row['wrong1'], $row['wrong2'], $row['wrong3']];
         shuffle($answers);
         $questions[] = [
@@ -61,7 +71,7 @@ if (isset($_POST['start_new']) && !empty($_POST['quiz_table'])) {
             'image' => $row['image_url'] ?? ''
         ];
     }
-    
+
     if (empty($questions)) {
         die("⚠️ No questions found in table '$selectedTable'.");
     }
@@ -99,7 +109,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['answer'])) {
 }
 
 include 'styling.php';
-
+$musicSrc = $_SESSION['bg_music'] ?? 'background.mp3';
 ?>
 
 <!DOCTYPE html>
@@ -138,21 +148,64 @@ include 'styling.php';
         .score { margin-bottom: 10px; font-weight: bold; }
         .image-container { margin: 20px auto; }
         img.question-image { max-width: 80%; max-height: 300px; }
-        select, button { padding: 10px; font-size: 1em; }
+        select, button, input[type="url"] { padding: 10px; font-size: 1em; }
         #timer { font-size: 1.3em; color: darkred; margin: 10px; }
     </style>
+    <script>
+        function toggleCustomMusic(value) {
+            const customInput = document.getElementById("customMusicInput");
+            customInput.style.display = (value === "custom") ? "block" : "none";
+        }
+
+        function previewMusic() {
+            const dropdown = document.querySelector('select[name="bg_music_choice"]');
+            const urlInput = document.querySelector('input[name="custom_music_url"]');
+            const player = document.getElementById('previewPlayer');
+            let src = "";
+
+            if (dropdown.value === "custom" && urlInput.value.trim()) {
+                src = urlInput.value.trim();
+            } else {
+                src = dropdown.value;
+            }
+
+            if (src) {
+                player.src = src;
+                player.style.display = "block";
+                player.play();
+            }
+        }
+    </script>
 </head>
 <body>
 
-<audio autoplay loop volume="0.2">
-    <source src="background.mp3" type="audio/mpeg">
+<audio autoplay loop>
+    <source src="<?= htmlspecialchars($musicSrc) ?>" type="audio/mpeg">
     Your browser does not support background music.
 </audio>
 
 <h1>🎯 Kahoot-style Quiz</h1>
 
 <form method="POST">
-    <label>Select quiz set:</label><br><br>
+    <label>Select background music:</label><br><br>
+    <select name="bg_music_choice" onchange="toggleCustomMusic(this.value)">
+        <option value="">🎵 Default (background.mp3)</option>
+        <option value="track1.mp3">🎸 Track 1</option>
+        <option value="track2.mp3">🎹 Track 2</option>
+        <option value="track3.mp3">🥁 Track 3</option>
+        <option value="custom">🌐 Use custom music URL</option>
+    </select><br><br>
+
+
+
+    <div id="customMusicInput" style="display:none;">
+        <input type="url" name="custom_music_url" placeholder="Paste full MP3 URL (e.g., from freetouse.com)" style="width: 60%;">
+    </div>
+    <br>
+    <button type="button" onclick="previewMusic()">▶️ Preview Music</button>
+    <audio id="previewPlayer" controls style="display:none; margin-top: 10px;"></audio>
+
+    <br><br><label>Select quiz set:</label><br><br>
     <select name="quiz_table" required>
         <option value="">-- Choose a quiz_choices_* table --</option>
         <?php foreach ($quizTables as $table): ?>
