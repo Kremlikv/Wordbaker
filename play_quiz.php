@@ -33,6 +33,7 @@ while ($row = $result->fetch_array()) {
 }
 
 if (isset($_POST['start_new']) && !empty($_POST['quiz_table'])) {
+    $_SESSION['mistakes'] = []; // <— THIS is the missing reset!
     $_SESSION['quiz_table'] = $_POST['quiz_table'];
     $_SESSION['score'] = 0;
     $_SESSION['question_index'] = 0;
