@@ -3,7 +3,6 @@ ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
-// session_start();
 require_once 'db.php';
 require_once 'session.php';
 
@@ -198,12 +197,9 @@ $musicSrc = $_SESSION['bg_music'] ?? 'background.mp3';
 
 <hr>
 
-
-
-
 <?php if ($selectedTable): ?>
     <div id="quizBox">
-        <!-- Dynamic content will be loaded here -->
+        <!-- Quiz content will be loaded here -->
     </div>
     <script>
         function loadNextQuestion() {
@@ -213,20 +209,8 @@ $musicSrc = $_SESSION['bg_music'] ?? 'background.mp3';
                     document.getElementById("quizBox").innerHTML = html;
                 });
         }
-
         document.addEventListener("DOMContentLoaded", loadNextQuestion);
     </script>
-<?php endif; ?>
-
-
-
-
-    <h2>🌟 Quiz Completed!</h2>
-    <p>Your final score: <?= $score ?> out of <?= $total * 3 ?> points</p>
-    <form method="POST">
-        <input type="hidden" name="restart" value="1">
-        <button type="submit">Play Again</button>
-    </form>
 <?php endif; ?>
 
 <script>
