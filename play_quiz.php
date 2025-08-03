@@ -6,24 +6,21 @@ error_reporting(E_ALL);
 require_once 'db.php';
 require_once 'session.php';
 
-
 // Handle quiz restart
 if (isset($_POST['restart'])) {
     unset($_SESSION['score'], $_SESSION['question_index'], $_SESSION['questions'], $_SESSION['quiz_table'], $_SESSION['bg_music']);
-    $_SESSION['mistakes'] = []; // Reset mistakes for a new game
+    $_SESSION['mistakes'] = [];
     echo "<script>localStorage.removeItem('quiz_music_time'); localStorage.removeItem('quiz_music_src');</script>";
     header("Location: play_quiz.php");
     exit;
 }
 
-// First-time setup
 if (!isset($_SESSION['score'])) {
     $_SESSION['score'] = 0;
     $_SESSION['question_index'] = 0;
-    $_SESSION['questions'] = []; 
+    $_SESSION['questions'] = [];
 }
 
-// Load quiz tables
 $quizTables = [];
 $result = $conn->query("SHOW TABLES");
 while ($row = $result->fetch_array()) {
@@ -33,12 +30,11 @@ while ($row = $result->fetch_array()) {
 }
 
 if (isset($_POST['start_new']) && !empty($_POST['quiz_table'])) {
-    $_SESSION['mistakes'] = []; // <— THIS is the missing reset!
+    $_SESSION['mistakes'] = [];
     $_SESSION['quiz_table'] = $_POST['quiz_table'];
     $_SESSION['score'] = 0;
     $_SESSION['question_index'] = 0;
 
-    // Music selection
     $musicChoice = $_POST['bg_music_choice'] ?? '';
     $customURL = $_POST['custom_music_url'] ?? '';
     if ($musicChoice === 'custom' && filter_var($customURL, FILTER_VALIDATE_URL)) {
@@ -46,7 +42,7 @@ if (isset($_POST['start_new']) && !empty($_POST['quiz_table'])) {
     } elseif ($musicChoice !== '') {
         $_SESSION['bg_music'] = $musicChoice;
     } else {
-        $_SESSION['bg_music'] = ''; // 🔇 OFF
+        $_SESSION['bg_music'] = '';
     }
 
     $selectedTable = $_POST['quiz_table'];
@@ -84,10 +80,7 @@ if (isset($_POST['start_new']) && !empty($_POST['quiz_table'])) {
 }
 
 $selectedTable = $_SESSION['quiz_table'] ?? '';
-
-// $musicSrc = $_SESSION['bg_music'] ?? 'background.mp3';
 $musicSrc = $_SESSION['bg_music'];
-
 
 include 'styling.php';
 echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Logout</a>";
@@ -108,23 +101,12 @@ echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Log
             max-width: 600px;
             margin: auto;
         }
-        .answer-col {
-            flex: 0 0 50%;
-            padding: 10px;
-        }
+        .answer-col { flex: 0 0 50%; padding: 10px; }
         .answer-btn {
-            width: 100%;
-            padding: 20px;
-            font-size: 1.1em;
-            cursor: pointer;
-            border: none;
-            border-radius: 10px;
-            background-color: #eee;
-            transition: 0.3s;
+            width: 100%; padding: 20px; font-size: 1.1em; cursor: pointer;
+            border: none; border-radius: 10px; background-color: #eee; transition: 0.3s;
         }
-        .answer-btn:hover {
-            background-color: #ddd;
-        }
+        .answer-btn:hover { background-color: #ddd; }
         .feedback { font-size: 1.2em; margin-top: 20px; }
         .score { margin-bottom: 10px; font-weight: bold; }
         .image-container { margin: 20px auto; }
@@ -140,7 +122,6 @@ echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Log
     Your browser does not support background music.
 </audio>
 
-
 <h1>🎯 Kahoot-style Quiz</h1>
 
 <form method="POST">
@@ -154,34 +135,16 @@ echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Log
     </select><br><br>
 
     <div id="customMusicInput" style="display:none;">
-        <input type="url" name="custom_music_url" placeholder="Paste full MP3 URL (e.g., from freetouse.com)" style="width: 60%;">
+        <input type="url" name="custom_music_url" placeholder="Paste full MP3 URL" style="width: 60%;">
     </div>
 
-    <div style='text-align: center; margin-bottom: 20px;'>
     <br>
-    <button type="button" onclick="previewMusic()">▶️ Preview Music</button>
-    <audio id="previewPlayer" controls style="display:none; margin-top: 10px;"></audio>
-    <button onclick="document.getElementById('bgMusic').play()">▶️ Play Music</button>
-    <button onclick="document.getElementById('bgMusic').pause()">⏸️ Pause Music</button>
-    </div>
-
-    <br><br><label>Select quiz set:</label><br><br>
-    <select name="quiz_table" required>
-        <option value="">-- Choose a quiz_choices_* table --</option>
-        <?php foreach ($quizTables as $table): ?>
-            <option value="<?= htmlspecialchars($table) ?>" <?= ($selectedTable === $table) ? 'selected' : '' ?>>
-                <?= htmlspecialchars($table) ?>
-            </option>
-        <?php endforeach; ?>
-    </select>
-    <button type="submit" name="start_new" id="startQuizBtn">Start Quiz</button>
-
+    <button type="button" id="startQuizBtn">Start Quiz</button>
 </form>
 
 <hr>
-
 <?php if ($selectedTable): ?>
-    <div id="quizBox"><!-- Question will load here --></div>
+    <div id="quizBox"></div>
 <?php endif; ?>
 
 <script>
@@ -227,10 +190,7 @@ function submitAnswer(btn) {
     fetch("load_question.php", {
         method: "POST",
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-            answer: value,
-            time_taken: 15 - timeLeft
-        })
+        body: new URLSearchParams({ answer: value, time_taken: 15 - timeLeft })
     })
     .then(res => res.text())
     .then(html => {
@@ -261,26 +221,27 @@ document.addEventListener("DOMContentLoaded", function () {
         music.currentTime = storedTime;
     }
 
-    // music.volume = 0.3;
-    // music.play().catch(err => console.warn("Autoplay blocked:", err));
-
     setInterval(() => {
         localStorage.setItem("quiz_music_time", music.currentTime);
     }, 1000);
+
+    const startButton = document.getElementById("startQuizBtn");
+    if (startButton) {
+        startButton.addEventListener("click", function () {
+            if (music?.src && music.src !== window.location.href) {
+                music.volume = 0.3;
+                music.play().catch(err => console.warn("Music play blocked:", err));
+            }
+            setTimeout(() => {
+                startButton.closest('form').submit();
+            }, 200);
+        });
+    }
 
     if (<?= json_encode((bool)$selectedTable) ?>) {
         loadNextQuestion();
     }
 });
-
-document.getElementById("startQuizBtn").addEventListener("click", function () {
-    const music = document.getElementById("bgMusic");
-    if (music?.src && music.src !== window.location.href) {
-        music.volume = 0.3;
-        music.play().catch(err => console.warn("Music play blocked:", err));
-    }
-});
-
 </script>
 
 </body>
