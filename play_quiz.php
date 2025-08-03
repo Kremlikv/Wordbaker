@@ -174,7 +174,8 @@ echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Log
             </option>
         <?php endforeach; ?>
     </select>
-    <button type="submit" name="start_new">Start Quiz</button>
+    <button type="submit" name="start_new" id="startQuizBtn">Start Quiz</button>
+
 </form>
 
 <hr>
@@ -271,6 +272,15 @@ document.addEventListener("DOMContentLoaded", function () {
         loadNextQuestion();
     }
 });
+
+document.getElementById("startQuizBtn").addEventListener("click", function () {
+    const music = document.getElementById("bgMusic");
+    if (music?.src && music.src !== window.location.href) {
+        music.volume = 0.3;
+        music.play().catch(err => console.warn("Music play blocked:", err));
+    }
+});
+
 </script>
 
 </body>

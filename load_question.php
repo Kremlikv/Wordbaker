@@ -61,51 +61,6 @@ if ($index >= $total) {
         }
         echo "</table><br>";
 
-        // Optional mark as difficult button
-        echo "<button onclick=\"markAllMistakes()\">📌 Mark All as Difficult</button>";
-        echo "<script>
-        function markAllMistakes() {
-            const mistakes = " . json_encode($_SESSION['mistakes']) . ";
-            const language = " . json_encode($_SESSION['questions'][0]['language'] ?? 'unknown') . ";
-            let total = mistakes.length;
-            let done = 0;
-            let errors = [];
-
-            if (!mistakes.length) {
-                alert(\"No mistakes to mark.\");
-                return;
-            }
-
-            mistakes.forEach(item => {
-                fetch('mark_difficult.php', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                    body: new URLSearchParams({
-                        source_word: item.question,
-                        target_word: item.correct,
-                        language: language
-                    })
-                })
-                .then(res => res.text())
-                .then(response => {
-                    console.log('✅', response);
-                    done++;
-                    if (done === total) {
-                        if (errors.length > 0) {
-                            alert(`Some failed: ${errors.length} errors. Check console.`);
-                        } else {
-                            alert('✅ All mistakes marked as difficult.');
-                        }
-                    }
-                })
-                .catch(error => {
-                    errors.push(error);
-                    console.error('❌ Error marking:', error);
-                });
-            });
-        }
-        </script>";
-    }
 
     echo '<form method="POST" action="play_quiz.php">
             <input type="hidden" name="restart" value="1">
