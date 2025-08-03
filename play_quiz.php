@@ -12,6 +12,7 @@ echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Log
 // Handle quiz restart
 if (isset($_POST['restart'])) {
     unset($_SESSION['score'], $_SESSION['question_index'], $_SESSION['questions'], $_SESSION['quiz_table'], $_SESSION['bg_music']);
+    echo "<script>localStorage.removeItem('quiz_music_time'); localStorage.removeItem('quiz_music_src');</script>";
     header("Location: play_quiz.php");
     exit;
 }
@@ -88,26 +89,6 @@ $questions = $_SESSION['questions'] ?? [];
 $total = count($questions);
 $score = $_SESSION['score'] ?? 0;
 
-// Handle answer
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['answer'])) {
-    $index = $_SESSION['question_index'];
-    $question = $_SESSION['questions'][$index];
-    $timeTaken = intval($_POST['time_taken'] ?? 15);
-    $bonus = 0;
-    if ($_POST['answer'] === $question['correct']) {
-        if ($timeTaken <= 5) $bonus = 3;
-        elseif ($timeTaken <= 10) $bonus = 2;
-        elseif ($timeTaken <= 15) $bonus = 1;
-        $_SESSION['score'] += $bonus;
-        $_SESSION['feedback'] = "✅ Correct! (+$bonus)";
-    } else {
-        $_SESSION['feedback'] = "❌ Wrong. Correct answer: " . htmlspecialchars($question['correct']);
-    }
-    $_SESSION['question_index']++;
-    header("Location: play_quiz.php");
-    exit;
-}
-
 include 'styling.php';
 $musicSrc = $_SESSION['bg_music'] ?? 'background.mp3';
 ?>
@@ -179,8 +160,8 @@ $musicSrc = $_SESSION['bg_music'] ?? 'background.mp3';
 </head>
 <body>
 
-<audio autoplay loop>
-    <source src="<?= htmlspecialchars($musicSrc) ?>" type="audio/mpeg">
+<audio id="bgMusic" loop>
+    <source id="bgMusicSource" src="<?= htmlspecialchars($musicSrc) ?>" type="audio/mpeg">
     Your browser does not support background music.
 </audio>
 
@@ -195,8 +176,6 @@ $musicSrc = $_SESSION['bg_music'] ?? 'background.mp3';
         <option value="track3.mp3">🥁 Track 3</option>
         <option value="custom">🌐 Use custom music URL</option>
     </select><br><br>
-
-
 
     <div id="customMusicInput" style="display:none;">
         <input type="url" name="custom_music_url" placeholder="Paste full MP3 URL (e.g., from freetouse.com)" style="width: 60%;">
@@ -267,6 +246,31 @@ $musicSrc = $_SESSION['bg_music'] ?? 'background.mp3';
         <button type="submit">Play Again</button>
     </form>
 <?php endif; ?>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const music = document.getElementById("bgMusic");
+    const source = document.getElementById("bgMusicSource");
+    const storedSrc = localStorage.getItem("quiz_music_src");
+    const storedTime = parseFloat(localStorage.getItem("quiz_music_time")) || 0;
+
+    if (source.src !== storedSrc) {
+        localStorage.setItem("quiz_music_src", source.src);
+        localStorage.setItem("quiz_music_time", 0);
+    } else {
+        music.currentTime = storedTime;
+    }
+
+    music.volume = 0.3;
+    music.play().catch(err => {
+        console.warn("Autoplay may be blocked:", err);
+    });
+
+    setInterval(() => {
+        localStorage.setItem("quiz_music_time", music.currentTime);
+    }, 1000);
+});
+</script>
 
 </body>
 </html>
