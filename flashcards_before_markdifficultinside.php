@@ -16,18 +16,18 @@ function getTables($conn) {
 }
 
 $tables = getTables($conn);
-$selectedTable = $_GET['table'] ?? ($_SESSION['table'] ?? ($tables[0] ?? ''));
+$selectedTable = $_POST['table'] ?? ($_GET['table'] ?? ($_SESSION['table'] ?? ($tables[0] ?? '')));
+
+// Store current table in session for audio
 $_SESSION['table'] = $selectedTable;
 
 $rows = [];
 $column1 = '';
 $column2 = '';
 $targetLanguage = '';
-$difficultOnly = isset($_GET['difficult_only']) && $_GET['difficult_only'] == '1';
-$user_id = $_SESSION['user_id'] ?? null;
 
 if (!empty($selectedTable)) {
-    $result = $conn->query("SELECT * FROM `$selectedTable` LIMIT 1");
+    $result = $conn->query("SELECT * FROM `$selectedTable`");
     if ($result && $result->num_rows > 0) {
         $columns = $result->fetch_fields();
         $col1 = $columns[0]->name;
@@ -36,29 +36,20 @@ if (!empty($selectedTable)) {
         $_SESSION['col1'] = $col1;
         $_SESSION['col2'] = $col2;
 
-        if ($difficultOnly && $user_id) {
-            $stmt = $conn->prepare("
-                SELECT t.* FROM `$selectedTable` t
-                JOIN difficult_words d ON t.`$col1` = d.source_word AND t.`$col2` = d.target_word
-                WHERE d.user_id = ? AND d.table_name = ?
-            ");
-            $stmt->bind_param("is", $user_id, $selectedTable);
-            $stmt->execute();
-            $result = $stmt->get_result();
-        } else {
-            $result = $conn->query("SELECT * FROM `$selectedTable`");
-        }
-
-        if ($result) {
-            while ($row = $result->fetch_assoc()) {
+        while ($row = $result->fetch_assoc()) {
+            if ($selectedTable === 'difficult_words') {
+                $rows[] = [
+                    'cz' => $row['source_word'],
+                    'foreign' => $row['target_word'],
+                    'language' => $row['language']
+                ];
+            } else {
                 $rows[] = [
                     'cz' => $row[$col1],
-                    'foreign' => $row[$col2],
-                    'language' => $row['language'] ?? strtolower($col2)
+                    'foreign' => $row[$col2]
                 ];
             }
         }
-
         $column1 = $col1;
         $column2 = $col2;
         $targetLanguage = strtolower($col2);
@@ -72,7 +63,7 @@ $conn->close();
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Flashcards: <?= htmlspecialchars($selectedTable) ?></title>
+  <title>Flashcards: <?php echo htmlspecialchars($selectedTable); ?></title>
   <style>
     body {
       font-family: Arial;
@@ -102,20 +93,33 @@ $conn->close();
 <body>
 
 <div class='content'>
-<p>👤 Logged in as: <strong><?= htmlspecialchars($_SESSION['username']) ?></strong> | <a href='logout.php'>Logout</a></p>
+<p>👤 Logged in as: <strong><?php echo htmlspecialchars($_SESSION['username']); ?></strong> | <a href='logout.php'>Logout</a></p>
 
-<form method="GET" style="margin-bottom: 10px;">
-  <input type="hidden" name="table" value="<?= htmlspecialchars($selectedTable) ?>">
-  <label><input type="checkbox" name="difficult_only" value="1" <?= $difficultOnly ? 'checked' : '' ?>> Show only my difficult words</label>
-  <button type="submit">Apply</button>
+<!-- Table selection form -->
+<!--
+  <form method='POST' action=''>
+  <label for='table'>Select a table:</label>
+  <select name='table' id='table'>
+    <?php foreach ($tables as $table): ?>
+      <option value='<?php echo $table; ?>' <?php echo ($table === $selectedTable) ? 'selected' : ''; ?>><?php echo $table; ?></option>
+    <?php endforeach; ?>
+  </select>
+  <button type='submit'>⬆️ Load</button>
 </form>
+<br><br>
+ -->
 
-<h2>Flashcards for Table: <?= htmlspecialchars($selectedTable) ?></h2>
+<h2>Flashcards for Table: <?php echo htmlspecialchars($selectedTable); ?></h2>
+
+<form method="POST" action="review_difficult.php" style="margin-bottom: 20px;">
+  <input type="hidden" name="table" value="<?php echo htmlspecialchars($selectedTable); ?>">
+  <button type="submit">🧠 Review My Difficult Words</button>
+</form>
 
 <div id="card" class="card" onclick="flipCard()"></div>
 <div class="controls">
   <button onclick="prevCard()">⬅️ Previous</button>
-  <button onclick="markMastered()">✅ Mastered</button>
+  <button onclick="markKnown()">✅ I know this</button>
   <button onclick="markDifficult()">❌ Study more</button>
   <button onclick="nextCard()">Next ➡️</button><br><br>
   🔊 Czech Audio: <input type="checkbox" id="toggleCz" checked onchange="toggleTTS('cz')">
@@ -126,9 +130,9 @@ $conn->close();
 <audio id="ttsAudio" src="" hidden></audio>
 
 <script>
-const data = <?= json_encode($rows) ?>;
-const tableName = <?= json_encode($selectedTable) ?>;
-const targetLanguage = <?= json_encode($targetLanguage) ?>;
+const data = <?php echo json_encode($rows); ?>;
+const tableName = <?php echo json_encode($selectedTable); ?>;
+const targetLanguage = <?php echo json_encode($targetLanguage); ?>;
 
 let index = 0;
 let showingFront = true;
@@ -198,16 +202,16 @@ function markDifficult() {
   fetch('mark_difficult.php', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: `source_word=${encodeURIComponent(frontText)}&target_word=${encodeURIComponent(backText)}&language=${encodeURIComponent(data[index].language || targetLanguage)}&table_name=${encodeURIComponent(tableName)}`
+    body: `source_word=${encodeURIComponent(frontText)}&target_word=${encodeURIComponent(backText)}&language=${encodeURIComponent(data[index].language || targetLanguage)}`
   });
   nextCard();
 }
 
-function markMastered() {
+function markKnown() {
   fetch('unmark_difficult.php', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: `source_word=${encodeURIComponent(frontText)}&target_word=${encodeURIComponent(backText)}&table_name=${encodeURIComponent(tableName)}`
+    body: `source_word=${encodeURIComponent(frontText)}&target_word=${encodeURIComponent(backText)}`
   });
   nextCard();
 }

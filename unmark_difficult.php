@@ -5,12 +5,15 @@ require_once 'db.php';
 $user_id = $_SESSION['user_id'] ?? null;
 $source_word = trim($_POST['source_word'] ?? '');
 $target_word = trim($_POST['target_word'] ?? '');
+$table_name = trim($_POST['table_name'] ?? '');
 
-if (!$user_id || !$source_word || !$target_word) {
+
+if (!$user_id || !$source_word || !$target_word || !$table_name) {
     http_response_code(400);
     echo "❌ Missing data.";
     exit;
 }
+
 
 // Debug log
 error_log("UNMARK DEBUG - user_id: $user_id | source: '$source_word' | target: '$target_word'");
@@ -31,8 +34,9 @@ if ($row = $result->fetch_assoc()) {
     $check->store_result();
 
     if ($check->num_rows === 0) {
-        $ins = $conn->prepare("INSERT INTO mastered_words (source_word, target_word, language, last_seen, user_id) VALUES (?, ?, ?, NOW(), ?)");
-        $ins->bind_param("sssi", $source_word, $target_word, $language, $user_id);
+        $ins = $conn->prepare("INSERT INTO mastered_words (source_word, target_word, language, last_seen, user_id, table_name) VALUES (?, ?, ?, NOW(), ?, ?)");
+        $ins->bind_param("sssiss", $source_word, $target_word, $language, $user_id, $table_name);
+
         if (!$ins->execute()) {
             error_log("❌ Insert into mastered_words failed: " . $ins->error);
             http_response_code(500);
