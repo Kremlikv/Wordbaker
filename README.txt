@@ -58,9 +58,10 @@ Required a full overhaul of the files. 31/7/25
 FREE
 Graduaally I switched to free sources. 
 a) Free AlwaysData hosting (allowign scripted backups in git).
-b) Free translation (mymemory). 
+b) Free translation (mymemory).  .
 c) Free audio (google tts). 
 d) And also I replaced AI with a free version from OpenRouter.ai 
+e) And of couse free Byethost hosting.
 
 KAHOOT 
 You can load a table and ask A.I. to generate false answers. 

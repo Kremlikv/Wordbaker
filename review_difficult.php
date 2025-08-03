@@ -69,12 +69,12 @@ $result = $stmt->get_result();
   <meta charset="UTF-8">
   <title>Your Difficult Words</title>
   <style>
-    body { font-family: Arial; padding: 30px; }
+    body { font-family: Arial; padding: 0px; }
     table { border-collapse: collapse; width: 90%; margin: auto; }
     th, td { padding: 12px; border: 1px solid #ccc; text-align: center; }
     h2 { text-align: center; }
   </style>
-</head>
+</head> 
 <body>
 
 <!-- Login info -->

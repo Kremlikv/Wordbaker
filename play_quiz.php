@@ -46,7 +46,7 @@ if (isset($_POST['start_new']) && !empty($_POST['quiz_table'])) {
     } elseif ($musicChoice !== '') {
         $_SESSION['bg_music'] = $musicChoice;
     } else {
-        $_SESSION['bg_music'] = 'background.mp3';
+        $_SESSION['bg_music'] = ''; // 🔇 OFF
     }
 
     $selectedTable = $_POST['quiz_table'];
@@ -142,7 +142,7 @@ echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Log
 <form method="POST">
     <label>Select background music:</label><br><br>
     <select name="bg_music_choice" onchange="toggleCustomMusic(this.value)">
-        <option value="">🎵 Default (background.mp3)</option>
+        <option value="">🔇 OFF</option>
         <option value="track1.mp3">🎸 Track 1</option>
         <option value="track2.mp3">🎹 Track 2</option>
         <option value="track3.mp3">🥁 Track 3</option>

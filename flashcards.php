@@ -68,7 +68,7 @@ $conn->close();
     body {
       font-family: Arial;
       text-align: center;
-      padding: 30px;
+      padding: 0;
       margin: 0;
     }
     .card {
