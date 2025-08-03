@@ -72,4 +72,4 @@ Background music added to the game.
 
 KAHOOT MISTAKES
 After a game end not only score,but also a list of mistakes is shown. 
-With an optin to store it into "difficult words".
+With an optin to store it into "difficult words"..

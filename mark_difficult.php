@@ -1,6 +1,9 @@
 <?php
+
+file_put_contents("error_log_mark_difficult.txt", print_r($_POST, true), FILE_APPEND);
+
 require_once 'session.php';
-require_once 'db.php';
+require_once 'db.php';  
 
 $user_id = $_SESSION['user_id'] ?? null;
 
