@@ -3,11 +3,13 @@ ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
+// session_start();
 require_once 'db.php';
 require_once 'session.php';
 
 echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Logout</a>";
 
+// Handle quiz restart
 if (isset($_POST['restart'])) {
     unset($_SESSION['score'], $_SESSION['question_index'], $_SESSION['questions'], $_SESSION['quiz_table'], $_SESSION['bg_music']);
     echo "<script>localStorage.removeItem('quiz_music_time'); localStorage.removeItem('quiz_music_src');</script>";
@@ -15,12 +17,14 @@ if (isset($_POST['restart'])) {
     exit;
 }
 
+// First-time setup
 if (!isset($_SESSION['score'])) {
     $_SESSION['score'] = 0;
     $_SESSION['question_index'] = 0;
     $_SESSION['questions'] = [];
 }
 
+// Load quiz tables
 $quizTables = [];
 $result = $conn->query("SHOW TABLES");
 while ($row = $result->fetch_array()) {
@@ -34,6 +38,7 @@ if (isset($_POST['start_new']) && !empty($_POST['quiz_table'])) {
     $_SESSION['score'] = 0;
     $_SESSION['question_index'] = 0;
 
+    // Music selection
     $musicChoice = $_POST['bg_music_choice'] ?? '';
     $customURL = $_POST['custom_music_url'] ?? '';
     if ($musicChoice === 'custom' && filter_var($customURL, FILTER_VALIDATE_URL)) {
@@ -45,7 +50,7 @@ if (isset($_POST['start_new']) && !empty($_POST['quiz_table'])) {
     }
 
     $selectedTable = $_POST['quiz_table'];
-    $res = $conn->query("SELECT * FROM `$selectedTable`");
+    $res = $conn->query("SELECT * FROM $selectedTable");
     if (!$res) {
         die("❌ Query failed: " . $conn->error);
     }
@@ -78,6 +83,13 @@ if (isset($_POST['start_new']) && !empty($_POST['quiz_table'])) {
     exit;
 }
 
+$selectedTable = $_SESSION['quiz_table'] ?? '';
+$index = $_SESSION['question_index'] ?? 0;
+$questions = $_SESSION['questions'] ?? [];
+$total = count($questions);
+$score = $_SESSION['score'] ?? 0;
+
+include 'styling.php';
 $musicSrc = $_SESSION['bg_music'] ?? 'background.mp3';
 ?>
 
@@ -120,6 +132,31 @@ $musicSrc = $_SESSION['bg_music'] ?? 'background.mp3';
         select, button, input[type="url"] { padding: 10px; font-size: 1em; }
         #timer { font-size: 1.3em; color: darkred; margin: 10px; }
     </style>
+    <script>
+        function toggleCustomMusic(value) {
+            const customInput = document.getElementById("customMusicInput");
+            customInput.style.display = (value === "custom") ? "block" : "none";
+        }
+
+        function previewMusic() {
+            const dropdown = document.querySelector('select[name="bg_music_choice"]');
+            const urlInput = document.querySelector('input[name="custom_music_url"]');
+            const player = document.getElementById('previewPlayer');
+            let src = "";
+
+            if (dropdown.value === "custom" && urlInput.value.trim()) {
+                src = urlInput.value.trim();
+            } else {
+                src = dropdown.value;
+            }
+
+            if (src) {
+                player.src = src;
+                player.style.display = "block";
+                player.play();
+            }
+        }
+    </script>
 </head>
 <body>
 
@@ -151,7 +188,7 @@ $musicSrc = $_SESSION['bg_music'] ?? 'background.mp3';
     <select name="quiz_table" required>
         <option value="">-- Choose a quiz_choices_* table --</option>
         <?php foreach ($quizTables as $table): ?>
-            <option value="<?= htmlspecialchars($table) ?>" <?= ($_SESSION['quiz_table'] ?? '') === $table ? 'selected' : '' ?>>
+            <option value="<?= htmlspecialchars($table) ?>" <?= ($selectedTable === $table) ? 'selected' : '' ?>>
                 <?= htmlspecialchars($table) ?>
             </option>
         <?php endforeach; ?>
@@ -161,48 +198,36 @@ $musicSrc = $_SESSION['bg_music'] ?? 'background.mp3';
 
 <hr>
 
-<div id="quizBox">
-    <!-- Quiz content (loaded dynamically) will appear here -->
-</div>
 
-<script>
-function toggleCustomMusic(value) {
-    document.getElementById("customMusicInput").style.display = value === "custom" ? "block" : "none";
-}
 
-function previewMusic() {
-    const dropdown = document.querySelector('select[name="bg_music_choice"]');
-    const urlInput = document.querySelector('input[name="custom_music_url"]');
-    const player = document.getElementById('previewPlayer');
-    const src = dropdown.value === "custom" ? urlInput.value.trim() : dropdown.value;
-    if (src) {
-        player.src = src;
-        player.style.display = "block";
-        player.play();
-    }
-}
 
-// Load the first question if a quiz is started
-document.addEventListener("DOMContentLoaded", () => {
-    const table = <?= json_encode($_SESSION['quiz_table'] ?? '') ?>;
-    if (table) loadNextQuestion();
-});
+<?php if ($selectedTable): ?>
+    <div id="quizBox">
+        <!-- Dynamic content will be loaded here -->
+    </div>
+    <script>
+        function loadNextQuestion() {
+            fetch("load_question.php")
+                .then(res => res.text())
+                .then(html => {
+                    document.getElementById("quizBox").innerHTML = html;
+                });
+        }
 
-function loadNextQuestion(selectedAnswer = null, timeTaken = 15) {
-    fetch("load_question.php", {
-        method: "POST",
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: new URLSearchParams({
-            answer: selectedAnswer ?? '',
-            time_taken: timeTaken
-        })
-    })
-    .then(res => res.text())
-    .then(html => {
-        document.getElementById("quizBox").innerHTML = html;
-    });
-}
-</script>
+        document.addEventListener("DOMContentLoaded", loadNextQuestion);
+    </script>
+<?php endif; ?>
+
+
+
+
+    <h2>🌟 Quiz Completed!</h2>
+    <p>Your final score: <?= $score ?> out of <?= $total * 3 ?> points</p>
+    <form method="POST">
+        <input type="hidden" name="restart" value="1">
+        <button type="submit">Play Again</button>
+    </form>
+<?php endif; ?>
 
 <script>
 document.addEventListener("DOMContentLoaded", function () {
