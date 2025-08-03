@@ -64,7 +64,7 @@ EOT;
         "Content-Type: application/json",
         "Authorization: Bearer $apiKey",
         "HTTP-Referer: $referer",
-        "X-Title: $appTitle"
+        "X-Title: $appTitle" 
     ]);
     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
     $response = curl_exec($ch);
