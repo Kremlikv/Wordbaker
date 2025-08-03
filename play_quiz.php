@@ -67,7 +67,6 @@ if (isset($_POST['start_new']) && !empty($_POST['quiz_table'])) {
 
 $selectedTable = $_SESSION['quiz_table'] ?? '';
 $musicSrc = $_SESSION['bg_music'] ?? '';
-
 include 'styling.php';
 echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Logout</a>";
 ?>
@@ -137,7 +136,7 @@ echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Log
 <hr>
 
 <?php if ($selectedTable): ?>
-    <div id="quizBox"><!-- Questions will load here --></div>
+    <div id="quizBox"></div>
 <?php endif; ?>
 
 <script>
@@ -164,12 +163,10 @@ function previewMusic() {
 function toggleMusic() {
     const music = document.getElementById("bgMusic");
     const source = document.getElementById("bgMusicSource");
-
     if (!source.src || source.src.endsWith('/')) {
         alert("Please select a valid music track first.");
         return;
     }
-
     if (music.paused) {
         music.volume = 0.3;
         music.play().catch(err => console.warn("Music play blocked:", err));
