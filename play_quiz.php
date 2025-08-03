@@ -10,6 +10,7 @@ require_once 'session.php';
 // Handle quiz restart
 if (isset($_POST['restart'])) {
     unset($_SESSION['score'], $_SESSION['question_index'], $_SESSION['questions'], $_SESSION['quiz_table'], $_SESSION['bg_music']);
+    $_SESSION['mistakes'] = []; // Reset mistakes for a new game
     echo "<script>localStorage.removeItem('quiz_music_time'); localStorage.removeItem('quiz_music_src');</script>";
     header("Location: play_quiz.php");
     exit;
@@ -20,6 +21,7 @@ if (!isset($_SESSION['score'])) {
     $_SESSION['score'] = 0;
     $_SESSION['question_index'] = 0;
     $_SESSION['questions'] = [];
+    $_SESSION['mistakes'] = []; // Reset mistakes for a new game
 }
 
 // Load quiz tables
