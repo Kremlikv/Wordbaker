@@ -101,7 +101,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['pdf_file'])) {
   <meta charset="UTF-8">
   <title>PDF Scan and Translate</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
+    body { font-family: Arial, sans-serif; margin: 0px; }
     form { max-width: 800px; margin: auto; }
     input, select, button, textarea {
       width: 100%;

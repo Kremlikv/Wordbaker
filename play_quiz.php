@@ -96,7 +96,7 @@ echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Log
     <meta charset="UTF-8">
     <title>Play Quiz</title>
     <style>
-        body { font-family: sans-serif; text-align: center; padding: 20px; }
+        body { font-family: sans-serif; text-align: center; padding: 0px; }
         .question-box { font-size: 1.5em; margin-bottom: 20px; }
         .answer-grid {
             display: flex;

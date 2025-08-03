@@ -62,7 +62,7 @@ $debugCount = $result->num_rows;
   <meta charset="UTF-8">
   <title>Mastered Words</title>
   <style>
-    body { font-family: Arial; padding: 30px; }
+    body { font-family: Arial; padding: 0px; }
     table { border-collapse: collapse; width: 90%; margin: auto; }
     th, td { padding: 12px; border: 1px solid #ccc; text-align: center; }
     h2 { text-align: center; }
