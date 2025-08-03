@@ -35,7 +35,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['answer'])) {
     } else {
         $feedback = "❌ Wrong. Correct answer: " . htmlspecialchars($question['correct']);
 
-        // Store mistake for review and marking
+        // Store mistake for later display
         $_SESSION['mistakes'][] = [
             'question' => $question['question'],
             'correct' => $question['correct'],
@@ -65,6 +65,16 @@ if ($index >= $total) {
         echo "<script>
         function markAllMistakes() {
             const mistakes = " . json_encode($_SESSION['mistakes']) . ";
+            const language = " . json_encode($_SESSION['questions'][0]['language'] ?? 'unknown') . ";
+            let total = mistakes.length;
+            let done = 0;
+            let errors = [];
+
+            if (!mistakes.length) {
+                alert(\"No mistakes to mark.\");
+                return;
+            }
+
             mistakes.forEach(item => {
                 fetch('mark_difficult.php', {
                     method: 'POST',
@@ -72,11 +82,26 @@ if ($index >= $total) {
                     body: new URLSearchParams({
                         source_word: item.question,
                         target_word: item.correct,
-                        language: 'unknown'
+                        language: language
                     })
-                }).then(res => res.text()).then(console.log);
+                })
+                .then(res => res.text())
+                .then(response => {
+                    console.log('✅', response);
+                    done++;
+                    if (done === total) {
+                        if (errors.length > 0) {
+                            alert(`Some failed: ${errors.length} errors. Check console.`);
+                        } else {
+                            alert('✅ All mistakes marked as difficult.');
+                        }
+                    }
+                })
+                .catch(error => {
+                    errors.push(error);
+                    console.error('❌ Error marking:', error);
+                });
             });
-            alert('All mistakes marked as difficult.');
         }
         </script>";
     }
