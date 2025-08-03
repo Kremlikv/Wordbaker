@@ -1,5 +1,7 @@
 <?php
-require_once 'session.php';
+
+session_start();
+// require_once 'session.php';
 require_once 'db.php';
 
 header("Content-Type: text/html; charset=UTF-8");
@@ -60,6 +62,7 @@ if ($index >= $total) {
             echo "<tr><td>" . htmlspecialchars($m['question']) . "</td><td>" . htmlspecialchars($m['user']) . "</td><td>" . htmlspecialchars($m['correct']) . "</td></tr>";
         }
         echo "</table><br>";
+    }
 
 
     echo '<form method="POST" action="play_quiz.php">
