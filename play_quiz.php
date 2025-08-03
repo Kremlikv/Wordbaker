@@ -84,7 +84,10 @@ if (isset($_POST['start_new']) && !empty($_POST['quiz_table'])) {
 }
 
 $selectedTable = $_SESSION['quiz_table'] ?? '';
-$musicSrc = $_SESSION['bg_music'] ?? 'background.mp3';
+
+// $musicSrc = $_SESSION['bg_music'] ?? 'background.mp3';
+$musicSrc = $_SESSION['bg_music'];
+
 
 include 'styling.php';
 echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Logout</a>";
