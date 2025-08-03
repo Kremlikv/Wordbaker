@@ -219,6 +219,7 @@ echo <<<HTML
     <p style="font-size: 0.9em; color: gray;">
         ➤ Recommended format: FolderName_FileName.csv <br>
         ➤ CSVs must have a <strong>“Czech”</strong> column and at least one other language column.<br>
+        ➤ Microsoft Excel allows saving .xls files as .csv.<br>
         ➤ Encoding must be <strong>UTF-8</strong> without BOM.
     </p>
 
