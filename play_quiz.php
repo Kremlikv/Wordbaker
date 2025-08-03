@@ -49,7 +49,7 @@ if (isset($_POST['start_new']) && !empty($_POST['quiz_table'])) {
     }
 
     $selectedTable = $_POST['quiz_table'];
-    $res = $conn->query("SELECT * FROM $selectedTable");
+    $res = $conn->query("SELECT * FROM `$selectedTable`");
     if (!$res) {
         die("❌ Query failed: " . $conn->error);
     }
@@ -83,13 +83,9 @@ if (isset($_POST['start_new']) && !empty($_POST['quiz_table'])) {
 }
 
 $selectedTable = $_SESSION['quiz_table'] ?? '';
-$index = $_SESSION['question_index'] ?? 0;
-$questions = $_SESSION['questions'] ?? [];
-$total = count($questions);
-$score = $_SESSION['score'] ?? 0;
+$musicSrc = $_SESSION['bg_music'] ?? 'background.mp3';
 
 include 'styling.php';
-$musicSrc = $_SESSION['bg_music'] ?? 'background.mp3';
 ?>
 
 <!DOCTYPE html>
@@ -131,31 +127,6 @@ $musicSrc = $_SESSION['bg_music'] ?? 'background.mp3';
         select, button, input[type="url"] { padding: 10px; font-size: 1em; }
         #timer { font-size: 1.3em; color: darkred; margin: 10px; }
     </style>
-    <script>
-        function toggleCustomMusic(value) {
-            const customInput = document.getElementById("customMusicInput");
-            customInput.style.display = (value === "custom") ? "block" : "none";
-        }
-
-        function previewMusic() {
-            const dropdown = document.querySelector('select[name="bg_music_choice"]');
-            const urlInput = document.querySelector('input[name="custom_music_url"]');
-            const player = document.getElementById('previewPlayer');
-            let src = "";
-
-            if (dropdown.value === "custom" && urlInput.value.trim()) {
-                src = urlInput.value.trim();
-            } else {
-                src = dropdown.value;
-            }
-
-            if (src) {
-                player.src = src;
-                player.style.display = "block";
-                player.play();
-            }
-        }
-    </script>
 </head>
 <body>
 
@@ -198,22 +169,73 @@ $musicSrc = $_SESSION['bg_music'] ?? 'background.mp3';
 <hr>
 
 <?php if ($selectedTable): ?>
-    <div id="quizBox">
-        <!-- Quiz content will be loaded here -->
-    </div>
-    <script>
-        function loadNextQuestion() {
-            fetch("load_question.php")
-                .then(res => res.text())
-                .then(html => {
-                    document.getElementById("quizBox").innerHTML = html;
-                });
-        }
-        document.addEventListener("DOMContentLoaded", loadNextQuestion);
-    </script>
+    <div id="quizBox"><!-- Question will load here --></div>
 <?php endif; ?>
 
 <script>
+function toggleCustomMusic(value) {
+    document.getElementById("customMusicInput").style.display = (value === "custom") ? "block" : "none";
+}
+
+function previewMusic() {
+    const dropdown = document.querySelector('select[name="bg_music_choice"]');
+    const urlInput = document.querySelector('input[name="custom_music_url"]');
+    const player = document.getElementById('previewPlayer');
+    let src = dropdown.value === "custom" ? urlInput.value.trim() : dropdown.value;
+
+    if (src) {
+        player.src = src;
+        player.style.display = "block";
+        player.play();
+    }
+}
+
+let timeLeft;
+let countdown;
+
+function startTimer() {
+    timeLeft = 15;
+    const timerDisplay = document.getElementById("timer");
+    clearInterval(countdown);
+    countdown = setInterval(() => {
+        timeLeft--;
+        if (timerDisplay) timerDisplay.textContent = `⏳ ${timeLeft}`;
+        if (timeLeft <= 0) {
+            clearInterval(countdown);
+            document.querySelectorAll(".answer-btn").forEach(btn => btn.disabled = true);
+            if (timerDisplay) timerDisplay.textContent = "⏰ Time's up!";
+        }
+    }, 1000);
+}
+
+function submitAnswer(btn) {
+    const value = btn.getAttribute("data-value");
+    document.querySelectorAll(".answer-btn").forEach(b => b.disabled = true);
+    clearInterval(countdown);
+    fetch("load_question.php", {
+        method: "POST",
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+            answer: value,
+            time_taken: 15 - timeLeft
+        })
+    })
+    .then(res => res.text())
+    .then(html => {
+        document.getElementById("quizBox").innerHTML = html;
+        startTimer();
+    });
+}
+
+function loadNextQuestion() {
+    fetch("load_question.php")
+        .then(res => res.text())
+        .then(html => {
+            document.getElementById("quizBox").innerHTML = html;
+            startTimer();
+        });
+}
+
 document.addEventListener("DOMContentLoaded", function () {
     const music = document.getElementById("bgMusic");
     const source = document.getElementById("bgMusicSource");
@@ -228,13 +250,15 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     music.volume = 0.3;
-    music.play().catch(err => {
-        console.warn("Autoplay may be blocked:", err);
-    });
+    music.play().catch(err => console.warn("Autoplay blocked:", err));
 
     setInterval(() => {
         localStorage.setItem("quiz_music_time", music.currentTime);
     }, 1000);
+
+    if (<?= json_encode((bool)$selectedTable) ?>) {
+        loadNextQuestion();
+    }
 });
 </script>
 

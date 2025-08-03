@@ -39,7 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['answer'])) {
 // End of quiz
 if ($index >= $total) {
     echo "<h2>🌟 Quiz Completed!</h2>";
-    echo "<p>Your final score: {$score} out of " . ($total * 3) . " points</p>";
+    echo "<p>Your final score: {$_SESSION['score']} out of " . ($total * 3) . " points</p>";
     echo '<form method="POST" action="play_quiz.php">
             <input type="hidden" name="restart" value="1">
             <button type="submit">Play Again</button>
@@ -74,35 +74,3 @@ if (!empty($_SESSION['feedback'])) {
     echo '<div class="feedback">' . $_SESSION['feedback'] . '</div>';
     unset($_SESSION['feedback']);
 }
-?>
-
-<script>
-let timeLeft = 15;
-const timerDisplay = document.getElementById("timer");
-const countdown = setInterval(() => {
-    timeLeft--;
-    timerDisplay.textContent = `⏳ ${timeLeft}`;
-    if (timeLeft <= 0) {
-        clearInterval(countdown);
-        document.querySelectorAll(".answer-btn").forEach(btn => btn.disabled = true);
-        timerDisplay.textContent = "⏰ Time's up!";
-    }
-}, 1000);
-
-function submitAnswer(btn) {
-    const value = btn.getAttribute("data-value");
-    document.querySelectorAll(".answer-btn").forEach(b => b.disabled = true);
-    fetch("load_question.php", {
-        method: "POST",
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: new URLSearchParams({
-            answer: value,
-            time_taken: 15 - timeLeft
-        })
-    })
-    .then(res => res.text())
-    .then(html => {
-        document.getElementById("quizBox").innerHTML = html;
-    });
-}
-</script>
