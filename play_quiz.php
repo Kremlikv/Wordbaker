@@ -83,6 +83,7 @@ if (isset($_POST['start_new']) && !empty($_POST['quiz_table'])) {
 
 $selectedTable = $_SESSION['quiz_table'] ?? '';
 $musicSrc = $_SESSION['bg_music'] ?? '';
+
 include 'styling.php';
 echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Logout</a>";
 ?>
@@ -151,13 +152,11 @@ echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Log
     <div style='text-align: center; margin-bottom: 20px;'>
         <button type="button" onclick="previewMusic()">▶️ Preview Music</button>
         <audio id="previewPlayer" controls style="display:none; margin-top: 10px;"></audio>
-        <!-- <button type="button" onclick="document.getElementById('bgMusic').play()">▶️ Play Music</button> -->
         <button type="button" onclick="playMusic()">▶️ Play Music</button>
-
         <button type="button" onclick="document.getElementById('bgMusic').pause()">⏸️ Pause Music</button>
     </div>
 
-    <label>Select quiz set:</label><br><br>
+    <br><br><label>Select quiz set:</label><br><br>
     <select name="quiz_table" required>
         <option value="">-- Choose a quiz_choices_* table --</option>
         <?php foreach ($quizTables as $table): ?>
@@ -172,7 +171,7 @@ echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Log
 <hr>
 
 <?php if ($selectedTable): ?>
-    <div id="quizBox"><!-- Question will load here --></div>
+    <div id="quizBox"></div>
 <?php endif; ?>
 
 <script>
@@ -193,53 +192,15 @@ function previewMusic() {
     }
 }
 
-let timeLeft;
-let countdown;
-
-function startTimer() {
-    timeLeft = 15;
-    const timerDisplay = document.getElementById("timer");
-    clearInterval(countdown);
-    countdown = setInterval(() => {
-        timeLeft--;
-        if (timerDisplay) timerDisplay.textContent = `⏳ ${timeLeft}`;
-        if (timeLeft <= 0) {
-            clearInterval(countdown);
-            document.querySelectorAll(".answer-btn").forEach(btn => btn.disabled = true);
-            if (timerDisplay) timerDisplay.textContent = "⏰ Time's up!";
-        }
-    }, 1000);
-}
-
 function playMusic() {
     const music = document.getElementById("bgMusic");
-    if (music && music.src) {
+    if (music?.src) {
         music.volume = 0.3;
         music.play().catch(err => {
             console.warn("Music play blocked:", err);
-            alert("Please click somewhere on the page first to enable music.");
+            alert("Click anywhere on the page first to allow music.");
         });
     }
-}
-
-
-function submitAnswer(btn) {
-    const value = btn.getAttribute("data-value");
-    document.querySelectorAll(".answer-btn").forEach(b => b.disabled = true);
-    clearInterval(countdown);
-    fetch("load_question.php", {
-        method: "POST",
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-            answer: value,
-            time_taken: 15 - timeLeft
-        })
-    })
-    .then(res => res.text())
-    .then(html => {
-        document.getElementById("quizBox").innerHTML = html;
-        startTimer();
-    });
 }
 
 function loadNextQuestion() {
@@ -247,7 +208,6 @@ function loadNextQuestion() {
         .then(res => res.text())
         .then(html => {
             document.getElementById("quizBox").innerHTML = html;
-            startTimer();
         });
 }
 
@@ -271,7 +231,12 @@ document.addEventListener("DOMContentLoaded", function () {
     if (<?= json_encode((bool)$selectedTable) ?>) {
         loadNextQuestion();
     }
+
+    document.getElementById("startQuizBtn").addEventListener("click", function () {
+        playMusic();
+    });
 });
 </script>
+
 </body>
 </html>
