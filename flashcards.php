@@ -147,18 +147,30 @@ function getSnippetPath(index, side) {
   return `cache/${tableName}/${filename}`;
 }
 
+
+
 function playCachedAudio(index, side, fallbackText, fallbackLang, callback) {
   const src = getSnippetPath(index, side);
-  audioElement.src = src;
-  audioElement.onerror = () => {
-    const url = `generate_tts_snippet.php?text=${encodeURIComponent(fallbackText)}&lang=${encodeURIComponent(fallbackLang)}`;
-    audioElement.src = url;
+
+  // First, check if the file exists using fetch
+  fetch(src, { method: 'HEAD' }).then(res => {
+    if (res.ok) {
+      audioElement.src = src;
+    } else {
+      audioElement.src = `generate_tts_snippet.php?text=${encodeURIComponent(fallbackText)}&lang=${encodeURIComponent(fallbackLang)}`;
+    }
     audioElement.onended = callback;
     audioElement.play();
-  };
-  audioElement.onended = callback;
-  audioElement.play();
+  }).catch(() => {
+    // fallback in case of fetch failure
+    audioElement.src = `generate_tts_snippet.php?text=${encodeURIComponent(fallbackText)}&lang=${encodeURIComponent(fallbackLang)}`;
+    audioElement.onended = callback;
+    audioElement.play();
+  });
 }
+
+
+
 
 function playTTS(text, language) {
   if (!text || !language || !ttsEnabled[language]) return;
