@@ -140,9 +140,6 @@ echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Log
     Your browser does not support background music.
 </audio>
 
-<button onclick="document.getElementById('bgMusic').play()">▶️ Play Music</button>
-<button onclick="document.getElementById('bgMusic').pause()">⏸️ Pause Music</button>
-
 
 <h1>🎯 Kahoot-style Quiz</h1>
 
@@ -159,9 +156,14 @@ echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Log
     <div id="customMusicInput" style="display:none;">
         <input type="url" name="custom_music_url" placeholder="Paste full MP3 URL (e.g., from freetouse.com)" style="width: 60%;">
     </div>
+
+    <div style='text-align: center; margin-bottom: 20px;'>";
     <br>
     <button type="button" onclick="previewMusic()">▶️ Preview Music</button>
     <audio id="previewPlayer" controls style="display:none; margin-top: 10px;"></audio>
+    <button onclick="document.getElementById('bgMusic').play()">▶️ Play Music</button>
+    <button onclick="document.getElementById('bgMusic').pause()">⏸️ Pause Music</button>
+    </div>
 
     <br><br><label>Select quiz set:</label><br><br>
     <select name="quiz_table" required>
