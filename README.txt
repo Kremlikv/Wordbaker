@@ -15,7 +15,7 @@ It scans a PDF, cleans any garbled text with AI and sends it for translation.
 OPRAVY
 - Php soubor musí začínat <?php hned na prvním řádku bez mezery.
 - Include session musí být hned na začátku souboru.
-- Spojení s databází je lépe ošetřit pomocí odkazu na soubor db.php 
+- Spojení s databází je lépe ošetřit pomocí odkazu na soubor db.php .
 a ne jako několika řádkový skript, co bych musel v každém souboru opakovat.
 - Při github zálohování se mi v byethost adresáři zjevuje dávno smazaný Flashcards.php
 A program se rozhodl používat tento neplatn soubor místo nového flashcards.php

@@ -12,7 +12,7 @@ function getTables($conn) {
             $tables[] = $row[0];
         }
     }
-    return $tables;
+    return $tables; 
 }
 
 $tables = getTables($conn);
