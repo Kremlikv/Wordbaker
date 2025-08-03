@@ -1,8 +1,6 @@
 <?php
 ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
-
 require_once 'db.php';
 require_once 'session.php';
 
@@ -46,18 +44,10 @@ if (isset($_POST['start_new']) && !empty($_POST['quiz_table'])) {
 
     $selectedTable = $_POST['quiz_table'];
     $res = $conn->query("SELECT * FROM `$selectedTable`");
-    if (!$res) {
-        die("❌ Query failed: " . $conn->error);
-    }
+    if (!$res) die("❌ Query failed: " . $conn->error);
 
     $questions = [];
     while ($row = $res->fetch_assoc()) {
-        if (!isset($row['question'], $row['correct_answer'], $row['wrong1'], $row['wrong2'], $row['wrong3'])) {
-            echo "❌ Invalid row format:";
-            var_dump($row);
-            exit;
-        }
-
         $answers = [$row['correct_answer'], $row['wrong1'], $row['wrong2'], $row['wrong3']];
         shuffle($answers);
         $questions[] = [
@@ -68,10 +58,7 @@ if (isset($_POST['start_new']) && !empty($_POST['quiz_table'])) {
         ];
     }
 
-    if (empty($questions)) {
-        die("⚠️ No questions in selected table.");
-    }
-
+    if (empty($questions)) die("⚠️ No questions found in '$selectedTable'.");
     shuffle($questions);
     $_SESSION['questions'] = $questions;
     header("Location: play_quiz.php");
@@ -109,7 +96,7 @@ echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Log
 
 <audio id="bgMusic" loop>
     <source id="bgMusicSource" src="<?= htmlspecialchars($musicSrc) ?>" type="audio/mpeg">
-    Your browser does not support audio playback.
+    Your browser does not support audio.
 </audio>
 
 <h1>🎯 Kahoot-style Quiz</h1>
@@ -122,16 +109,16 @@ echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Log
         <option value="track1.mp3" <?= $currentMusic === 'track1.mp3' ? 'selected' : '' ?>>🎸 Track 1</option>
         <option value="track2.mp3" <?= $currentMusic === 'track2.mp3' ? 'selected' : '' ?>>🎹 Track 2</option>
         <option value="track3.mp3" <?= $currentMusic === 'track3.mp3' ? 'selected' : '' ?>>🥁 Track 3</option>
-        <option value="custom" <?= filter_var($currentMusic, FILTER_VALIDATE_URL) ? 'selected' : '' ?>>🌐 Custom URL</option>
+        <option value="custom" <?= filter_var($currentMusic, FILTER_VALIDATE_URL) ? 'selected' : '' ?>>🌐 Use custom music URL</option>
     </select><br><br>
 
-    <?php $customURL = filter_var($currentMusic, FILTER_VALIDATE_URL) ? $currentMusic : ''; ?>
-    <div id="customMusicInput" style="<?= $customURL ? 'display:block;' : 'display:none;' ?>">
-        <input type="url" name="custom_music_url" placeholder="Paste full MP3 URL" style="width: 60%;" value="<?= htmlspecialchars($customURL) ?>">
+    <div id="customMusicInput" style="<?= filter_var($currentMusic, FILTER_VALIDATE_URL) ? 'display:block;' : 'display:none;' ?>">
+        <input type="url" name="custom_music_url" placeholder="Paste full MP3 URL" style="width: 60%;" value="<?= htmlspecialchars($currentMusic) ?>">
     </div>
 
-    <div style='margin: 20px 0;'>
-        <button type="button" onclick="toggleMusic()">🎵 Play/Pause Music</button>
+    <div style='margin-bottom: 20px;'>
+        <button type="button" onclick="previewMusic()">🎧 Preview</button>
+        <button type="button" onclick="toggleMusic()">▶️/⏸️ Toggle Music</button>
         <audio id="previewPlayer" controls style="display:none; margin-top: 10px;"></audio>
     </div>
 
@@ -144,32 +131,45 @@ echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Log
             </option>
         <?php endforeach; ?>
     </select>
-    <button type="submit" name="start_new">Start Quiz</button>
+    <button type="submit" name="start_new" id="startQuizBtn">Start Quiz</button>
 </form>
 
 <hr>
 
 <?php if ($selectedTable): ?>
-    <div id="quizBox"><!-- Question loads here --></div>
+    <div id="quizBox"><!-- Questions will load here --></div>
 <?php endif; ?>
 
 <script>
-let timeLeft;
 let countdown;
+let timeLeft;
 
 function toggleCustomMusic(value) {
     document.getElementById("customMusicInput").style.display = (value === "custom") ? "block" : "none";
 }
 
+function previewMusic() {
+    const dropdown = document.querySelector('select[name="bg_music_choice"]');
+    const urlInput = document.querySelector('input[name="custom_music_url"]');
+    const player = document.getElementById('previewPlayer');
+    let src = (dropdown.value === "custom") ? urlInput.value.trim() : dropdown.value;
+
+    if (src) {
+        player.src = src;
+        player.style.display = "block";
+        player.play();
+    }
+}
+
 function toggleMusic() {
     const music = document.getElementById("bgMusic");
+    const source = document.getElementById("bgMusicSource");
 
-    if (!music.src || music.src.endsWith('/')) {
+    if (!source.src || source.src.endsWith('/')) {
         alert("Please select a valid music track first.");
         return;
     }
 
-    }
     if (music.paused) {
         music.volume = 0.3;
         music.play().catch(err => console.warn("Music play blocked:", err));
@@ -199,7 +199,7 @@ function submitAnswer(btn) {
     clearInterval(countdown);
     fetch("load_question.php", {
         method: "POST",
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
         body: new URLSearchParams({
             answer: value,
             time_taken: 15 - timeLeft
