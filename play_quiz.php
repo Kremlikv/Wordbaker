@@ -37,6 +37,7 @@ if (isset($_POST['start_new']) && !empty($_POST['quiz_table'])) {
     $_SESSION['score'] = 0;
     $_SESSION['question_index'] = 0;
 
+    // Music selection
     $musicChoice = $_POST['bg_music_choice'] ?? '';
     $customURL = $_POST['custom_music_url'] ?? '';
     if ($musicChoice === 'custom' && filter_var($customURL, FILTER_VALIDATE_URL)) {
@@ -83,7 +84,6 @@ if (isset($_POST['start_new']) && !empty($_POST['quiz_table'])) {
 
 $selectedTable = $_SESSION['quiz_table'] ?? '';
 $musicSrc = $_SESSION['bg_music'] ?? '';
-
 include 'styling.php';
 echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Logout</a>";
 ?>
@@ -96,27 +96,9 @@ echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Log
     <style>
         body { font-family: sans-serif; text-align: center; padding: 0px; }
         .question-box { font-size: 1.5em; margin-bottom: 20px; }
-        .answer-grid {
-            display: flex;
-            flex-wrap: wrap;
-            justify-content: center;
-            max-width: 600px;
-            margin: auto;
-        }
-        .answer-col {
-            flex: 0 0 50%;
-            padding: 10px;
-        }
-        .answer-btn {
-            width: 100%;
-            padding: 20px;
-            font-size: 1.1em;
-            cursor: pointer;
-            border: none;
-            border-radius: 10px;
-            background-color: #eee;
-            transition: 0.3s;
-        }
+        .answer-grid { display: flex; flex-wrap: wrap; justify-content: center; max-width: 600px; margin: auto; }
+        .answer-col { flex: 0 0 50%; padding: 10px; }
+        .answer-btn { width: 100%; padding: 20px; font-size: 1.1em; cursor: pointer; border: none; border-radius: 10px; background-color: #eee; transition: 0.3s; }
         .answer-btn:hover { background-color: #ddd; }
         .feedback { font-size: 1.2em; margin-top: 20px; }
         .score { margin-bottom: 10px; font-weight: bold; }
@@ -137,23 +119,23 @@ echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Log
 
 <form method="POST">
     <label>Select background music:</label><br><br>
+    <?php $currentMusic = $_SESSION['bg_music'] ?? ''; ?>
     <select name="bg_music_choice" onchange="toggleCustomMusic(this.value)">
-        <option value="">🔇 OFF</option>
-        <option value="track1.mp3">🎸 Track 1</option>
-        <option value="track2.mp3">🎹 Track 2</option>
-        <option value="track3.mp3">🥁 Track 3</option>
-        <option value="custom">🌐 Use custom music URL</option>
+        <option value="" <?= $currentMusic === '' ? 'selected' : '' ?>>🔇 OFF</option>
+        <option value="track1.mp3" <?= $currentMusic === 'track1.mp3' ? 'selected' : '' ?>>🎸 Track 1</option>
+        <option value="track2.mp3" <?= $currentMusic === 'track2.mp3' ? 'selected' : '' ?>>🎹 Track 2</option>
+        <option value="track3.mp3" <?= $currentMusic === 'track3.mp3' ? 'selected' : '' ?>>🥁 Track 3</option>
+        <option value="custom" <?= filter_var($currentMusic, FILTER_VALIDATE_URL) ? 'selected' : '' ?>>🌐 Use custom music URL</option>
     </select><br><br>
 
-    <div id="customMusicInput" style="display:none;">
-        <input type="url" name="custom_music_url" placeholder="Paste full MP3 URL (e.g., from freetouse.com)" style="width: 60%;">
+    <?php $customURL = filter_var($currentMusic, FILTER_VALIDATE_URL) ? $currentMusic : ''; ?>
+    <div id="customMusicInput" style="<?= $customURL ? 'display:block;' : 'display:none;' ?>">
+        <input type="url" name="custom_music_url" placeholder="Paste full MP3 URL" style="width: 60%;" value="<?= htmlspecialchars($customURL) ?>">
     </div>
 
     <div style='text-align: center; margin-bottom: 20px;'>
         <button type="button" onclick="previewMusic()">▶️ Preview Music</button>
         <audio id="previewPlayer" controls style="display:none; margin-top: 10px;"></audio>
-        <button type="button" onclick="playMusic()">▶️ Play Music</button>
-        <button type="button" onclick="document.getElementById('bgMusic').pause()">⏸️ Pause Music</button>
     </div>
 
     <br><br><label>Select quiz set:</label><br><br>
@@ -171,7 +153,7 @@ echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Log
 <hr>
 
 <?php if ($selectedTable): ?>
-    <div id="quizBox"></div>
+    <div id="quizBox"><!-- Question will load here --></div>
 <?php endif; ?>
 
 <script>
@@ -192,15 +174,41 @@ function previewMusic() {
     }
 }
 
-function playMusic() {
-    const music = document.getElementById("bgMusic");
-    if (music?.src) {
-        music.volume = 0.3;
-        music.play().catch(err => {
-            console.warn("Music play blocked:", err);
-            alert("Click anywhere on the page first to allow music.");
-        });
-    }
+let timeLeft;
+let countdown;
+
+function startTimer() {
+    timeLeft = 15;
+    const timerDisplay = document.getElementById("timer");
+    clearInterval(countdown);
+    countdown = setInterval(() => {
+        timeLeft--;
+        if (timerDisplay) timerDisplay.textContent = `⏳ ${timeLeft}`;
+        if (timeLeft <= 0) {
+            clearInterval(countdown);
+            document.querySelectorAll(".answer-btn").forEach(btn => btn.disabled = true);
+            if (timerDisplay) timerDisplay.textContent = "⏰ Time's up!";
+        }
+    }, 1000);
+}
+
+function submitAnswer(btn) {
+    const value = btn.getAttribute("data-value");
+    document.querySelectorAll(".answer-btn").forEach(b => b.disabled = true);
+    clearInterval(countdown);
+    fetch("load_question.php", {
+        method: "POST",
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+            answer: value,
+            time_taken: 15 - timeLeft
+        })
+    })
+    .then(res => res.text())
+    .then(html => {
+        document.getElementById("quizBox").innerHTML = html;
+        startTimer();
+    });
 }
 
 function loadNextQuestion() {
@@ -208,6 +216,7 @@ function loadNextQuestion() {
         .then(res => res.text())
         .then(html => {
             document.getElementById("quizBox").innerHTML = html;
+            startTimer();
         });
 }
 
@@ -230,11 +239,13 @@ document.addEventListener("DOMContentLoaded", function () {
 
     if (<?= json_encode((bool)$selectedTable) ?>) {
         loadNextQuestion();
+        setTimeout(() => {
+            if (music.src && music.src !== window.location.href) {
+                music.volume = 0.3;
+                music.play().catch(err => console.warn("Autoplay blocked:", err));
+            }
+        }, 500);
     }
-
-    document.getElementById("startQuizBtn").addEventListener("click", function () {
-        playMusic();
-    });
 });
 </script>
 
