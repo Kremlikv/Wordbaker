@@ -163,9 +163,12 @@ function toggleCustomMusic(value) {
 
 function toggleMusic() {
     const music = document.getElementById("bgMusic");
-    if (!music.src || music.src === window.location.href) {
+
+    if (!music.src || music.src.endsWith('/')) {
         alert("Please select a valid music track first.");
         return;
+    }
+
     }
     if (music.paused) {
         music.volume = 0.3;
