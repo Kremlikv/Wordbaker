@@ -63,13 +63,17 @@ c) Free audio (google tts).
 d) And also I replaced AI with a free version from OpenRouter.ai 
 e) And of couse free Byethost hosting.
 
-KAHOOT 
-You can load a table and ask A.I. to generate false answers. 
+KAHOOT PREPARATION
+You can load a table and ask A.I. to generate false answers for a quiz.
+The AI suggested options can be edited.
 Then you can play a Kahoot quiz where you can choose from correct and false answers. 
 
 KAHOOT MUSIC
-Background music added to the game.
+Background music added to the game. It does not start automatically and is a toggle.
 
 KAHOOT MISTAKES
-After a game end not only score,but also a list of mistakes is shown. 
-With an optin to store it into "difficult words"..
+The game ends showing score and also a list of mistakes. They are not stored.
+
+FLASHCARDS 
+Now the Mark Difficult system records also names of users and names of tables. 
+So in Flashcards you have the option to show only Difficult words for this table.

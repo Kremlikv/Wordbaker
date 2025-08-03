@@ -237,7 +237,10 @@ echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Log
 <?php if (!$extractedText): ?>
   <form method="POST" enctype="multipart/form-data">
     <label>Select PDF File:
-      <input type="file" name="pdf_file" accept=".pdf" required>
+      <input type="file" name="pdf_file" accept=".pdf" required> </label>
+      <label>It is recommended to upload only small pdf files.<br><br>
+      You can split pdf files with tools like https://www.ilovepdf.com/split_pdf </label>
+
     </label>
 
     <label>Page Range (optional):
