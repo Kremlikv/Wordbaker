@@ -20,8 +20,7 @@ if (isset($_POST['restart'])) {
 if (!isset($_SESSION['score'])) {
     $_SESSION['score'] = 0;
     $_SESSION['question_index'] = 0;
-    $_SESSION['questions'] = [];
-    $_SESSION['mistakes'] = []; // Reset mistakes for a new game
+    $_SESSION['questions'] = []; 
 }
 
 // Load quiz tables
