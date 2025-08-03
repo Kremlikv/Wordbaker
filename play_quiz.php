@@ -151,7 +151,9 @@ echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Log
     <div style='text-align: center; margin-bottom: 20px;'>
         <button type="button" onclick="previewMusic()">▶️ Preview Music</button>
         <audio id="previewPlayer" controls style="display:none; margin-top: 10px;"></audio>
-        <button type="button" onclick="document.getElementById('bgMusic').play()">▶️ Play Music</button>
+        <!-- <button type="button" onclick="document.getElementById('bgMusic').play()">▶️ Play Music</button> -->
+        <button type="button" onclick="playMusic()">▶️ Play Music</button>
+
         <button type="button" onclick="document.getElementById('bgMusic').pause()">⏸️ Pause Music</button>
     </div>
 
@@ -208,6 +210,18 @@ function startTimer() {
         }
     }, 1000);
 }
+
+function playMusic() {
+    const music = document.getElementById("bgMusic");
+    if (music && music.src) {
+        music.volume = 0.3;
+        music.play().catch(err => {
+            console.warn("Music play blocked:", err);
+            alert("Please click somewhere on the page first to enable music.");
+        });
+    }
+}
+
 
 function submitAnswer(btn) {
     const value = btn.getAttribute("data-value");
