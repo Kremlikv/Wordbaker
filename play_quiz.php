@@ -140,6 +140,10 @@ echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Log
     Your browser does not support background music.
 </audio>
 
+<button onclick="document.getElementById('bgMusic').play()">▶️ Play Music</button>
+<button onclick="document.getElementById('bgMusic').pause()">⏸️ Pause Music</button>
+
+
 <h1>🎯 Kahoot-style Quiz</h1>
 
 <form method="POST">
@@ -254,8 +258,8 @@ document.addEventListener("DOMContentLoaded", function () {
         music.currentTime = storedTime;
     }
 
-    music.volume = 0.3;
-    music.play().catch(err => console.warn("Autoplay blocked:", err));
+    // music.volume = 0.3;
+    // music.play().catch(err => console.warn("Autoplay blocked:", err));
 
     setInterval(() => {
         localStorage.setItem("quiz_music_time", music.currentTime);
