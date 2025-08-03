@@ -37,7 +37,6 @@ if (isset($_POST['start_new']) && !empty($_POST['quiz_table'])) {
     $_SESSION['score'] = 0;
     $_SESSION['question_index'] = 0;
 
-    // Music selection
     $musicChoice = $_POST['bg_music_choice'] ?? '';
     $customURL = $_POST['custom_music_url'] ?? '';
     if ($musicChoice === 'custom' && filter_var($customURL, FILTER_VALIDATE_URL)) {
@@ -133,12 +132,11 @@ echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Log
         <input type="url" name="custom_music_url" placeholder="Paste full MP3 URL" style="width: 60%;" value="<?= htmlspecialchars($customURL) ?>">
     </div>
 
-    <div style='text-align: center; margin-bottom: 20px;'>
-        <button type="button" onclick="previewMusic()">▶️ Preview Music</button>
-        <audio id="previewPlayer" controls style="display:none; margin-top: 10px;"></audio>
+    <div style='margin: 10px;'>
+        <button type="button" onclick="toggleMusic()" id="musicToggleBtn">▶️ Play Music</button>
     </div>
 
-    <br><br><label>Select quiz set:</label><br><br>
+    <br><label>Select quiz set:</label><br><br>
     <select name="quiz_table" required>
         <option value="">-- Choose a quiz_choices_* table --</option>
         <?php foreach ($quizTables as $table): ?>
@@ -161,21 +159,27 @@ function toggleCustomMusic(value) {
     document.getElementById("customMusicInput").style.display = (value === "custom") ? "block" : "none";
 }
 
-function previewMusic() {
-    const dropdown = document.querySelector('select[name="bg_music_choice"]');
-    const urlInput = document.querySelector('input[name="custom_music_url"]');
-    const player = document.getElementById('previewPlayer');
-    let src = dropdown.value === "custom" ? urlInput.value.trim() : dropdown.value;
+function toggleMusic() {
+    const music = document.getElementById('bgMusic');
+    const btn = document.getElementById('musicToggleBtn');
 
-    if (src) {
-        player.src = src;
-        player.style.display = "block";
-        player.play();
+    if (!music.src || music.src.endsWith('/')) {
+        alert("Please select a valid music track first.");
+        return;
+    }
+
+    if (music.paused) {
+        music.volume = 0.3;
+        music.play().then(() => {
+            btn.textContent = '⏸️ Pause Music';
+        }).catch(err => {
+            console.warn("Play blocked:", err);
+        });
+    } else {
+        music.pause();
+        btn.textContent = '▶️ Play Music';
     }
 }
-
-let timeLeft;
-let countdown;
 
 function startTimer() {
     timeLeft = 15;
@@ -239,12 +243,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
     if (<?= json_encode((bool)$selectedTable) ?>) {
         loadNextQuestion();
-        setTimeout(() => {
-            if (music.src && music.src !== window.location.href) {
-                music.volume = 0.3;
-                music.play().catch(err => console.warn("Autoplay blocked:", err));
-            }
-        }, 500);
     }
 });
 </script>
