@@ -73,11 +73,14 @@ EOT;
     $decoded = json_decode($response, true);
     $output = $decoded['choices'][0]['message']['content'] ?? '';
     preg_match_all('/\d+\.?\s*(.*?)\s*(?:\\n|$)/', $output, $matches);
+
     $wrongAnswers = array_map(function ($a) {
         $a = trim($a);
         $a = preg_replace('/\s*\([^)]*\)/', '', $a); // remove parentheses
-        return trim($a, " \"“”‘’'");
+        $a = trim($a, "*\"“”‘’' "); // remove leading/trailing *, quotes, spaces
+        return $a;
     }, $matches[1]);
+
 
     return count($wrongAnswers) >= 3 ? array_slice($wrongAnswers, 0, 3) : [];
 }
