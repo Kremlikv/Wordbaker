@@ -27,7 +27,7 @@ $stmt->store_result();
 if ($stmt->num_rows === 0) {
     // Insert if not exists
     $insert = $conn->prepare("INSERT INTO difficult_words (source_word, target_word, language, user_id, table_name) VALUES (?, ?, ?, ?, ?)");
-    $insert->bind_param("sssiss", $source, $target, $language, $user_id, $table);
+    $insert->bind_param("sssis", $source, $target, $language, $user_id, $table);
     $insert->execute();
 }
 
