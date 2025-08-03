@@ -6,7 +6,6 @@ error_reporting(E_ALL);
 require_once 'db.php';
 require_once 'session.php';
 
-echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Logout</a>";
 
 // Handle quiz restart
 if (isset($_POST['restart'])) {
@@ -86,6 +85,7 @@ $selectedTable = $_SESSION['quiz_table'] ?? '';
 $musicSrc = $_SESSION['bg_music'] ?? 'background.mp3';
 
 include 'styling.php';
+echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Logout</a>";
 ?>
 
 <!DOCTYPE html>

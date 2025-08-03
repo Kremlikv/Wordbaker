@@ -62,15 +62,32 @@ function getUserTables($conn, $username) {
 
 function callOpenRouter($apiKey, $model, $czechWord, $correctAnswer, $targetLang, $referer, $appTitle) {
     $prompt = <<<EOT
-You are helping build a language-learning quiz.
-You are a language expert trained on learner corpora such as MERLIN and EFCAMDAT. 
+
+    You are a professional language teacher who creates multiple-choice vocabulary quizzes for foreign language learners. Given a correct translation, generate 3 **plausible but incorrect** answers that simulate mistakes language learners often make.
+
+Mistakes should reflect:
+- False friends
+- Gender/article confusion
+- Typical typos or spelling errors
+- Words with similar pronunciation or meaning
+
+Do **not** invent nonsense words, reversed words, or unrealistic distractors. Each wrong answer must be a real word or plausible learner error.
+
+---
+
+Czech: "stůl"  
+Target Language: German  
+Correct Answer: "der Tisch"  
+Wrong Answers:
+1. die Tisch *(article confusion)*
+2. der Tasche *(false friend)*
+3. der Tich *(spelling error)*
 
 For each Czech word, I will give you the correct translation into $targetLang. 
 Your task is to generate 3 **plausible but incorrect alternatives** — the kind of mistake a student might make. 
 
 ⚠️ DO NOT:
 - Add random letters or corrupt the correct answer.
-- Modify the correct answer by adding/removing characters.
 - Use gibberish.
 - Return the correct answer in any form.
 - Explain the answers.
@@ -86,8 +103,8 @@ Your task is to generate 3 **plausible but incorrect alternatives** — the kind
 
 Czech: "$czechWord"
 Correct translation: "$correctAnswer"
+Wrong alternatives: "$wrong1, $wrong2, $wrong3"
 
-Wrong alternatives:
 EOT;
 
     $data = array(

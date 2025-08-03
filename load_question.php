@@ -9,6 +9,8 @@ if (!isset($_SESSION['questions'], $_SESSION['question_index'], $_SESSION['score
     exit;
 }
 
+$_SESSION['mistakes'] = []; // Reset mistakes for a new game
+
 $index = $_SESSION['question_index'];
 $questions = $_SESSION['questions'];
 $total = count($questions);
