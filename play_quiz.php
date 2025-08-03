@@ -6,7 +6,6 @@ error_reporting(E_ALL);
 require_once 'db.php';
 require_once 'session.php';
 
-// Handle quiz restart
 if (isset($_POST['restart'])) {
     unset($_SESSION['score'], $_SESSION['question_index'], $_SESSION['questions'], $_SESSION['quiz_table'], $_SESSION['bg_music']);
     $_SESSION['mistakes'] = [];
@@ -15,14 +14,12 @@ if (isset($_POST['restart'])) {
     exit;
 }
 
-// First-time setup
 if (!isset($_SESSION['score'])) {
     $_SESSION['score'] = 0;
     $_SESSION['question_index'] = 0;
     $_SESSION['questions'] = [];
 }
 
-// Load quiz tables
 $quizTables = [];
 $result = $conn->query("SHOW TABLES");
 while ($row = $result->fetch_array()) {
@@ -56,7 +53,7 @@ if (isset($_POST['start_new']) && !empty($_POST['quiz_table'])) {
     $questions = [];
     while ($row = $res->fetch_assoc()) {
         if (!isset($row['question'], $row['correct_answer'], $row['wrong1'], $row['wrong2'], $row['wrong3'])) {
-            echo "❌ Missing expected keys in row:";
+            echo "❌ Invalid row format:";
             var_dump($row);
             exit;
         }
@@ -72,7 +69,7 @@ if (isset($_POST['start_new']) && !empty($_POST['quiz_table'])) {
     }
 
     if (empty($questions)) {
-        die("⚠️ No questions found in table '$selectedTable'.");
+        die("⚠️ No questions in selected table.");
     }
 
     shuffle($questions);
@@ -83,6 +80,7 @@ if (isset($_POST['start_new']) && !empty($_POST['quiz_table'])) {
 
 $selectedTable = $_SESSION['quiz_table'] ?? '';
 $musicSrc = $_SESSION['bg_music'] ?? '';
+
 include 'styling.php';
 echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Logout</a>";
 ?>
@@ -111,7 +109,7 @@ echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Log
 
 <audio id="bgMusic" loop>
     <source id="bgMusicSource" src="<?= htmlspecialchars($musicSrc) ?>" type="audio/mpeg">
-    Your browser does not support background music.
+    Your browser does not support audio playback.
 </audio>
 
 <h1>🎯 Kahoot-style Quiz</h1>
@@ -124,7 +122,7 @@ echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Log
         <option value="track1.mp3" <?= $currentMusic === 'track1.mp3' ? 'selected' : '' ?>>🎸 Track 1</option>
         <option value="track2.mp3" <?= $currentMusic === 'track2.mp3' ? 'selected' : '' ?>>🎹 Track 2</option>
         <option value="track3.mp3" <?= $currentMusic === 'track3.mp3' ? 'selected' : '' ?>>🥁 Track 3</option>
-        <option value="custom" <?= filter_var($currentMusic, FILTER_VALIDATE_URL) ? 'selected' : '' ?>>🌐 Use custom music URL</option>
+        <option value="custom" <?= filter_var($currentMusic, FILTER_VALIDATE_URL) ? 'selected' : '' ?>>🌐 Custom URL</option>
     </select><br><br>
 
     <?php $customURL = filter_var($currentMusic, FILTER_VALIDATE_URL) ? $currentMusic : ''; ?>
@@ -132,11 +130,12 @@ echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Log
         <input type="url" name="custom_music_url" placeholder="Paste full MP3 URL" style="width: 60%;" value="<?= htmlspecialchars($customURL) ?>">
     </div>
 
-    <div style='margin: 10px;'>
-        <button type="button" onclick="toggleMusic()" id="musicToggleBtn">▶️ Play Music</button>
+    <div style='margin: 20px 0;'>
+        <button type="button" onclick="toggleMusic()">🎵 Play/Pause Music</button>
+        <audio id="previewPlayer" controls style="display:none; margin-top: 10px;"></audio>
     </div>
 
-    <br><label>Select quiz set:</label><br><br>
+    <label>Select quiz set:</label><br><br>
     <select name="quiz_table" required>
         <option value="">-- Choose a quiz_choices_* table --</option>
         <?php foreach ($quizTables as $table): ?>
@@ -145,39 +144,34 @@ echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Log
             </option>
         <?php endforeach; ?>
     </select>
-    <button type="submit" name="start_new" id="startQuizBtn">Start Quiz</button>
+    <button type="submit" name="start_new">Start Quiz</button>
 </form>
 
 <hr>
 
 <?php if ($selectedTable): ?>
-    <div id="quizBox"><!-- Question will load here --></div>
+    <div id="quizBox"><!-- Question loads here --></div>
 <?php endif; ?>
 
 <script>
+let timeLeft;
+let countdown;
+
 function toggleCustomMusic(value) {
     document.getElementById("customMusicInput").style.display = (value === "custom") ? "block" : "none";
 }
 
 function toggleMusic() {
-    const music = document.getElementById('bgMusic');
-    const btn = document.getElementById('musicToggleBtn');
-
-    if (!music.src || music.src.endsWith('/')) {
+    const music = document.getElementById("bgMusic");
+    if (!music.src || music.src === window.location.href) {
         alert("Please select a valid music track first.");
         return;
     }
-
     if (music.paused) {
         music.volume = 0.3;
-        music.play().then(() => {
-            btn.textContent = '⏸️ Pause Music';
-        }).catch(err => {
-            console.warn("Play blocked:", err);
-        });
+        music.play().catch(err => console.warn("Music play blocked:", err));
     } else {
         music.pause();
-        btn.textContent = '▶️ Play Music';
     }
 }
 
