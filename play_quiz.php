@@ -15,12 +15,14 @@ if (isset($_POST['restart'])) {
     exit;
 }
 
+// First-time setup
 if (!isset($_SESSION['score'])) {
     $_SESSION['score'] = 0;
     $_SESSION['question_index'] = 0;
     $_SESSION['questions'] = [];
 }
 
+// Load quiz tables
 $quizTables = [];
 $result = $conn->query("SHOW TABLES");
 while ($row = $result->fetch_array()) {
@@ -80,8 +82,7 @@ if (isset($_POST['start_new']) && !empty($_POST['quiz_table'])) {
 }
 
 $selectedTable = $_SESSION['quiz_table'] ?? '';
-$musicSrc = $_SESSION['bg_music'];
-
+$musicSrc = $_SESSION['bg_music'] ?? '';
 include 'styling.php';
 echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Logout</a>";
 ?>
@@ -101,10 +102,19 @@ echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Log
             max-width: 600px;
             margin: auto;
         }
-        .answer-col { flex: 0 0 50%; padding: 10px; }
+        .answer-col {
+            flex: 0 0 50%;
+            padding: 10px;
+        }
         .answer-btn {
-            width: 100%; padding: 20px; font-size: 1.1em; cursor: pointer;
-            border: none; border-radius: 10px; background-color: #eee; transition: 0.3s;
+            width: 100%;
+            padding: 20px;
+            font-size: 1.1em;
+            cursor: pointer;
+            border: none;
+            border-radius: 10px;
+            background-color: #eee;
+            transition: 0.3s;
         }
         .answer-btn:hover { background-color: #ddd; }
         .feedback { font-size: 1.2em; margin-top: 20px; }
@@ -135,16 +145,32 @@ echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Log
     </select><br><br>
 
     <div id="customMusicInput" style="display:none;">
-        <input type="url" name="custom_music_url" placeholder="Paste full MP3 URL" style="width: 60%;">
+        <input type="url" name="custom_music_url" placeholder="Paste full MP3 URL (e.g., from freetouse.com)" style="width: 60%;">
     </div>
 
-    <br>
-    <button type="button" id="startQuizBtn">Start Quiz</button>
+    <div style='text-align: center; margin-bottom: 20px;'>
+        <button type="button" onclick="previewMusic()">▶️ Preview Music</button>
+        <audio id="previewPlayer" controls style="display:none; margin-top: 10px;"></audio>
+        <button type="button" onclick="document.getElementById('bgMusic').play()">▶️ Play Music</button>
+        <button type="button" onclick="document.getElementById('bgMusic').pause()">⏸️ Pause Music</button>
+    </div>
+
+    <label>Select quiz set:</label><br><br>
+    <select name="quiz_table" required>
+        <option value="">-- Choose a quiz_choices_* table --</option>
+        <?php foreach ($quizTables as $table): ?>
+            <option value="<?= htmlspecialchars($table) ?>" <?= ($selectedTable === $table) ? 'selected' : '' ?>>
+                <?= htmlspecialchars($table) ?>
+            </option>
+        <?php endforeach; ?>
+    </select>
+    <button type="submit" name="start_new" id="startQuizBtn">Start Quiz</button>
 </form>
 
 <hr>
+
 <?php if ($selectedTable): ?>
-    <div id="quizBox"></div>
+    <div id="quizBox"><!-- Question will load here --></div>
 <?php endif; ?>
 
 <script>
@@ -190,7 +216,10 @@ function submitAnswer(btn) {
     fetch("load_question.php", {
         method: "POST",
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ answer: value, time_taken: 15 - timeLeft })
+        body: new URLSearchParams({
+            answer: value,
+            time_taken: 15 - timeLeft
+        })
     })
     .then(res => res.text())
     .then(html => {
@@ -225,24 +254,10 @@ document.addEventListener("DOMContentLoaded", function () {
         localStorage.setItem("quiz_music_time", music.currentTime);
     }, 1000);
 
-    const startButton = document.getElementById("startQuizBtn");
-    if (startButton) {
-        startButton.addEventListener("click", function () {
-            if (music?.src && music.src !== window.location.href) {
-                music.volume = 0.3;
-                music.play().catch(err => console.warn("Music play blocked:", err));
-            }
-            setTimeout(() => {
-                startButton.closest('form').submit();
-            }, 200);
-        });
-    }
-
     if (<?= json_encode((bool)$selectedTable) ?>) {
         loadNextQuestion();
     }
 });
 </script>
-
 </body>
 </html>
