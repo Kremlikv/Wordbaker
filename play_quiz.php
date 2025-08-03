@@ -235,7 +235,7 @@ document.addEventListener("DOMContentLoaded", function () {
         localStorage.setItem("quiz_music_time", music.currentTime);
     }, 1000);
 
-    if (<?= json_encode((bool)$selectedTable) ?>) {
+    if (<?= json_encode((bool)$selectedTable) ?>) { 
         loadNextQuestion();
     }
 });
