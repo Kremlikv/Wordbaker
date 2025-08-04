@@ -169,10 +169,9 @@ if (!empty(\$selectedFullTable) && \$res !== false) {
         echo "<table border='1' cellpadding='5' cellspacing='0'>";
         echo "<tr><th>" . htmlspecialchars(\$heading1) . "</th><th>" . htmlspecialchars(\$heading2) . "</th><th>Action</th></tr>";
         \$res->data_seek(0);
-        \$i = 0;
-        if (\$res->num_rows === 0) {
-            echo "<tr><td colspan='3'><em>This table is empty. Add your first entry below.</em></td></tr>";
+        \$i = 0;               
         }
+        
         while (\$row = \$res->fetch_assoc()) {
             echo "<tr>";
             echo "<td><textarea name='rows[\$i][col1]' oninput='autoResize(this)'>" . htmlspecialchars(\$row[\$column1]) . "</textarea></td>";
