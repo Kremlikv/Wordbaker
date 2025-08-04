@@ -137,11 +137,29 @@ foreach ($folders as $folder => $tableList) {
 
     echo "<details><summary class='folder' onclick=\"toggleFolder('$safeFolderId')\">📁 " . htmlspecialchars($displayFolderName) . "</summary>";
     echo "<div class='subtable' id='sub_$safeFolderId'>";
-    foreach ($tableList as $entry) {
-        $fullTable = $entry['table_name'];
-        $display = $entry['display_name'];
-        echo "<span onclick=\"selectTable('$fullTable')\">📄 " . htmlspecialchars($display) . "</span>";
+
+foreach ($tableList as $entry) {
+    $fullTable = $entry['table_name'];
+    $display = $entry['display_name'];
+    
+    echo "<div style='display: flex; align-items: center; justify-content: space-between;'>";
+
+    // Table name (clickable)
+    echo "<span style='flex-grow:1; cursor:pointer;' onclick=\"selectTable('$fullTable')\">📄 " . htmlspecialchars($display) . "</span>";
+
+    // Deletion form (only for non-shared tables)
+    if (!in_array($fullTable, ['difficult_words', 'mastered_words', 'users'])) {
+        echo "<form method='POST' action='' onsubmit=\"return confirm('Delete table: $display?');\" style='margin-left:10px;'>
+                <input type='hidden' name='delete_table' value='" . htmlspecialchars($fullTable) . "'>
+                <button type='submit' class='delete-button' title='Delete Table'>🗑️</button>
+              </form>";
     }
+
+    echo "</div>";
+}
+
+
+
     echo "</div></details>";
 }
 
