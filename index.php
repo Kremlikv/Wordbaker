@@ -340,16 +340,20 @@ ul ul.open {
 
 <body>
 
+  <header>
+    <h1>WordBaker</h1>
+    <nav>
+      <ul>
+        <li><a href="register.php">🔒Register</a></li>
+        <li><a href="login.php">🔑Login</a></li>
+      </ul>
+    </nav>
+  </header>
+
   
 <div class="content">
-    <!-- your page content here -->
-
-    
-    <!-- Menu bar: Register or Login  -->
-<div style='text-align: center; background-color: #000000; margin-bottom: 20px;'>
-<a href='register.php'><button>🔒 Register</button></a> 
-<a href='login.php'><button>🔑 Login</button></a>
-</div>
+    <!-- your page content here -->  
+ 
 
 
 
