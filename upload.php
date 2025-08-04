@@ -14,7 +14,7 @@ include 'styling.php';
 echo "</head><body>";
 
 echo "<div class='content'>";
-echo "👋 Logged in as " . htmlspecialchars($username) . " | <a href='logout.php'>Logout</a><br><br>";
+echo "👤 Logged in as " . htmlspecialchars($username) . " | <a href='logout.php'>Logout</a><br><br>";
 
 if (!empty($_SESSION['uploaded_tables'])) {
     echo "<div style='color: green; font-weight: bold;'>✅ Upload successful:</div><ul>";

@@ -224,7 +224,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['pdf_file'])) {
 <body>
 
 <?php echo "<div class='content'>";
-echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Logout</a>"; ?>
+echo "👤 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Logout</a>"; ?>
 
 <h2 style="text-align:center;">📄 Scan PDF → Review → Translate</h2>
 

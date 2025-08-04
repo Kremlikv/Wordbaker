@@ -72,7 +72,7 @@ $debugCount = $result->num_rows;
 
 <!-- Login info -->
 <?php echo "<div class='content'>";
-echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Logout</a>"; ?>
+echo "👤 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Logout</a>"; ?>
 
 <h2>🌟 Mastered Words for: <?php echo htmlspecialchars($username); ?></h2>
 <?php echo $feedback; ?>
