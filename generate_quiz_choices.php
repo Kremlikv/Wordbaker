@@ -156,10 +156,23 @@ EOT;
     preg_match('/Image URL:\s*(https?:\/\/\S+\.(?:jpg|jpeg|png|webp))/i', $output, $imgMatch);
     $imageUrl = $imgMatch[1] ?? '';
 
-    if (empty($imageUrl)) {
+    // Validate AI-provided image
+    $valid = false;
+    if (!empty($imageUrl)) {
+        $lower = strtolower($imageUrl);
+        $extOk = preg_match('/\.(jpg|jpeg|png|webp)$/', $lower);
+        $notBlocked = (strpos($lower, 'wikimedia.org') === false);
+        if ($extOk && $notBlocked) {
+            $valid = true;
+        }
+    }
+
+    // If not valid, try Pixabay
+    if (!$valid) {
         $imageUrl = getImageFromPixabay($correctAnswer, $pixabayKey);
     }
 
+    // If still empty, fallback to Wikimedia
     if (empty($imageUrl)) {
         $imageUrl = getWikimediaImage($correctAnswer);
     }
