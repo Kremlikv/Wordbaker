@@ -3,9 +3,13 @@
  * file_explorer.php
  *
  * Requires:
- *   - $folders
- *   - $folderData
- *   - $selectedFullTable, $column1, $column2
+ *   - $folders: folder => [ [ 'table_name' => '', 'display_name' => '' ], ... ]
+ *   - $folderData: folder => [ [ 'table' => '', 'display' => '' ], ... ]
+ *   - $selectedFullTable, $column1, $column2: for hidden inputs in form
+ *
+ * Outputs:
+ *   - "Select a file" button
+ *   - Responsive two-column folder/file browser (hidden until clicked)
  */
 ?>
 
@@ -84,32 +88,26 @@
 }
 </style>
 
-<div style="text-align:center;">
-    <button type="button" class="select-file-btn" onclick="showFileExplorer()">Select a file</button>
-</div>
+<button type="button" class="select-file-btn" onclick="showFileExplorer()">Select a file</button>
 
 <form method='POST' action='' id='tableActionForm'>
-    <input type='hidden' name='table' id='selectedTableInput' value='<?php echo htmlspecialchars($selectedFullTable ?? ''); ?>'>
-    <input type='hidden' name='col1' value='<?php echo htmlspecialchars($column1 ?? ''); ?>'>
-    <input type='hidden' name='col2' value='<?php echo htmlspecialchars($column2 ?? ''); ?>'>
+    <input type='hidden' name='table' id='selectedTableInput' value='<?php echo htmlspecialchars($selectedFullTable); ?>'>
+    <input type='hidden' name='col1' value='<?php echo htmlspecialchars($column1); ?>'>
+    <input type='hidden' name='col2' value='<?php echo htmlspecialchars($column2); ?>'>
 
-    <div style="display:flex;justify-content:center;">
-        <div id="fileExplorer" class='two-column'>
-            <div class='folder-panel' id='folderPanel'>
-                <?php foreach ($folders as $folder => $tableList): ?>
-                    <div class='folder-item' onclick="showFiles('<?php echo htmlspecialchars($folder); ?>', this)">
-                        <?php echo htmlspecialchars(ucfirst($folder)); ?>
-                    </div>
-                <?php endforeach; ?>
-            </div>
-            <div class='file-panel' id='filePanel'>
-                <em style="padding:8px;display:block;">Select a folder to view its tables</em>
-            </div>
+    <div id="fileExplorer" class='two-column'>
+        <div class='folder-panel' id='folderPanel'>
+            <?php foreach ($folders as $folder => $tableList): ?>
+                <div class='folder-item' onclick="showFiles('<?php echo htmlspecialchars($folder); ?>', this)">
+                    <?php echo htmlspecialchars(ucfirst($folder)); ?>
+                </div>
+            <?php endforeach; ?>
+        </div>
+        <div class='file-panel' id='filePanel'>
+            <em style="padding:8px;display:block;">Select a folder to view its tables</em>
         </div>
     </div>
 </form>
-
-<div id="fileSelectedMsg" style="display:none;text-align:center;margin-top:10px;font-weight:bold;color:green;"></div>
 
 <script>
 const folderData = <?php echo json_encode($folderData, JSON_UNESCAPED_UNICODE); ?>;
@@ -131,7 +129,7 @@ function showFiles(folderName, element) {
             const div = document.createElement("div");
             div.className = "file-item";
             div.textContent = file.display;
-            div.onclick = () => selectTable(file.table, file.display);
+            div.onclick = () => selectTable(file.table);
             filePanel.appendChild(div);
         });
     } else {
@@ -139,13 +137,7 @@ function showFiles(folderName, element) {
     }
 }
 
-function selectTable(fullTableName, displayName) {
-    // Show the selected file message instantly
-    const msgEl = document.getElementById("fileSelectedMsg");
-    msgEl.textContent = "File \"" + displayName + "\" selected";
-    msgEl.style.display = "block";
-
-    // Set hidden input and submit form
+function selectTable(fullTableName) {
     document.getElementById("selectedTableInput").value = fullTableName;
     document.getElementById("tableActionForm").submit();
 }
