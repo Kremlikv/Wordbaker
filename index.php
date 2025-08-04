@@ -36,7 +36,7 @@
 
   <div class="row">
 
-    <div class="column2">
+    <div class="content">
       <h1>Cook your own dictionary</h1>
             <p><b>Scan text from PDF and have it translated to create a mini-dictionary.</b><br>
             <i> <br>            
