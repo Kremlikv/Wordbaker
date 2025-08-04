@@ -12,14 +12,6 @@
 <div class="content">
     <!-- your page content here -->
 
-    
-    <!-- Menu bar: Register or Login  -->
-<div style='text-align: center; margin-bottom: 20px;'>
-<a href='register.php'><button>🔒 Register</button></a> 
-<a href='login.php'><button>🗝 Login</button></a>
-</div>"
-
-
 
   <section class="intro">
     <h1>Let's bake some words!</h1>
@@ -36,9 +28,9 @@
             <br>
             Audio for both sides of the card is available.<br>
             <br>
-            You can mark the words that are difficult and focus solely on them.<br>
+            You can mark the words that are difficult and move them to a special list.<br>
             <br>
-            Once you have mastered a word, you can delete it from the list of difficult words.<br>
+            Once you have mastered a word, you delete it from the list of difficult words.<br>
             <br>
             Weeks later you can review the list of mastered words to see if you have not forgotten them again.<br>                      
             </i><br>    
@@ -52,7 +44,7 @@
           <i> <br>
           Automatic translation by MyMemory, the world's largest translation memory (by Translated Labs).<br>
           <br>
-          AI voice generation by Google Cloud TTS (default) or Elevenlabs (more voice to choose from).<br>
+          AI voice generation by Elevenlabs, which specialises in advanced generative AI for audio, specifically text-to-speech (TTS) and voice generation.<br>
           <br>  
           PDF analysis (parsing) with OCR (Optical Character Recognition) allows extracting text from PDF files.<br>
           <br>
