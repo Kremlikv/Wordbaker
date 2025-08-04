@@ -328,6 +328,7 @@ ul ul.open {
 }
 
 
+
 </style>
 
   
@@ -346,6 +347,10 @@ ul ul.open {
     </nav>
   </header>
 
+  <div class="footer">(c) Vítězslav Kremlík 2025 <br> kremlik@seznam.cz<br></div>
+
 </body>
+
+
 
 </html>

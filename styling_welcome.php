@@ -345,12 +345,8 @@ ul ul.open {
     </nav>
   </header>
 
-  
-
- 
-  <footer>
-    <p>(c) Vítězslav Kremlík 2025 (kremlik@seznam.cz)</p>
-  </footer>
+   
+  <div class="footer">(c) Vítězslav Kremlík 2025 <br> kremlik@seznam.cz<br></div>
 
 
 </body>
