@@ -439,10 +439,10 @@ ul ul.open {
       <li class="dropdown">
         <a href="#">➕ New</a>
         <ul class="submenu">
-          <li><a href="main.php">📝 Edit Dictionary</a></li>
+          <li><a href="upload.php">📝 Upload</a></li>
+          <li><a href="create_table.php">📝 Create Table</a></li>
           <li><a href="translator.php">🌐 Translate</a></li>
           <li><a href="pdf_scan.php">📄 PDF-to-text</a></li>
-          <li><a href="generate_mp3_google_ssml.php">🎧 Create MP3</a></li>
           <li><a href="generate_quiz_choices.php">🎯 Make Quiz</a></li>
         </ul>
       </li>
