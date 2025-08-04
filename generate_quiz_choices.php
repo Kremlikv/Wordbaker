@@ -143,13 +143,14 @@ function naiveWrongAnswers($correct) {
 // Process
 // ----------------------
 $generatedTable = '';
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['table'])) {
-    $table = $conn->real_escape_string($_POST['table']);
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_quiz']) && !empty($selectedTable)) {
+    $table = $conn->real_escape_string($selectedTable);
     $sourceLang = $autoSourceLang;
     $targetLang = $autoTargetLang;
 
     $result = $conn->query("SELECT * FROM `$table`");
-    if ($result && $result->num_rows > 0) {
+    $totalRows = $result->num_rows;
+    if ($result && $totalRows > 0) {
         $col1 = $result->fetch_fields()[0]->name;
         $col2 = $result->fetch_fields()[1]->name;
 
@@ -164,10 +165,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['table'])) {
             wrong3 TEXT,
             source_lang VARCHAR(50),
             target_lang VARCHAR(50),
-            image_url TEXT
+            image_file TEXT
         )");
 
-        echo "<h2>Generating quiz entries for table <code>$table</code>...</h2><ul>";
+        echo "<div style='text-align:center;'><div style='width:50%;margin:auto;border:1px solid #333;height:30px;'>
+                <div id='progressBar' style='height:100%;width:0%;background:green;color:white;text-align:center;line-height:30px;'>0%</div>
+              </div></div>";
+        echo str_repeat(' ', 1024); // force flush space
+        ob_flush(); flush();
+
+        $processed = 0;
         while ($row = $result->fetch_assoc()) {
             $question = trim($row[$col1]);
             $correct = trim($row[$col2]);
@@ -183,19 +190,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['table'])) {
 
             [$wrong1, $wrong2, $wrong3] = array_pad($wrongAnswers, 3, '');
             $stmt = $conn->prepare("INSERT INTO `$quizTable`
-                (question, correct_answer, wrong1, wrong2, wrong3, source_lang, target_lang, image_url)
+                (question, correct_answer, wrong1, wrong2, wrong3, source_lang, target_lang, image_file)
                 VALUES (?, ?, ?, ?, ?, ?, ?, '')");
             $stmt->bind_param("sssssss", $question, $correct, $wrong1, $wrong2, $wrong3, $sourceLang, $targetLang);
             $stmt->execute();
             $stmt->close();
 
-            echo "<li><strong>" . htmlspecialchars($question) . "</strong>: ✅ " . htmlspecialchars($correct) .
-                 " | ❌ " . htmlspecialchars($wrong1) . ", " . htmlspecialchars($wrong2) . ", " . htmlspecialchars($wrong3) . "</li>";
+            $processed++;
+            $percent = intval(($processed / $totalRows) * 100);
+            echo "<script>document.getElementById('progressBar').style.width='{$percent}%';
+                         document.getElementById('progressBar').textContent='{$percent}%';</script>";
+            ob_flush(); flush();
 
-            @ob_flush(); @flush();
             if ($THROTTLE_SECONDS > 0) sleep($THROTTLE_SECONDS);
         }
-        echo "</ul><hr>";
+
+        echo "<script>document.getElementById('progressBar').style.background='blue';
+                      document.getElementById('progressBar').textContent='✅ Complete';</script>";
         $generatedTable = $quizTable;
     }
 }
@@ -211,10 +222,11 @@ echo "<h2 style='text-align:center;'>Generate AI Quiz Choices</h2>";
 
 include 'file_explorer.php';
 
-if (!empty($selectedTable)) {
+if (!empty($selectedTable) && !isset($_POST['generate_quiz'])) {
     echo "<div style='text-align:center;margin-top:10px;font-weight:bold;color:green;'>File \"$selectedTable\" selected</div>";
     echo "<form method='POST' style='text-align:center; margin-top:20px;'>";
     echo "<input type='hidden' name='table' value='" . htmlspecialchars($selectedTable) . "'>";
+    echo "<input type='hidden' name='generate_quiz' value='1'>";
     echo "<button type='submit'>🚀 Generate Quiz Set from " . htmlspecialchars($selectedTable) . "</button>";
     echo "</form>";
 }
@@ -225,7 +237,7 @@ if (!empty($generatedTable)) {
     echo "<form method='POST' enctype='multipart/form-data' style='text-align:center;'>";
     echo "<input type='hidden' name='save_table' value='" . htmlspecialchars($generatedTable) . "'>";
     echo "<table border='1' cellpadding='5' cellspacing='0' style='margin:auto;'>";
-    echo "<tr><th>Czech</th><th>Correct</th><th>Wrong 1</th><th>Wrong 2</th><th>Wrong 3</th><th>Image URL</th><th>Delete</th></tr>";
+    echo "<tr><th>Czech</th><th>Correct</th><th>Wrong 1</th><th>Wrong 2</th><th>Wrong 3</th><th>Image File</th><th>Delete</th></tr>";
     while ($row = $res->fetch_assoc()) {
         $id = $row['id'];
         echo "<tr>";
@@ -234,7 +246,7 @@ if (!empty($generatedTable)) {
         echo "<td><textarea name='edited_rows[$id][wrong1]' oninput='autoResize(this)'>" . htmlspecialchars($row['wrong1']) . "</textarea></td>";
         echo "<td><textarea name='edited_rows[$id][wrong2]' oninput='autoResize(this)'>" . htmlspecialchars($row['wrong2']) . "</textarea></td>";
         echo "<td><textarea name='edited_rows[$id][wrong3]' oninput='autoResize(this)'>" . htmlspecialchars($row['wrong3']) . "</textarea></td>";
-        echo "<td><input type='text' name='edited_rows[$id][image_url]' value='" . htmlspecialchars($row['image_url']) . "'></td>";
+        echo "<td><input type='file' name='edited_rows[$id][image_file]'></td>";
         echo "<td><input type='checkbox' name='delete_rows[]' value='" . intval($id) . "'></td>";
         echo "</tr>";
     }
