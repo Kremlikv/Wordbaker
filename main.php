@@ -118,10 +118,10 @@ echo "</head><body>";
 
 // MENU BAR
 echo "<div style='text-align: center; margin-bottom: 20px;'>";
-echo "<a href='upload.php'><button>📘 Upload</button></a> ";
+echo "<a href='upload.php'><button>⬆ Upload</button></a> ";
 echo "<a href='generate_mp3_google_ssml.php'><button>🎧 Create MP3</button></a> ";
-echo "<a href='create_table.php'><button>🌟Create Table</button></a> ";
-echo "<a href='edit.php'><button>🌐 Edit</button></a> ";
+echo "<a href='create_table.php'><button>🏗Create Table</button></a> ";
+echo "<a href='edit.php'><button>🖋 Edit</button></a> ";
 echo "</div>";
 
 echo "<div class='content'>";
