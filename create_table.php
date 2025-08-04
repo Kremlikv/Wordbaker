@@ -52,7 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['folder'], $_POST['fil
     <meta charset="UTF-8">
     <title>Create New Table</title>
     <style>
-        body { font-family: sans-serif; margin: 2em; }
+        body { font-family: sans-serif; margin: 0em; }
         label { display: block; margin-top: 1em; }
         input[type="text"] { width: 300px; }
         button { margin-top: 1em; }
@@ -61,25 +61,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['folder'], $_POST['fil
     </style>
 </head>
 <body>
-    <h2>Create New Table</h2>
-    <form method="POST">
-        <label>Folder Name (e.g., <em>prag</em>):</label>
-        <input type="text" name="folder" required>
+    <div class='content'>
+        <p>👤 Logged in as: <strong><?= htmlspecialchars($_SESSION['username']) ?></strong> | <a href='logout.php'>Logout</a></p>
 
-        <label>File Name (e.g., <em>04jacob</em>):</label>
-        <input type="text" name="filename" required>
+        <h2>Create New Table</h2>
+        <form method="POST">
+            <label>Folder Name (e.g., <em>prag</em>):</label>
+            <input type="text" name="folder" required>
 
-        <label>Second Language Column (e.g., <em>German</em>, <em>English</em>, etc.):</label>
-        <input type="text" name="second_language" required>
+            <label>File Name (e.g., <em>04jacob</em>):</label>
+            <input type="text" name="filename" required>
 
-        <button type="submit">➕ Create Table</button>
-    </form>
+            <label>Second Language Column (e.g., <em>German</em>, <em>English</em>, etc.):</label>
+            <input type="text" name="second_language" required>
 
-    <?php if (isset($message)): ?>
-        <p class="message"><?= htmlspecialchars($message) ?></p>
-    <?php endif; ?>
+            <button type="submit">➕ Create Table</button>
+        </form>
+    
+        <?php if (isset($message)): ?>
+            <p class="message"><?= htmlspecialchars($message) ?></p>
+        <?php endif; ?>
 
-    <br>
-    <a href="upload.php">⬅ Back to Upload</a>
+        <br>
+        <a href="upload.php">⬅ Back to Upload</a>
+    </div>
 </body>
 </html>

@@ -140,6 +140,8 @@ if (!empty($selectedFullTable) && $res !== false) {
     }
 
     echo "<a href='generate_mp3_google_ssml.php'><button>🎧 Create MP3</button></a> ";
+    <br>
+    <br>
 
     if (!$isSharedTable) {
         echo "<form method='POST' action='update_table.php'>";
