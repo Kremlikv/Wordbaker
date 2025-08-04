@@ -25,12 +25,11 @@ echo <<<HTML
 <h2>📤 Upload New Table</h2>
 
 <form method="POST" action="upload_handler.php" enctype="multipart/form-data">
-  <label for="table_name"><strong>Table Name:</strong></label><br>
-  <input type="text" id="table_name" name="table_name" required placeholder="e.g. animals_de"><br><br>
+  <label>Select CSV Files:</label>
+  <input type="file" name="csv_files[]" accept=".csv" multiple required><br><br>
 
   <label><strong>Select CSV File:</strong></label><br>
-  <input type="file" name="csv_file" accept=".csv" required><br><br>
-
+ 
   <p style="font-size: 0.9em; color: gray;">
     ➤ Your table will be saved as <strong>[username]_tablename</strong><br>
     ➤ CSV must include a <strong>“Czech”</strong> column and at least one foreign language column.<br>
