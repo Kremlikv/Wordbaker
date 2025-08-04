@@ -9,55 +9,17 @@ $OPENROUTER_REFERER = 'https://kremlik.byethost15.com';
 $APP_TITLE = 'KahootGenerator';
 $THROTTLE_SECONDS = 1;
 
-// ----------------------
-// REUSABLE FOLDER/TABLE FETCH LOGIC
-// ----------------------
-function getUserFoldersAndTables($conn, $username) {
-    $allTables = [];
+function getUserTables($conn, $username) {
+    $tables = [];
     $result = $conn->query("SHOW TABLES");
     while ($row = $result->fetch_array()) {
-        $table = $row[0];
-        if (stripos($table, $username . '_') === 0) {
-            $suffix = substr($table, strlen($username) + 1);
-            $suffix = preg_replace('/_+/', '_', $suffix);
-            $parts = explode('_', $suffix, 2);
-            if (count($parts) === 2 && trim($parts[0]) !== '') {
-                $folder = $parts[0];
-                $file = $parts[1];
-            } else {
-                $folder = 'Uncategorized';
-                $file = $suffix;
-            }
-            $allTables[$folder][] = [
-                'table_name' => $table,
-                'display_name' => $file
-            ];
+        if (stripos($row[0], $username . '_') === 0) {
+            $tables[] = $row[0];
         }
     }
-    return $allTables;
+    return $tables;
 }
 
-$username = strtolower($_SESSION['username'] ?? '');
-$conn->set_charset("utf8mb4");
-
-// Build folder/table arrays
-$folders = getUserFoldersAndTables($conn, $username);
-$folders['Shared'][] = ['table_name' => 'difficult_words', 'display_name' => 'Difficult Words'];
-$folders['Shared'][] = ['table_name' => 'mastered_words', 'display_name' => 'Mastered Words'];
-
-$folderData = [];
-foreach ($folders as $folder => $tableList) {
-    foreach ($tableList as $entry) {
-        $folderData[$folder][] = [
-            'table' => $entry['table_name'],
-            'display' => $entry['display_name']
-        ];
-    }
-}
-
-// ----------------------
-// AI GENERATION FUNCTIONS
-// ----------------------
 function callOpenRouter($apiKey, $model, $czechWord, $correctAnswer, $targetLang, $referer, $appTitle) {
     $prompt = <<<EOT
 You are a professional language teacher who creates multiple-choice vocabulary quizzes for foreign language learners. Given a correct translation, generate 3 **plausible but incorrect** answers that simulate mistakes language learners often make.
@@ -114,10 +76,11 @@ EOT;
 
     $wrongAnswers = array_map(function ($a) {
         $a = trim($a);
-        $a = preg_replace('/\s*\([^)]*\)/', '', $a);
-        $a = trim($a, "*\"“”‘’' ");
+        $a = preg_replace('/\s*\([^)]*\)/', '', $a); // remove parentheses
+        $a = trim($a, "*\"“”‘’' "); // remove leading/trailing *, quotes, spaces
         return $a;
     }, $matches[1]);
+
 
     return count($wrongAnswers) >= 3 ? array_slice($wrongAnswers, 0, 3) : [];
 }
@@ -126,10 +89,11 @@ function naiveWrongAnswers($correct) {
     return [$correct . 'x', strrev($correct), substr($correct, 1) . substr($correct, 0, 1)];
 }
 
-// ----------------------
-// PROCESS FORM
-// ----------------------
+$username = strtolower($_SESSION['username'] ?? '');
+$conn->set_charset("utf8mb4");
+$tables = getUserTables($conn, $username);
 $generatedTable = '';
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['table'], $_POST['source_lang'], $_POST['target_lang'])) {
     $table = $conn->real_escape_string($_POST['table']);
     $sourceLang = htmlspecialchars($_POST['source_lang']);
@@ -187,28 +151,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['table'], $_POST['sour
     }
 }
 
-// ----------------------
-// OUTPUT PAGE
-// ----------------------
+
 echo "<div class='content'>";
 echo "👤 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Logout</a>";
 echo "</div>";
 
+
 echo "<h2 style='text-align:center;'>Generate AI Quiz Choices</h2>";
-
-// Include reusable file explorer for selecting dictionary table
-include 'file_explorer.php';
-
-if (!empty($_POST['table']) || !empty($_GET['table'])) {
-    echo "<form method='POST' style='text-align:center; margin-top:20px;'>";
-    echo "<input type='hidden' name='table' value='" . htmlspecialchars($_POST['table'] ?? $_GET['table']) . "'>";
-    echo "<label>Source language (e.g. Czech):</label><br>";
-    echo "<input type='text' name='source_lang' required><br><br>";
-    echo "<label>Target language (e.g. German):</label><br>";
-    echo "<input type='text' name='target_lang' required><br><br>";
-    echo "<button type='submit'>🚀 Generate Quiz Set</button>";
-    echo "</form>";
+echo "<form method='POST' style='text-align:center;'>";
+echo "<label>Select dictionary table:</label><br>";
+echo "<select name='table' required>";
+foreach ($tables as $t) {
+    echo "<option value='" . htmlspecialchars($t) . "'>" . htmlspecialchars($t) . "</option>";
 }
+echo "</select><br><br>";
+echo "<label>Source language (e.g. Czech):</label><br>";
+echo "<input type='text' name='source_lang' required><br><br>";
+echo "<label>Target language (e.g. German):</label><br>";
+echo "<input type='text' name='target_lang' required><br><br>";
+echo "<button type='submit'>🚀 Generate Quiz Set</button>";
+echo "</form></div>";
 
 if (!empty($generatedTable)) {
     $res = $conn->query("SELECT * FROM `$generatedTable`");
