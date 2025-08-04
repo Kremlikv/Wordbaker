@@ -16,6 +16,16 @@ echo "</head><body>";
 echo "<div class='content'>";
 echo "👋 Logged in as " . htmlspecialchars($username) . " | <a href='logout.php'>Logout</a><br><br>";
 
+if (!empty($_SESSION['uploaded_tables'])) {
+    echo "<div style='color: green; font-weight: bold;'>✅ Upload successful:</div><ul>";
+    foreach ($_SESSION['uploaded_tables'] as $message) {
+        echo "<li>📄 " . htmlspecialchars($message) . "</li>";
+    }
+    echo "</ul><br>";
+    unset($_SESSION['uploaded_tables']);
+}
+
+
 if (!empty($_SESSION['uploaded_filename'])) {
     echo "<p style='color: green;'>✅ File uploaded: " . htmlspecialchars($_SESSION['uploaded_filename']) . "</p>";
     unset($_SESSION['uploaded_filename']);
@@ -31,7 +41,7 @@ echo <<<HTML
   <label><strong>Select CSV File:</strong></label><br>
  
   <p style="font-size: 0.9em; color: gray;">
-    ➤ Your table will be saved as <strong>[username]_tablename</strong><br>
+    ➤ Your table will be saved as <strong>[username]_foldername_tablename</strong><br>
     ➤ CSV must include a <strong>“Czech”</strong> column and at least one foreign language column.<br>
     ➤ Encoding must be <strong>UTF-8</strong> without BOM.<br>
     ➤ Use only letters, digits, or underscores in the table name.
