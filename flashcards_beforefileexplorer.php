@@ -3,56 +3,20 @@ require_once 'db.php';
 require_once 'session.php';
 include 'styling.php';
 
-// ----------------------
-// FOLDER/TABLE FETCH LOGIC (like in main.php)
-// ----------------------
-function getUserFoldersAndTables($conn, $username) {
-    $allTables = [];
+// Fetch tables 
+function getTables($conn) {
+    $tables = [];
     $result = $conn->query("SHOW TABLES");
-    while ($row = $result->fetch_array()) {
-        $table = $row[0];
-        if (stripos($table, $username . '_') === 0) {
-            $suffix = substr($table, strlen($username) + 1);
-            $suffix = preg_replace('/_+/', '_', $suffix);
-            $parts = explode('_', $suffix, 2);
-            if (count($parts) === 2 && trim($parts[0]) !== '') {
-                $folder = $parts[0];
-                $file = $parts[1];
-            } else {
-                $folder = 'Uncategorized';
-                $file = $suffix;
-            }
-            $allTables[$folder][] = [
-                'table_name' => $table,
-                'display_name' => $file
-            ];
+    if ($result) {
+        while ($row = $result->fetch_array()) {
+            $tables[] = $row[0];
         }
     }
-    return $allTables;
+    return $tables; 
 }
 
-$username = strtolower($_SESSION['username'] ?? '');
-$conn->set_charset("utf8mb4");
-
-$folders = getUserFoldersAndTables($conn, $username);
-$folders['Shared'][] = ['table_name' => 'difficult_words', 'display_name' => 'Difficult Words'];
-$folders['Shared'][] = ['table_name' => 'mastered_words', 'display_name' => 'Mastered Words'];
-
-// Build folderData for JS
-$folderData = [];
-foreach ($folders as $folder => $tableList) {
-    foreach ($tableList as $entry) {
-        $folderData[$folder][] = [
-            'table' => $entry['table_name'],
-            'display' => $entry['display_name']
-        ];
-    }
-}
-
-// ----------------------
-// LOAD SELECTED TABLE
-// ----------------------
-$selectedTable = $_POST['table'] ?? $_GET['table'] ?? ($_SESSION['table'] ?? '');
+$tables = getTables($conn);
+$selectedTable = $_GET['table'] ?? ($_SESSION['table'] ?? ($tables[0] ?? ''));
 $_SESSION['table'] = $selectedTable;
 
 $rows = [];
@@ -103,6 +67,7 @@ if (!empty($selectedTable)) {
 
 $conn->close();
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -139,11 +104,7 @@ $conn->close();
 <div class='content'>
 <p>👤 Logged in as: <strong><?= htmlspecialchars($_SESSION['username']) ?></strong> | <a href='logout.php'>Logout</a></p>
 
-<!-- Include the reusable file explorer -->
-<?php include 'file_explorer.php'; ?>
-
-<?php if (!empty($selectedTable)): ?>
-<form method="GET" style="margin: 20px 0;">
+<form method="GET" style="margin-bottom: 10px;">
   <input type="hidden" name="table" value="<?= htmlspecialchars($selectedTable) ?>">
   <label><input type="checkbox" name="difficult_only" value="1" <?= $difficultOnly ? 'checked' : '' ?>> Show only my difficult words</label>
   <button type="submit">Apply</button>
@@ -153,13 +114,13 @@ $conn->close();
 
 <div id="card" class="card" onclick="flipCard()"></div>
 <div class="controls">
-  <button type="button" onclick="prevCard()">⬅️ Previous</button>
-  <button type="button" onclick="markMastered()">✅ Mastered</button>
-  <button type="button" onclick="markDifficult()">❌ Study more</button>
-  <button type="button" onclick="nextCard()">Next ➡️</button><br><br>
+  <button onclick="prevCard()">⬅️ Previous</button>
+  <button onclick="markMastered()">✅ Mastered</button>
+  <button onclick="markDifficult()">❌ Study more</button>
+  <button onclick="nextCard()">Next ➡️</button><br><br>
   🔊 Czech Audio: <input type="checkbox" id="toggleCz" checked onchange="toggleTTS('cz')">
   🔊 Foreign Audio: <input type="checkbox" id="toggleForeign" checked onchange="toggleTTS('foreign')"><br><br>
-  <button type="button" onclick="toggleAutoPlay()" id="autoPlayBtn">🔁 Auto Play All</button>
+  <button onclick="toggleAutoPlay()" id="autoPlayBtn">🔁 Auto Play All</button>
 </div>
 
 <audio id="ttsAudio" src="" hidden></audio>
@@ -186,18 +147,30 @@ function getSnippetPath(index, side) {
   return `cache/${tableName}/${filename}`;
 }
 
+
+
 function playCachedAudio(index, side, fallbackText, fallbackLang, callback) {
   const src = getSnippetPath(index, side);
+
+  // First, check if the file exists using fetch
   fetch(src, { method: 'HEAD' }).then(res => {
-    audioElement.src = res.ok ? src : `generate_tts_snippet.php?text=${encodeURIComponent(fallbackText)}&lang=${encodeURIComponent(fallbackLang)}`;
+    if (res.ok) {
+      audioElement.src = src;
+    } else {
+      audioElement.src = `generate_tts_snippet.php?text=${encodeURIComponent(fallbackText)}&lang=${encodeURIComponent(fallbackLang)}`;
+    }
     audioElement.onended = callback;
     audioElement.play();
   }).catch(() => {
+    // fallback in case of fetch failure
     audioElement.src = `generate_tts_snippet.php?text=${encodeURIComponent(fallbackText)}&lang=${encodeURIComponent(fallbackLang)}`;
     audioElement.onended = callback;
     audioElement.play();
   });
 }
+
+
+
 
 function playTTS(text, language) {
   if (!text || !language || !ttsEnabled[language]) return;
@@ -269,6 +242,7 @@ function playCardWithAudio() {
     playingNow = false;
     return;
   }
+
   playingNow = true;
   const czText = data[index]?.cz ?? '';
   const foreignText = data[index]?.foreign ?? '';
@@ -306,7 +280,6 @@ function playCardWithAudio() {
 
 updateCard();
 </script>
-<?php endif; ?>
 </div>
 </body>
 </html>
