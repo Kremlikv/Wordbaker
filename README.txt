@@ -85,3 +85,7 @@ Nothing else in their menu. So they will have their own styling document.
 New - Upload, Pdf-to-text, Translate, Edit, Quizmaker,
 Study - Flashcards, Quiz, Difficult, Mastered
 
+CREATE TABLE
+Now user can create an empety table. Upload is a separate php. 
+In Edit.php you can delete the editable tables - and add new words.
+
