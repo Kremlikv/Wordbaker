@@ -18,7 +18,7 @@
 
 <body>
 
-  <?php include 'stylingwelcome.php'; ?>
+  <?php include 'styling_welcome.php'; ?>
 
   
 <div class="content">
