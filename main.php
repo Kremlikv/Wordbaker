@@ -58,11 +58,13 @@ function getUserFoldersAndTables($conn, $username) {
 
 $username = strtolower($_SESSION['username'] ?? '');
 $conn->set_charset("utf8mb4");
+
+// Build folder structure
 $folders = getUserFoldersAndTables($conn, $username);
 $folders['Shared'][] = ['table_name' => 'difficult_words', 'display_name' => 'Difficult Words'];
 $folders['Shared'][] = ['table_name' => 'mastered_words', 'display_name' => 'Mastered Words'];
 
-// Prepare folder data for JS
+// Prepare folder data for JS in file_explorer.php
 $folderData = [];
 foreach ($folders as $folder => $tableList) {
     foreach ($tableList as $entry) {
@@ -73,6 +75,7 @@ foreach ($folders as $folder => $tableList) {
     }
 }
 
+// Selected table logic
 $selectedFullTable = $_POST['table'] ?? $_GET['table'] ?? '';
 $column1 = '';
 $column2 = '';
@@ -96,123 +99,20 @@ if (!empty($selectedFullTable)) {
     }
 }
 
+// Output page
 echo "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>Manage Tables</title>";
 include 'styling.php';
-?>
-<style>
-.two-column {
-    display: flex;
-    align-items: flex-start;
-    gap: 0;
-}
-.folder-panel {
-    width: 220px;
-    background: #444;
-    padding: 0;
-    max-height: 66vh;
-    overflow-y: auto;
-}
-.folder-item {
-    padding: 8px 10px;
-    cursor: pointer;
-    border: 1px solid #fff;
-    color: #fff;
-    text-align: left;
-    background: #444;
-}
-.folder-item:hover,
-.folder-item.active {
-    background: #555;
-}
-.file-panel {
-    flex: 1;
-    background: #ddd;
-    padding: 0;
-    max-height: 66vh;
-    overflow-y: auto;
-}
-.file-item {
-    padding: 8px 10px;
-    cursor: pointer;
-    border: 1px solid #fff;
-    text-align: left;
-    background: #ddd;
-}
-.file-item:hover {
-    background: #ccc;
-}
-textarea {
-    width: 100%;
-    min-height: 1.5em;
-    resize: none;
-    overflow: hidden;
-    box-sizing: border-box;
-    font-family: inherit;
-    font-size: 1em;
-}
-/* Responsive */
-@media (max-width: 768px) {
-    .two-column {
-        flex-direction: column;
-    }
-    .folder-panel, .file-panel {
-        width: 100%;
-        max-height: 40vh;
-    }
-}
-/* Hidden by default */
-#fileExplorer {
-    display: none;
-    opacity: 0;
-    transition: opacity 0.4s ease;
-    margin-top: 20px;
-}
-#fileExplorer.visible {
-    display: flex;
-    opacity: 1;
-}
-.select-file-btn {
-    display: inline-block;
-    padding: 10px 15px;
-    background: #555;
-    color: white;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-}
-.select-file-btn:hover {
-    background: #777;
-}
-</style>
-</head><body>
+echo "</head><body>";
 
-<div class='content'>
-    👤 Logged in as <?php echo $_SESSION['username']; ?> | <a href='logout.php'>Logout</a><br><br>
+echo "<div class='content'>";
+echo "👤 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Logout</a><br><br>";
 
-    <button type="button" class="select-file-btn" onclick="showFileExplorer()">Select a file</button>
+// Include the reusable file explorer
+include 'file_explorer.php';
 
-    <form method='POST' action='' id='tableActionForm'>
-        <input type='hidden' name='table' id='selectedTableInput' value='<?php echo htmlspecialchars($selectedFullTable); ?>'>
-        <input type='hidden' name='col1' value='<?php echo htmlspecialchars($column1); ?>'>
-        <input type='hidden' name='col2' value='<?php echo htmlspecialchars($column2); ?>'>
+echo "<br><br>";
 
-        <div id="fileExplorer" class='two-column'>
-            <div class='folder-panel' id='folderPanel'>
-                <?php foreach ($folders as $folder => $tableList): ?>
-                    <div class='folder-item' onclick="showFiles('<?php echo htmlspecialchars($folder); ?>', this)">
-                        <?php echo htmlspecialchars(ucfirst($folder)); ?>
-                    </div>
-                <?php endforeach; ?>
-            </div>
-            <div class='file-panel' id='filePanel'>
-                <em style="padding:8px;display:block;">Select a folder to view its tables</em>
-            </div>
-        </div>
-    </form>
-
-    <br><br>
-
-<?php
+// Table editing logic
 if (!empty($selectedFullTable) && $res !== false) {
     echo "<h3>Selected Table: " . htmlspecialchars($selectedFullTable) . "</h3>";
     $isSharedTable = in_array($selectedFullTable, ['difficult_words', 'mastered_words']);
@@ -265,48 +165,16 @@ if (!empty($selectedFullTable) && $res !== false) {
         echo "</table><br><em>This table is read-only.</em><br><br>";
     }
 }
+
+echo "</div>";
+
 ?>
-</div>
-
 <script>
-const folderData = <?php echo json_encode($folderData, JSON_UNESCAPED_UNICODE); ?>;
-
-function showFileExplorer() {
-    const explorer = document.getElementById("fileExplorer");
-    explorer.classList.add("visible");
-}
-
-function showFiles(folderName, element) {
-    document.querySelectorAll(".folder-item").forEach(el => el.classList.remove("active"));
-    element.classList.add("active");
-
-    const filePanel = document.getElementById("filePanel");
-    filePanel.innerHTML = "";
-
-    if (folderData[folderName]) {
-        folderData[folderName].forEach(file => {
-            const div = document.createElement("div");
-            div.className = "file-item";
-            div.textContent = file.display;
-            div.onclick = () => selectTable(file.table);
-            filePanel.appendChild(div);
-        });
-    } else {
-        filePanel.innerHTML = "<em style='padding:8px;display:block;'>No tables in this folder</em>";
-    }
-}
-
-function selectTable(fullTableName) {
-    document.getElementById("selectedTableInput").value = fullTableName;
-    document.getElementById("tableActionForm").submit();
-}
-
 function autoResize(textarea) {
     textarea.style.height = 'auto';
     textarea.style.overflow = 'hidden';
     textarea.style.height = textarea.scrollHeight + 'px';
 }
-
 document.addEventListener("DOMContentLoaded", function () {
     document.querySelectorAll("textarea").forEach(autoResize);
 });
