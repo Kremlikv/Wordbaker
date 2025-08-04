@@ -9,9 +9,7 @@ $OPENROUTER_REFERER = 'https://kremlik.byethost15.com';
 $APP_TITLE = 'KahootGenerator';
 $THROTTLE_SECONDS = 1;
 
-// ----------------------
-// Wikimedia fallback
-// ----------------------
+/* --- Wikimedia Fallback --- */
 function getWikimediaImage($searchTerm) {
     $apiUrl = "https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=" . urlencode($searchTerm) . "&gsrlimit=1&prop=imageinfo&iiprop=url&format=json";
     $json = @file_get_contents($apiUrl);
@@ -26,9 +24,7 @@ function getWikimediaImage($searchTerm) {
     return '';
 }
 
-// ----------------------
-// Folder/table list
-// ----------------------
+/* --- Get folders & tables --- */
 function getUserFoldersAndTables($conn, $username) {
     $allTables = [];
     $result = $conn->query("SHOW TABLES");
@@ -60,6 +56,16 @@ $folders = getUserFoldersAndTables($conn, $username);
 $folders['Shared'][] = ['table_name' => 'difficult_words', 'display_name' => 'Difficult Words'];
 $folders['Shared'][] = ['table_name' => 'mastered_words', 'display_name' => 'Mastered Words'];
 
+$folderData = [];
+foreach ($folders as $folder => $tableList) {
+    foreach ($tableList as $entry) {
+        $folderData[$folder][] = [
+            'table' => $entry['table_name'],
+            'display' => $entry['display_name']
+        ];
+    }
+}
+
 $selectedTable = $_POST['table'] ?? $_GET['table'] ?? '';
 $autoSourceLang = '';
 $autoTargetLang = '';
@@ -72,12 +78,10 @@ if (!empty($selectedTable)) {
     }
 }
 
-// ----------------------
-// AI call + Wikimedia fallback
-// ----------------------
+/* --- AI + Wikimedia image --- */
 function callOpenRouter($apiKey, $model, $czechWord, $correctAnswer, $targetLang, $referer, $appTitle) {
     $prompt = <<<EOT
-You are a professional language teacher who creates multiple-choice vocabulary quizzes for foreign language learners. 
+You are a professional language teacher who creates multiple-choice vocabulary quizzes.
 
 For the given Czech word and its correct translation in $targetLang:
 
@@ -85,10 +89,9 @@ For the given Czech word and its correct translation in $targetLang:
 2. Suggest a URL to a royalty-free or public-domain image that illustrates the correct translation.
 
 Image rules:
-- Must be from public domain / CC0 / royalty-free sites only.
+- Must be from public domain / CC0 / royalty-free sources.
 - Prefer Wikimedia Commons, Pixabay, Unsplash.
-- Direct link to the image file (.jpg, .png, .webp).
-- Must be relevant and accurate for the meaning of the correct translation.
+- Direct link to image file (.jpg, .png, .webp).
 
 Example:
 
@@ -121,7 +124,7 @@ EOT;
         "Content-Type: application/json",
         "Authorization: Bearer $apiKey",
         "HTTP-Referer: $referer",
-        "X-Title: $appTitle" 
+        "X-Title: $appTitle"
     ]);
     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
     $response = curl_exec($ch);
@@ -132,10 +135,7 @@ EOT;
 
     preg_match_all('/\d+\.?\s*(.*?)\s*(?:\\n|$)/', $output, $matches);
     $wrongAnswers = array_map(function ($a) {
-        $a = trim($a);
-        $a = preg_replace('/\s*\([^)]*\)/', '', $a);
-        $a = trim($a, "*\"“”‘’' ");
-        return $a;
+        return trim(preg_replace('/\s*\([^)]*\)/', '', trim($a)), "*\"“”‘’' ");
     }, $matches[1]);
 
     preg_match('/Image URL:\s*(https?:\/\/\S+\.(?:jpg|jpeg|png|webp))/i', $output, $imgMatch);
@@ -155,19 +155,14 @@ function naiveWrongAnswers($correct) {
     return [$correct . 'x', strrev($correct), substr($correct, 1) . substr($correct, 0, 1)];
 }
 
-// ----------------------
-// Handle saving edited table with uploads
-// ----------------------
+/* --- Save edits with uploads --- */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_table'])) {
     $saveTable = $conn->real_escape_string($_POST['save_table']);
     $editedRows = $_POST['edited_rows'] ?? [];
     $deleteRows = $_POST['delete_rows'] ?? [];
 
-    // Ensure upload dir exists
     $uploadDir = __DIR__ . "/uploads/quiz_images/";
-    if (!is_dir($uploadDir)) {
-        mkdir($uploadDir, 0777, true);
-    }
+    if (!is_dir($uploadDir)) mkdir($uploadDir, 0777, true);
 
     foreach ($editedRows as $id => $row) {
         if (in_array($id, $deleteRows)) {
@@ -177,16 +172,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_table'])) {
 
         $imageUrl = trim($row['image_url']);
 
-        // Handle file upload if provided
         if (isset($_FILES['image_file']['name'][$id]) && $_FILES['image_file']['error'][$id] === UPLOAD_ERR_OK) {
             $tmpName = $_FILES['image_file']['tmp_name'][$id];
             $fileSize = $_FILES['image_file']['size'][$id];
             $ext = strtolower(pathinfo($_FILES['image_file']['name'][$id], PATHINFO_EXTENSION));
-
             if (in_array($ext, ['jpg', 'jpeg', 'png', 'webp']) && $fileSize <= 2 * 1024 * 1024) {
                 $newName = "quiz_" . intval($id) . "_" . uniqid() . "." . $ext;
-                $destPath = $uploadDir . $newName;
-                if (move_uploaded_file($tmpName, $destPath)) {
+                if (move_uploaded_file($tmpName, $uploadDir . $newName)) {
                     $imageUrl = "uploads/quiz_images/" . $newName;
                 }
             }
@@ -199,9 +191,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_table'])) {
     }
 }
 
-// ----------------------
-// Quiz generation
-// ----------------------
+/* --- Generate quiz --- */
 $generatedTable = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_quiz']) && !empty($selectedTable)) {
     $table = $conn->real_escape_string($selectedTable);
@@ -231,7 +221,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_quiz']) && !
         echo "<div style='text-align:center;'><div style='width:50%;margin:auto;border:1px solid #333;height:30px;'>
                 <div id='progressBar' style='height:100%;width:0%;background:green;color:white;text-align:center;line-height:30px;'>0%</div>
               </div></div>";
-        echo str_repeat(' ', 1024);
         ob_flush(); flush();
 
         $processed = 0;
@@ -240,16 +229,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_quiz']) && !
             $correct = trim($row[$col2]);
             if ($question === '' || $correct === '') continue;
 
-            $aiResult = callOpenRouter(
-                $OPENROUTER_API_KEY, $OPENROUTER_MODEL, $question, $correct,
-                $targetLang, $OPENROUTER_REFERER, $APP_TITLE
-            );
-            $wrongAnswers = $aiResult['wrongAnswers'];
+            $aiResult = callOpenRouter($OPENROUTER_API_KEY, $OPENROUTER_MODEL, $question, $correct, $targetLang, $OPENROUTER_REFERER, $APP_TITLE);
+            $wrongAnswers = $aiResult['wrongAnswers'] ?: naiveWrongAnswers($correct);
             $imageUrl = $aiResult['imageUrl'];
-
-            if (count($wrongAnswers) < 3) {
-                $wrongAnswers = naiveWrongAnswers($correct);
-            }
 
             [$wrong1, $wrong2, $wrong3] = array_pad($wrongAnswers, 3, '');
             $stmt = $conn->prepare("INSERT INTO `$quizTable`
@@ -274,50 +256,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_quiz']) && !
     }
 }
 
-// ----------------------
-// Output
-// ----------------------
-echo "<div class='content'>";
-echo "👤 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Logout</a>";
-echo "</div>";
-
+/* --- Output --- */
+echo "<div class='content'>👤 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Logout</a></div>";
 echo "<h2 style='text-align:center;'>Generate AI Quiz Choices</h2>";
 
-include 'file_explorer.php';
+include 'file_explorer.php'; // Uses new version with auto-open first folder
 
 if (!empty($selectedTable) && !isset($_POST['generate_quiz'])) {
     echo "<div style='text-align:center;margin-top:10px;font-weight:bold;color:green;'>File \"$selectedTable\" selected</div>";
-    echo "<form method='POST' style='text-align:center; margin-top:20px;'>";
-    echo "<input type='hidden' name='table' value='" . htmlspecialchars($selectedTable) . "'>";
-    echo "<input type='hidden' name='generate_quiz' value='1'>";
-    echo "<button type='submit'>🚀 Generate Quiz Set from " . htmlspecialchars($selectedTable) . "</button>";
-    echo "</form>";
+    echo "<form method='POST' style='text-align:center; margin-top:20px;'>
+            <input type='hidden' name='table' value='" . htmlspecialchars($selectedTable) . "'>
+            <input type='hidden' name='generate_quiz' value='1'>
+            <button type='submit'>🚀 Generate Quiz Set from " . htmlspecialchars($selectedTable) . "</button>
+          </form>";
 }
 
 if (!empty($generatedTable)) {
     $res = $conn->query("SELECT * FROM `$generatedTable`");
     echo "<h3 style='text-align:center;'>📜 Edit Generated Quiz: <code>$generatedTable</code></h3>";
-    echo "<form method='POST' enctype='multipart/form-data' style='text-align:center;'>";
-    echo "<input type='hidden' name='save_table' value='" . htmlspecialchars($generatedTable) . "'>";
-    echo "<table border='1' cellpadding='5' cellspacing='0' style='margin:auto;'>";
-    echo "<tr><th>Czech</th><th>Correct</th><th>Wrong 1</th><th>Wrong 2</th><th>Wrong 3</th><th>Image URL</th><th>Upload File</th><th>Preview</th><th>Delete</th></tr>";
+    echo "<form method='POST' enctype='multipart/form-data' style='text-align:center;'>
+            <input type='hidden' name='save_table' value='" . htmlspecialchars($generatedTable) . "'>
+            <table border='1' cellpadding='5' cellspacing='0' style='margin:auto;'>
+                <tr><th>Czech</th><th>Correct</th><th>Wrong 1</th><th>Wrong 2</th><th>Wrong 3</th><th>Image URL</th><th>Upload File</th><th>Preview</th><th>Delete</th></tr>";
     while ($row = $res->fetch_assoc()) {
         $id = $row['id'];
-        echo "<tr>";
-        echo "<td>" . htmlspecialchars($row['question']) . "</td>";
-        echo "<td><textarea name='edited_rows[$id][correct]' oninput='autoResize(this)'>" . htmlspecialchars($row['correct_answer']) . "</textarea></td>";
-        echo "<td><textarea name='edited_rows[$id][wrong1]' oninput='autoResize(this)'>" . htmlspecialchars($row['wrong1']) . "</textarea></td>";
-        echo "<td><textarea name='edited_rows[$id][wrong2]' oninput='autoResize(this)'>" . htmlspecialchars($row['wrong2']) . "</textarea></td>";
-        echo "<td><textarea name='edited_rows[$id][wrong3]' oninput='autoResize(this)'>" . htmlspecialchars($row['wrong3']) . "</textarea></td>";
-        echo "<td><input type='text' name='edited_rows[$id][image_url]' value='" . htmlspecialchars($row['image_url']) . "'></td>";
-        echo "<td><input type='file' name='image_file[$id]'></td>";
-        echo "<td>";
-        if (!empty($row['image_url'])) {
-            echo "<img src='" . htmlspecialchars($row['image_url']) . "' alt='Image' style='max-height:50px;'>";
-        }
-        echo "</td>";
-        echo "<td><input type='checkbox' name='delete_rows[]' value='" . intval($id) . "'></td>";
-        echo "</tr>";
+        echo "<tr>
+                <td>" . htmlspecialchars($row['question']) . "</td>
+                <td><textarea name='edited_rows[$id][correct]' oninput='autoResize(this)'>" . htmlspecialchars($row['correct_answer']) . "</textarea></td>
+                <td><textarea name='edited_rows[$id][wrong1]' oninput='autoResize(this)'>" . htmlspecialchars($row['wrong1']) . "</textarea></td>
+                <td><textarea name='edited_rows[$id][wrong2]' oninput='autoResize(this)'>" . htmlspecialchars($row['wrong2']) . "</textarea></td>
+                <td><textarea name='edited_rows[$id][wrong3]' oninput='autoResize(this)'>" . htmlspecialchars($row['wrong3']) . "</textarea></td>
+                <td><input type='text' name='edited_rows[$id][image_url]' value='" . htmlspecialchars($row['image_url']) . "'></td>
+                <td><input type='file' name='image_file[$id]'></td>
+                <td>" . (!empty($row['image_url']) ? "<img src='" . htmlspecialchars($row['image_url']) . "' style='max-height:50px;'>" : "") . "</td>
+                <td><input type='checkbox' name='delete_rows[]' value='" . intval($id) . "'></td>
+              </tr>";
     }
     echo "</table><br><button type='submit'>📂 Save Changes</button></form><br>";
 }
@@ -328,11 +301,9 @@ function autoResize(el) {
     el.style.height = (el.scrollHeight) + "px";
 }
 document.addEventListener("DOMContentLoaded", function () {
-    document.querySelectorAll("textarea").forEach(function (el) {
+    document.querySelectorAll("textarea").forEach(el => {
         autoResize(el);
-        el.addEventListener("input", function () {
-            autoResize(el);
-        });
+        el.addEventListener("input", () => autoResize(el));
     });
 });
 </script>
