@@ -10,7 +10,7 @@ $APP_TITLE = 'KahootGenerator';
 $THROTTLE_SECONDS = 1;
 
 // ----------------------
-// REUSABLE FOLDER/TABLE FETCH LOGIC
+// Folder/table list
 // ----------------------
 function getUserFoldersAndTables($conn, $username) {
     $allTables = [];
@@ -39,8 +39,6 @@ function getUserFoldersAndTables($conn, $username) {
 
 $username = strtolower($_SESSION['username'] ?? '');
 $conn->set_charset("utf8mb4");
-
-// Build folder/table arrays
 $folders = getUserFoldersAndTables($conn, $username);
 $folders['Shared'][] = ['table_name' => 'difficult_words', 'display_name' => 'Difficult Words'];
 $folders['Shared'][] = ['table_name' => 'mastered_words', 'display_name' => 'Mastered Words'];
@@ -56,12 +54,11 @@ foreach ($folders as $folder => $tableList) {
 }
 
 // ----------------------
-// DETECT LANGUAGES FROM TABLE COLUMNS
+// Detect languages
 // ----------------------
 $selectedTable = $_POST['table'] ?? $_GET['table'] ?? '';
 $autoSourceLang = '';
 $autoTargetLang = '';
-
 if (!empty($selectedTable)) {
     $columnsRes = $conn->query("SHOW COLUMNS FROM `$selectedTable`");
     if ($columnsRes && $columnsRes->num_rows >= 2) {
@@ -72,7 +69,7 @@ if (!empty($selectedTable)) {
 }
 
 // ----------------------
-// AI GENERATION FUNCTIONS
+// AI call
 // ----------------------
 function callOpenRouter($apiKey, $model, $czechWord, $correctAnswer, $targetLang, $referer, $appTitle) {
     $prompt = <<<EOT
@@ -143,13 +140,13 @@ function naiveWrongAnswers($correct) {
 }
 
 // ----------------------
-// PROCESS FORM
+// Process
 // ----------------------
 $generatedTable = '';
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['table'], $_POST['source_lang'], $_POST['target_lang'])) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['table'])) {
     $table = $conn->real_escape_string($_POST['table']);
-    $sourceLang = htmlspecialchars($_POST['source_lang']);
-    $targetLang = htmlspecialchars($_POST['target_lang']);
+    $sourceLang = $autoSourceLang;
+    $targetLang = $autoTargetLang;
 
     $result = $conn->query("SELECT * FROM `$table`");
     if ($result && $result->num_rows > 0) {
@@ -204,7 +201,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['table'], $_POST['sour
 }
 
 // ----------------------
-// OUTPUT PAGE
+// Output
 // ----------------------
 echo "<div class='content'>";
 echo "👤 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Logout</a>";
@@ -212,21 +209,13 @@ echo "</div>";
 
 echo "<h2 style='text-align:center;'>Generate AI Quiz Choices</h2>";
 
-// Include file explorer in the center
-echo "<div style='display:flex;justify-content:center;'>";
 include 'file_explorer.php';
-echo "</div>";
-
-echo "<div id='fileSelectedMsg' style='display:none;text-align:center;margin-top:10px;font-weight:bold;color:green;'></div>";
 
 if (!empty($selectedTable)) {
+    echo "<div style='text-align:center;margin-top:10px;font-weight:bold;color:green;'>File \"$selectedTable\" selected</div>";
     echo "<form method='POST' style='text-align:center; margin-top:20px;'>";
     echo "<input type='hidden' name='table' value='" . htmlspecialchars($selectedTable) . "'>";
-    echo "<label>Source language:</label><br>";
-    echo "<input type='text' name='source_lang' value='" . htmlspecialchars($autoSourceLang) . "' required><br><br>";
-    echo "<label>Target language:</label><br>";
-    echo "<input type='text' name='target_lang' value='" . htmlspecialchars($autoTargetLang) . "' required><br><br>";
-    echo "<button type='submit'>🚀 Generate Quiz Set</button>";
+    echo "<button type='submit'>🚀 Generate Quiz Set from " . htmlspecialchars($selectedTable) . "</button>";
     echo "</form>";
 }
 
