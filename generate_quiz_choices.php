@@ -151,8 +151,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['table'], $_POST['sour
     }
 }
 
-echo "<div class='content'>";
 
+echo "<div class='content'>";
+echo "👤 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Logout</a>";
+echo "</div>";
 
 
 echo "<h2 style='text-align:center;'>Generate AI Quiz Choices</h2>";
