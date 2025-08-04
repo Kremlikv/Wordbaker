@@ -206,4 +206,32 @@ if (!empty($selectedFullTable) && $res && $res->num_rows > 0) {
 }
 
 
+echo "</div>";  // Close .content
+?>
+<script>
+function autoResize(textarea) {
+    textarea.style.height = 'auto';
+    textarea.style.overflow = 'hidden';
+    textarea.style.height = textarea.scrollHeight + 'px';
+}
+
+function toggleFolder(folder) {
+    const el = document.getElementById("sub_" + folder);
+    if (el) {
+        el.style.display = (el.style.display === "block") ? "none" : "block";
+    }
+}
+
+function selectTable(fullTableName) {
+    document.getElementById("selectedTableInput").value = fullTableName;
+    document.getElementById("tableActionForm").submit();
+}
+
+document.addEventListener("DOMContentLoaded", function () {
+    document.querySelectorAll("textarea").forEach(function (el) {
+        autoResize(el); 
+    });
+});
 </script>
+</body></html>
+
