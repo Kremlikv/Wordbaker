@@ -79,7 +79,7 @@ $result = $stmt->get_result();
 
 <!-- Login info -->
 <?php echo "<div class='content'>";
-echo "👋 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Logout</a>"; ?>
+echo "👤 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Logout</a>"; ?>
 
 <h2>🌟 Difficult Words for: <?php echo htmlspecialchars($username); ?></h2>
 <?php echo $feedback; ?>

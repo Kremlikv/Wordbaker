@@ -62,9 +62,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['folder'], $_POST['fil
 </head>
 <body>
     <div class='content'>
-        <br>
-        <p>👤 Logged in as: <strong><?= htmlspecialchars($_SESSION['username']) ?></strong> | <a href='logout.php'>Logout</a></p>
-        <br>
+        
+        <p>👤Logged in as: <strong><?= htmlspecialchars($_SESSION['username']) ?></strong> | <a href='logout.php'>Logout</a></p>
+      
         <h2>Create New Table</h2>
         <form method="POST">
             <label>Folder Name (e.g., <em>prag</em>):</label>

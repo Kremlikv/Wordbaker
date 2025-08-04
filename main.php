@@ -104,15 +104,16 @@ textarea {
 </style>";
 echo "</head><body>";
 
-echo "<div style='text-align: center; margin-bottom: 20px;'>";
-echo "<a href='upload.php'><button>⬆ Upload</button></a> ";
-echo "<a href='generate_mp3_google_ssml.php'><button>🎧 Create MP3</button></a> ";
-echo "<a href='create_table.php'><button>🏗Create Table</button></a> ";
-echo "<a href='edit.php'><button>🖋 Edit</button></a> ";
-echo "</div>";
+// echo "<div style='text-align: center; margin-bottom: 20px;'>";
+// echo "<a href='upload.php'><button>⬆ Upload</button></a> ";
+// echo "<a href='generate_mp3_google_ssml.php'><button>🎧 Create MP3</button></a> ";
+// echo "<a href='create_table.php'><button>🏗Create Table</button></a> ";
+// echo "<a href='edit.php'><button>🖋 Edit</button></a> ";
+// echo "</div>";
 
 echo "<div class='content'>";
-echo "👋 Logged in as " . htmlspecialchars($username) . " | <a href='logout.php'>Logout</a><br><br>";
+// echo "👤 Logged in as " . htmlspecialchars($username) . " | <a href='logout.php'>Logout</a><br><br>";
+echo " <p>👤 Logged in as: <strong><?= htmlspecialchars($_SESSION['username']) ?></strong> | <a href='logout.php'>Logout</a></p><br><br>";
 
 echo "<form method='POST' action='' id='tableActionForm'>";
 echo "<label>Select a table:</label><br>";

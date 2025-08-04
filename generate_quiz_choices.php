@@ -152,6 +152,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['table'], $_POST['sour
 }
 
 echo "<div class='content'>";
+
+
+
 echo "<h2 style='text-align:center;'>Generate AI Quiz Choices</h2>";
 echo "<form method='POST' style='text-align:center;'>";
 echo "<label>Select dictionary table:</label><br>";
