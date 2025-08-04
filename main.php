@@ -103,33 +103,43 @@ include 'styling.php';
 .two-column {
     display: flex;
     align-items: flex-start;
+    gap: 0;
 }
 .folder-panel {
     width: 220px;
-    background: #f0f0f0;
-    padding: 10px;
+    background: #444;
+    padding: 0;
+    max-height: 66vh;
+    overflow-y: auto;
 }
 .folder-item {
-    padding: 8px;
+    padding: 8px 10px;
     cursor: pointer;
-    border-radius: 4px;
+    border: 1px solid #fff;
+    color: #fff;
+    text-align: left;
+    background: #444;
 }
 .folder-item:hover,
 .folder-item.active {
-    background: #d0d0d0;
+    background: #555;
 }
 .file-panel {
     flex: 1;
-    background: #e0e0e0;
-    padding: 10px;
+    background: #ddd;
+    padding: 0;
+    max-height: 66vh;
+    overflow-y: auto;
 }
 .file-item {
-    padding: 6px;
+    padding: 8px 10px;
     cursor: pointer;
-    border-bottom: 1px solid #ccc;
+    border: 1px solid #fff;
+    text-align: left;
+    background: #ddd;
 }
 .file-item:hover {
-    background: #c8c8c8;
+    background: #ccc;
 }
 textarea {
     width: 100%;
@@ -155,12 +165,12 @@ textarea {
             <div class='folder-panel' id='folderPanel'>
                 <?php foreach ($folders as $folder => $tableList): ?>
                     <div class='folder-item' onclick="showFiles('<?php echo htmlspecialchars($folder); ?>', this)">
-                        📁 <?php echo htmlspecialchars(ucfirst($folder)); ?>
+                        <?php echo htmlspecialchars(ucfirst($folder)); ?>
                     </div>
                 <?php endforeach; ?>
             </div>
             <div class='file-panel' id='filePanel'>
-                <em>Select a folder to view its tables</em>
+                <em style="padding:8px;display:block;">Select a folder to view its tables</em>
             </div>
         </div>
     </form>
@@ -227,7 +237,6 @@ if (!empty($selectedFullTable) && $res !== false) {
 const folderData = <?php echo json_encode($folderData, JSON_UNESCAPED_UNICODE); ?>;
 
 function showFiles(folderName, element) {
-    // Highlight active folder
     document.querySelectorAll(".folder-item").forEach(el => el.classList.remove("active"));
     element.classList.add("active");
 
@@ -238,12 +247,12 @@ function showFiles(folderName, element) {
         folderData[folderName].forEach(file => {
             const div = document.createElement("div");
             div.className = "file-item";
-            div.textContent = "📄 " + file.display;
+            div.textContent = file.display;
             div.onclick = () => selectTable(file.table);
             filePanel.appendChild(div);
         });
     } else {
-        filePanel.innerHTML = "<em>No tables in this folder</em>";
+        filePanel.innerHTML = "<em style='padding:8px;display:block;'>No tables in this folder</em>";
     }
 }
 
