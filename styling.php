@@ -119,7 +119,7 @@
       text-align: center;
       // color: white;
       clear: both;
-      position: fixed;
+      position: relative;
       bottom: 0;
       width: 100%;
     }
@@ -347,7 +347,10 @@ ul ul.open {
     </nav>
   </header>
 
-  <div class="footer">(c) Vítězslav Kremlík 2025 <br> kremlik@seznam.cz<br></div>
+  <div class="footer">
+    <h2>(c) Vítězslav Kremlík 2025</h2> 
+    <p>kremlik@seznam.cz</p>
+  </div>
 
 </body>
 
