@@ -119,7 +119,7 @@
       text-align: center;
       // color: white;
       clear: both;
-      position: relative;
+      position: fixed;
       bottom: 0;
       width: 100%;
     }
