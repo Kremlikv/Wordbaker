@@ -343,13 +343,7 @@ ul ul.open {
         <li><a href="login.php">🔑Login</a></li>
       </ul>
     </nav>
-  </header>
-
-   
-  <div class="footer">
-    <h2>(c) Vítězslav Kremlík 2025</h2> 
-    <p>kremlik@seznam.cz</p>
-  </div>
+  </header> 
 
 
 </body>

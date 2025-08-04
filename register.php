@@ -1,6 +1,6 @@
 <?php
 require_once 'db_users.php';
-include 'styling.php';
+include 'styling_welcome.php';
 
 $feedback = "";
 $show_form = true;
@@ -45,6 +45,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 </form>
 <?php endif; ?>
 </div>
+
 
 </body>
 </html>
