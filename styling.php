@@ -330,6 +330,7 @@ ul ul.open {
 /* New menu style */
 
 /* Dropdown Menu Styling */
+
 .main-menu {
   list-style: none;
   margin: 10px 0 0 0;
@@ -367,6 +368,7 @@ ul ul.open {
   position: absolute;
   top: 100%;
   left: 0;
+  margin-top: -1px;
   list-style: none;
   background: #fff;
   padding: 5px 0;
@@ -388,9 +390,12 @@ ul ul.open {
   background-color: #eee;
 }
 
-.dropdown:hover .submenu {
+/* 🧠 Important: Keep submenu open if user hovers anywhere on parent or submenu */
+.main-menu > li:hover > .submenu {
   display: block;
 }
+
+
 
 /* Responsive adjustments for dropdown menu */
 @media (max-width: 768px) {
