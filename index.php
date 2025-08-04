@@ -360,6 +360,8 @@ ul ul.open {
   <section class="intro">
     <h1>Let's bake some words!</h1>
 
+    <img src="ItalianChef.png" alt="ItalianChef" style="max-width: 60%; height: auto">
+
   </section>
 
   <div class="row">
