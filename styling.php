@@ -432,7 +432,7 @@ ul ul.open {
 <body>
 
 <header>
-  <h1><a href="index.php" style >WordBaker</a></h1>
+  <h1><a href="main.php" style >WordBaker</a></h1>
  
   <nav>
     <ul class="main-menu">
