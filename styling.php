@@ -431,7 +431,8 @@ ul ul.open {
 <body>
 
 <header>
-  <h1>WordBaker</h1>
+  <h1><a href="index.php">WordBaker</a></h1>
+ 
   <nav>
     <ul class="main-menu">
       <li class="dropdown">
