@@ -153,6 +153,14 @@ foreach ($tableList as $entry) {
                 <input type='hidden' name='delete_table' value='" . htmlspecialchars($fullTable) . "'>
                 <button type='submit' class='delete-button' title='Delete Table'>🗑️</button>
               </form>";
+
+    if (!in_array($selectedFullTable, ['difficult_words', 'mastered_words', 'users'])) {
+        echo "<form method='POST' action='' onsubmit=\"return confirm('Really delete the table: $selectedFullTable?');\">";
+        echo "<input type='hidden' name='delete_table' value='" . htmlspecialchars($selectedFullTable) . "'>";
+        echo "<button type='submit' class='delete-button'>🗑️ Delete This Table</button>";
+        echo "</form><br>";
+    }
+
     }
 
     echo "</div>";
