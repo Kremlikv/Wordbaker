@@ -113,7 +113,7 @@ echo "</head><body>";
 
 echo "<div class='content'>";
 echo "👤 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Logout</a>";
-echo "</div>";
+// echo "</div>";
 
 
 echo "<form method='POST' action='' id='tableActionForm'>";
@@ -189,6 +189,7 @@ if (!empty($selectedFullTable) && $res !== false) {
         echo "</table><br><em>This table is read-only.</em><br><br>";
     }
 }
+echo "</div>";
 echo "</div>";
 ?>
 <script>
