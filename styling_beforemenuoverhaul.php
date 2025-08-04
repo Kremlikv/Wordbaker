@@ -327,95 +327,6 @@ ul ul.open {
     }
 }
 
-/* New menu style */
-
-/* Dropdown Menu Styling */
-.main-menu {
-  list-style: none;
-  margin: 10px 0 0 0;
-  padding: 0;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 10px;
-}
-
-.main-menu > li {
-  position: relative;
-  background: #fff;
-  border: 1px solid #ccc;
-  border-radius: 5px;
-}
-
-.main-menu > li > a {
-  display: block;
-  padding: 10px 20px;
-  font-size: 15px;
-  color: #000;
-  font-weight: bold;
-  text-decoration: none;
-  transition: background-color 0.3s ease;
-}
-
-.main-menu > li > a:hover {
-  background-color: #ddd;
-  border-radius: 5px;
-}
-
-.submenu {
-  display: none;
-  position: absolute;
-  top: 100%;
-  left: 0;
-  list-style: none;
-  background: #fff;
-  padding: 5px 0;
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  z-index: 1000;
-  min-width: 180px;
-}
-
-.submenu li a {
-  display: block;
-  padding: 10px 20px;
-  color: #000;
-  text-decoration: none;
-  transition: background-color 0.3s;
-}
-
-.submenu li a:hover {
-  background-color: #eee;
-}
-
-.dropdown:hover .submenu {
-  display: block;
-}
-
-/* Responsive adjustments for dropdown menu */
-@media (max-width: 768px) {
-  .main-menu {
-    flex-direction: column;
-    align-items: center;
-  }
-
-  .main-menu > li {
-    width: 100%;
-  }
-
-  .submenu {
-    position: static;
-    border: none;
-    border-radius: 0;
-    box-shadow: none;
-  }
-
-  .submenu li a {
-    padding: 8px 16px;
-  }
-}
-
-
 
 
 </style>
@@ -425,35 +336,16 @@ ul ul.open {
 
 <body>
 
-<header>
-  <h1>WordBaker</h1>
-  <nav>
-    <ul class="main-menu">
-      <li class="dropdown">
-        <a href="#">➕ New</a>
-        <ul class="submenu">
-          <li><a href="main.php">📝 Edit Dictionary</a></li>
-          <li><a href="translator.php">🌐 Translate</a></li>
-          <li><a href="pdf_scan.php">📄 PDF-to-text</a></li>
-          <li><a href="generate_mp3_google_ssml.php">🎧 Create MP3</a></li>
-          <li><a href="generate_quiz_choices.php">🎯 Make Quiz</a></li>
-        </ul>
-      </li>
-      <li class="dropdown">
-        <a href="#">📚 Study</a>
-        <ul class="submenu">
-          <li><a href="flashcards.php">📘 Flashcards</a></li>
-          <li><a href="play_quiz.php">🎯 Play Quiz</a></li>
-          <li><a href="review_difficult.php">🧠 Difficult</a></li>
-          <li><a href="mastered.php">🌟 Mastered</a></li>
-        </ul>
-      </li>
-      <li><a href="index.php">🏠 Home</a></li>
-      <li><a href="register.php">👤 Register</a></li>
-    </ul>
-  </nav>
-</header>
-
+  <header>
+    <h1>WordBaker</h1>
+    <nav>
+      <ul>
+        <li><a href="index.php">Home</a></li>
+        <li><a href="register.php">Register</a></li>
+        <li><a href="main.php">Dictionary</a></li>
+      </ul>
+    </nav>
+  </header>
 
 </body>
 
