@@ -150,18 +150,53 @@ textarea {
     font-family: inherit;
     font-size: 1em;
 }
+/* Responsive */
+@media (max-width: 768px) {
+    .two-column {
+        flex-direction: column;
+    }
+    .folder-panel, .file-panel {
+        width: 100%;
+        max-height: 40vh;
+    }
+}
+/* Hidden by default */
+#fileExplorer {
+    display: none;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+    margin-top: 20px;
+}
+#fileExplorer.visible {
+    display: flex;
+    opacity: 1;
+}
+.select-file-btn {
+    display: inline-block;
+    padding: 10px 15px;
+    background: #555;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+.select-file-btn:hover {
+    background: #777;
+}
 </style>
 </head><body>
 
 <div class='content'>
     👤 Logged in as <?php echo $_SESSION['username']; ?> | <a href='logout.php'>Logout</a><br><br>
 
+    <button type="button" class="select-file-btn" onclick="showFileExplorer()">Select a file</button>
+
     <form method='POST' action='' id='tableActionForm'>
         <input type='hidden' name='table' id='selectedTableInput' value='<?php echo htmlspecialchars($selectedFullTable); ?>'>
         <input type='hidden' name='col1' value='<?php echo htmlspecialchars($column1); ?>'>
         <input type='hidden' name='col2' value='<?php echo htmlspecialchars($column2); ?>'>
 
-        <div class='two-column'>
+        <div id="fileExplorer" class='two-column'>
             <div class='folder-panel' id='folderPanel'>
                 <?php foreach ($folders as $folder => $tableList): ?>
                     <div class='folder-item' onclick="showFiles('<?php echo htmlspecialchars($folder); ?>', this)">
@@ -235,6 +270,11 @@ if (!empty($selectedFullTable) && $res !== false) {
 
 <script>
 const folderData = <?php echo json_encode($folderData, JSON_UNESCAPED_UNICODE); ?>;
+
+function showFileExplorer() {
+    const explorer = document.getElementById("fileExplorer");
+    explorer.classList.add("visible");
+}
 
 function showFiles(folderName, element) {
     document.querySelectorAll(".folder-item").forEach(el => el.classList.remove("active"));
