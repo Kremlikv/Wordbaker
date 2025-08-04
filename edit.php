@@ -19,7 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_table'])) {
     }
 
     // Prevent deleting shared tables
-    if (in_array($tableToDelete, $tables) && !in_array($tableToDelete, ['difficult_words', 'mastered_words'])) {
+    if (in_array($tableToDelete, $tables) && !in_array($tableToDelete, ['difficult_words', 'mastered_words', 'users'])) {
         $conn->query("DROP TABLE `$tableToDelete`");
         $audioPath = "cache/$tableToDelete.mp3";
         if (file_exists($audioPath)) {
@@ -58,7 +58,6 @@ function getUserFoldersAndTables($conn, $username) {
 }
 
 $username = strtolower($_SESSION['username'] ?? '');
-
 $conn->set_charset("utf8mb4");
 $folders = getUserFoldersAndTables($conn, $username);
 
@@ -138,35 +137,11 @@ foreach ($folders as $folder => $tableList) {
     echo "<details><summary class='folder' onclick=\"toggleFolder('$safeFolderId')\">📁 " . htmlspecialchars($displayFolderName) . "</summary>";
     echo "<div class='subtable' id='sub_$safeFolderId'>";
 
-foreach ($tableList as $entry) {
-    $fullTable = $entry['table_name'];
-    $display = $entry['display_name'];
-    
-    echo "<div style='display: flex; align-items: center; justify-content: space-between;'>";
-
-    // Table name (clickable)
-    echo "<span style='flex-grow:1; cursor:pointer;' onclick=\"selectTable('$fullTable')\">📄 " . htmlspecialchars($display) . "</span>";
-
-    // Deletion form (only for non-shared tables)
-    if (!in_array($fullTable, ['difficult_words', 'mastered_words', 'users'])) {
-        echo "<form method='POST' action='' onsubmit=\"return confirm('Delete table: $display?');\" style='margin-left:10px;'>
-                <input type='hidden' name='delete_table' value='" . htmlspecialchars($fullTable) . "'>
-                <button type='submit' class='delete-button' title='Delete Table'>🗑️</button>
-              </form>";
-
-    if (!in_array($selectedFullTable, ['difficult_words', 'mastered_words', 'users'])) {
-        echo "<form method='POST' action='' onsubmit=\"return confirm('Really delete the table: $selectedFullTable?');\">";
-        echo "<input type='hidden' name='delete_table' value='" . htmlspecialchars($selectedFullTable) . "'>";
-        echo "<button type='submit' class='delete-button'>🗑️ Delete This Table</button>";
-        echo "</form><br>";
+    foreach ($tableList as $entry) {
+        $fullTable = $entry['table_name'];
+        $display = $entry['display_name'];
+        echo "<span onclick=\"selectTable('$fullTable')\">📄 " . htmlspecialchars($display) . "</span>";
     }
-
-    }
-
-    echo "</div>";
-}
-
-
 
     echo "</div></details>";
 }
@@ -210,12 +185,8 @@ if (!empty($selectedFullTable) && $res && $res->num_rows > 0) {
             echo "</tr>";
             $i++;
         }
-
-
-     echo '<tr><td><textarea name="new_row[col1]" placeholder="New ' . htmlspecialchars($heading1) . '" oninput="autoResize(this)"></textarea></td>
-           <td><textarea name="new_row[col2]" placeholder="New ' . htmlspecialchars($heading2) . '" oninput="autoResize(this)"></textarea></td>';
-
-
+        echo '<tr><td><textarea name="new_row[col1]" placeholder="New ' . htmlspecialchars($heading1) . '" oninput="autoResize(this)"></textarea></td>';
+        echo '<td><textarea name="new_row[col2]" placeholder="New ' . htmlspecialchars($heading2) . '" oninput="autoResize(this)"></textarea></td>';
         echo "</table><br><button type='submit'>💾 Save Changes</button></form><br>";
     } else {
         echo "<table border='1' cellpadding='5' cellspacing='0'>";
@@ -229,8 +200,14 @@ if (!empty($selectedFullTable) && $res && $res->num_rows > 0) {
         }
         echo "</table><br><em>This table is read-only.</em><br><br>";
     }
-}
 
+    if (!in_array($selectedFullTable, ['difficult_words', 'mastered_words', 'users'])) {
+        echo "<form method='POST' action='' onsubmit=\"return confirm('Really delete the table: $selectedFullTable?');\">";
+        echo "<input type='hidden' name='delete_table' value='" . htmlspecialchars($selectedFullTable) . "'>";
+        echo "<button type='submit' class='delete-button'>🗑️ Delete This Table</button>";
+        echo "</form><br>";
+    }
+}
 
 echo "</div>";  // Close .content
 ?>
@@ -255,9 +232,8 @@ function selectTable(fullTableName) {
 
 document.addEventListener("DOMContentLoaded", function () {
     document.querySelectorAll("textarea").forEach(function (el) {
-        autoResize(el); 
+        autoResize(el);
     });
 });
 </script>
 </body></html>
-
