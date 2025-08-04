@@ -447,9 +447,6 @@ ul ul.open {
           <li><a href="review_difficult.php">🧠 Difficult</a></li>
           <li><a href="mastered.php">🌟 Mastered</a></li>
         </ul>
-      </li>
-      <li><a href="index.php">🏠 Home</a></li>
-      <li><a href="register.php">👤 Register</a></li>
     </ul>
   </nav>
 </header>
