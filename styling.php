@@ -45,7 +45,7 @@
       padding: 10px 20px;
       text-decoration: none;
       font-size: 15px;
-      color: #000;
+      color: white;
       transition: background-color 0.3s ease;
     }
 
@@ -431,7 +431,7 @@ ul ul.open {
 <body>
 
 <header>
-  <h1><a href="index.php">WordBaker</a></h1>
+  <h1><a href="index.php" style >WordBaker</a></h1>
  
   <nav>
     <ul class="main-menu">
