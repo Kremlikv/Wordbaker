@@ -56,6 +56,22 @@ foreach ($folders as $folder => $tableList) {
 }
 
 // ----------------------
+// DETECT LANGUAGES FROM TABLE COLUMNS
+// ----------------------
+$selectedTable = $_POST['table'] ?? $_GET['table'] ?? '';
+$autoSourceLang = '';
+$autoTargetLang = '';
+
+if (!empty($selectedTable)) {
+    $columnsRes = $conn->query("SHOW COLUMNS FROM `$selectedTable`");
+    if ($columnsRes && $columnsRes->num_rows >= 2) {
+        $cols = $columnsRes->fetch_all(MYSQLI_ASSOC);
+        $autoSourceLang = ucfirst($cols[0]['Field']);
+        $autoTargetLang = ucfirst($cols[1]['Field']);
+    }
+}
+
+// ----------------------
 // AI GENERATION FUNCTIONS
 // ----------------------
 function callOpenRouter($apiKey, $model, $czechWord, $correctAnswer, $targetLang, $referer, $appTitle) {
@@ -196,16 +212,20 @@ echo "</div>";
 
 echo "<h2 style='text-align:center;'>Generate AI Quiz Choices</h2>";
 
-// Include reusable file explorer for selecting dictionary table
+// Include file explorer in the center
+echo "<div style='display:flex;justify-content:center;'>";
 include 'file_explorer.php';
+echo "</div>";
 
-if (!empty($_POST['table']) || !empty($_GET['table'])) {
+echo "<div id='fileSelectedMsg' style='display:none;text-align:center;margin-top:10px;font-weight:bold;color:green;'></div>";
+
+if (!empty($selectedTable)) {
     echo "<form method='POST' style='text-align:center; margin-top:20px;'>";
-    echo "<input type='hidden' name='table' value='" . htmlspecialchars($_POST['table'] ?? $_GET['table']) . "'>";
-    echo "<label>Source language (e.g. Czech):</label><br>";
-    echo "<input type='text' name='source_lang' required><br><br>";
-    echo "<label>Target language (e.g. German):</label><br>";
-    echo "<input type='text' name='target_lang' required><br><br>";
+    echo "<input type='hidden' name='table' value='" . htmlspecialchars($selectedTable) . "'>";
+    echo "<label>Source language:</label><br>";
+    echo "<input type='text' name='source_lang' value='" . htmlspecialchars($autoSourceLang) . "' required><br><br>";
+    echo "<label>Target language:</label><br>";
+    echo "<input type='text' name='target_lang' value='" . htmlspecialchars($autoTargetLang) . "' required><br><br>";
     echo "<button type='submit'>🚀 Generate Quiz Set</button>";
     echo "</form>";
 }
