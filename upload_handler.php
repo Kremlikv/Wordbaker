@@ -4,55 +4,34 @@ require_once 'db.php';
 
 $conn->set_charset("utf8mb4");
 
-// $username = $_SESSION['username'] ?? '';
 $username = strtolower($_SESSION['username'] ?? '');
-
 if (!$username) {
     die("Not logged in.");
 }
 
-
-if (!isset($_FILES['csv_files'])) {
-    die("Missing uploaded files.");
+function sanitizeName($name) {
+    $name = strtolower(preg_replace('/[^a-zA-Z0-9_]/', '_', $name));
+    return trim(preg_replace('/_+/', '_', $name), '_');
 }
 
+function processCsvFile($tmpName, $originalName, $finalTableName, $conn) {
+    if (!is_uploaded_file($tmpName)) return false;
+    if (filesize($tmpName) > 2 * 1024 * 1024) return false;
 
-foreach ($_FILES['csv_files']['tmp_name'] as $i => $tmpName) {
-    $originalName = $_FILES['csv_files']['name'][$i];
-    $filenameOnly = pathinfo($originalName, PATHINFO_FILENAME);
-
-    // Determine table name
-    if (stripos($filenameOnly, $username . "_") === 0) {
-    $table = $filenameOnly;
-    } else {
-        $table = $username . "_" . $filenameOnly;
-    }
-
-
-    $table = strtolower(preg_replace('/[^a-zA-Z0-9_]/', '_', $table));
-    $table = preg_replace('/_+/', '_', $table); // Collapse multiple underscores into one
-    $table = trim(preg_replace('/_+/', '_', preg_replace('/[^a-zA-Z0-9_]/', '_', $table)), '_');
-
-
+    $mime = mime_content_type($tmpName);
+    if (!in_array($mime, ['text/plain', 'text/csv', 'application/vnd.ms-excel'])) return false;
 
     // Check if table already exists
-    $result = $conn->query("SHOW TABLES LIKE '$table'");
-    if ($result->num_rows > 0) {
-        file_put_contents('upload_errors.log', "Table '$table' already exists. Skipped.\n", FILE_APPEND);
-        continue;
+    $exists = $conn->query("SHOW TABLES LIKE '$finalTableName'");
+    if ($exists && $exists->num_rows > 0) {
+        file_put_contents('upload_errors.log', "Table '$finalTableName' already exists. Skipped.\n", FILE_APPEND);
+        return false;
     }
 
-    // Validate uploaded file
-    if (!is_uploaded_file($tmpName)) continue;
-    if ($_FILES['csv_files']['size'][$i] > 2 * 1024 * 1024) continue;
-    $mime = mime_content_type($tmpName);
-    if (!in_array($mime, ['text/plain', 'text/csv', 'application/vnd.ms-excel'])) continue;
-
-    // Open file
     $handle = fopen($tmpName, 'r');
-    if (!$handle) continue;
+    if (!$handle) return false;
 
-    // Read header row
+    // Try comma or semicolon separator
     $headers = fgetcsv($handle);
     if (!$headers || count($headers) < 2) {
         rewind($handle);
@@ -61,62 +40,51 @@ foreach ($_FILES['csv_files']['tmp_name'] as $i => $tmpName) {
     if (!$headers || count($headers) < 2) {
         file_put_contents('upload_errors.log', "HEADER ERROR: $originalName\n", FILE_APPEND);
         fclose($handle);
-        continue;
+        return false;
     }
 
-    // Detect 'Czech' column (case-insensitive)
-    $czechIndex = -1;
-    foreach ($headers as $index => $header) {
-        if (strcasecmp(trim($header), 'Czech') === 0) {
-            $czechIndex = $index;
-            break;
-        }
-    }
-    if ($czechIndex === -1) {
+    // Detect 'Czech' column
+    $czechIndex = array_search('Czech', array_map('trim', array_map('ucfirst', $headers)));
+    if ($czechIndex === false) {
         file_put_contents('upload_errors.log', "NO 'Czech' column in $originalName\n", FILE_APPEND);
         fclose($handle);
-        continue;
+        return false;
     }
 
-    // Find second column
+    // Get second language column
     $secondIndex = -1;
-    foreach ($headers as $index => $header) {
-        if ($index !== $czechIndex) {
-            $secondIndex = $index;
+    foreach ($headers as $i => $h) {
+        if ($i !== $czechIndex) {
+            $secondIndex = $i;
             break;
         }
     }
     if ($secondIndex === -1) {
         file_put_contents('upload_errors.log', "NO second language in $originalName\n", FILE_APPEND);
         fclose($handle);
-        continue;
+        return false;
     }
 
-    // Sanitize column names
-    $lang1 = preg_replace('/[^a-zA-Z0-9_]/', '_', trim($headers[$czechIndex]));
-    $lang2 = preg_replace('/[^a-zA-Z0-9_]/', '_', trim($headers[$secondIndex]));
+    $lang1 = sanitizeName($headers[$czechIndex]);
+    $lang2 = sanitizeName($headers[$secondIndex]);
 
     // Create table
-    $create_sql = "CREATE TABLE `$table` (
+    $create_sql = "CREATE TABLE `$finalTableName` (
         `$lang1` VARCHAR(255) NOT NULL,
         `$lang2` VARCHAR(255) NOT NULL
     ) CHARACTER SET utf8mb4 COLLATE utf8mb4_czech_ci";
 
     if (!$conn->query($create_sql)) {
-        file_put_contents('upload_errors.log', "CREATE ERROR: $table - " . $conn->error . "\n", FILE_APPEND);
+        file_put_contents('upload_errors.log', "CREATE ERROR: $finalTableName - " . $conn->error . "\n", FILE_APPEND);
         fclose($handle);
-        continue;
+        return false;
     }
 
-    // Insert data
+    // Insert rows
     $rowNum = 1;
     while (($data = fgetcsv($handle, 1000, ",")) !== false) {
         $rowNum++;
-
-        if (count($data) < 2) {
-            $data = str_getcsv(implode('', $data), ';');
-        }
-
+        if (count($data) < 2) $data = str_getcsv(implode('', $data), ';');
         if (!isset($data[$czechIndex]) || !isset($data[$secondIndex])) continue;
 
         $val1 = trim($conn->real_escape_string($data[$czechIndex]));
@@ -124,20 +92,52 @@ foreach ($_FILES['csv_files']['tmp_name'] as $i => $tmpName) {
 
         if ($val1 === '' || $val2 === '') continue;
 
-        $sql = "INSERT INTO `$table` (`$lang1`, `$lang2`) VALUES ('$val1', '$val2')";
+        $sql = "INSERT INTO `$finalTableName` (`$lang1`, `$lang2`) VALUES ('$val1', '$val2')";
         if (!$conn->query($sql)) {
-            file_put_contents('upload_errors.log', "INSERT ERROR ($table, row $rowNum): $val1 | $val2\n", FILE_APPEND);
+            file_put_contents('upload_errors.log', "INSERT ERROR ($finalTableName, row $rowNum): $val1 | $val2\n", FILE_APPEND);
         } else {
-            file_put_contents('upload_success.log', "INSERTED ($table, row $rowNum): $val1 | $val2\n", FILE_APPEND);
+            file_put_contents('upload_success.log', "INSERTED ($finalTableName, row $rowNum): $val1 | $val2\n", FILE_APPEND);
         }
     }
 
     fclose($handle);
     unlink($tmpName);
-    file_put_contents('upload_success.log', "✔ Uploaded: $originalName → $table\n", FILE_APPEND);
+    file_put_contents('upload_success.log', "✔ Uploaded: $originalName → $finalTableName\n", FILE_APPEND);
+    return true;
+}
+
+// 🔁 Handle single file upload (from upload.php)
+if (isset($_FILES['csv_file']) && isset($_POST['table_name'])) {
+    $tableNameInput = sanitizeName($_POST['table_name']);
+    if (!$tableNameInput) {
+        die("Invalid table name.");
+    }
+
+    $finalTableName = "{$username}_{$tableNameInput}";
+    $tmpName = $_FILES['csv_file']['tmp_name'];
+    $originalName = $_FILES['csv_file']['name'];
+
+    $_SESSION['uploaded_filename'] = $originalName;
+
+    processCsvFile($tmpName, $originalName, $finalTableName, $conn);
+    header("Location: upload.php");
+    exit;
+}
+
+// 🔁 Handle bulk upload (from main.php etc.)
+if (isset($_FILES['csv_files'])) {
+    foreach ($_FILES['csv_files']['tmp_name'] as $i => $tmpName) {
+        $originalName = $_FILES['csv_files']['name'][$i];
+        $filenameOnly = pathinfo($originalName, PATHINFO_FILENAME);
+        $table = sanitizeName($filenameOnly);
+        $finalTableName = "{$username}_{$table}";
+
+        processCsvFile($tmpName, $originalName, $finalTableName, $conn);
+    }
+
+    header("Location: main.php");
+    exit;
 }
 
 $conn->close();
-header("Location: main.php");
-exit;
 ?>
