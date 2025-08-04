@@ -1,6 +1,7 @@
 <?php
 require_once 'db.php';
 require_once 'session.php';
+include 'styling.php';
 
 $username = strtolower($_SESSION['username'] ?? '');
 

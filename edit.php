@@ -75,7 +75,9 @@ $heading2 = '';
 $res = false;
 if (!empty($selectedFullTable)) {
     $res = $conn->query("SELECT * FROM `$selectedFullTable`");
-    if ($res && $res->num_rows > 0) {
+  //  if ($res && $res->num_rows > 0) {
+    if ($res !== false) {
+
         $columns = $res->fetch_fields();
 
         if ($selectedFullTable === "difficult_words") {
@@ -95,6 +97,11 @@ if (!empty($selectedFullTable)) {
         $_SESSION['col2'] = $column2;
     }
 }
+
+if ($res->num_rows === 0) {
+    echo "<tr><td colspan='3'><em>This table is empty. Add your first entry below.</em></td></tr>";
+}
+
 
 echo "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>Manage Tables</title>";
 include 'styling.php';
