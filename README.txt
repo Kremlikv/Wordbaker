@@ -77,3 +77,11 @@ The game ends showing score and also a list of mistakes. They are not stored.
 FLASHCARDS 
 Now the Mark Difficult system records also names of users and names of tables. 
 So in Flashcards you have the option to show only Difficult words for this table.
+
+STYLE OVERHAUL
+Index, register and login will have only "register" and "login" buttons visible.
+Nothing else in their menu. So they will have their own styling document.
+
+New - Upload, Pdf-to-text, Translate, Edit, Quizmaker,
+Study - Flashcards, Quiz, Difficult, Mastered
+
