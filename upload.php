@@ -1,0 +1,216 @@
+<?php
+require_once 'db.php';
+require_once 'session.php';
+
+// Handle table deletion BEFORE any output
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_table'])) {
+    $conn = new mysqli($host, $user, $password, $database);
+    $conn->set_charset("utf8mb4");
+
+    if ($conn->connect_error) {
+        die("Connection failed: " . $conn->connect_error);
+    }
+
+    $tableToDelete = $conn->real_escape_string($_POST['delete_table']);
+    $tables = [];
+    $result = $conn->query("SHOW TABLES");
+    while ($row = $result->fetch_array()) {
+        $tables[] = $row[0];
+    }
+
+    // Prevent deleting shared tables
+    if (in_array($tableToDelete, $tables) && !in_array($tableToDelete, ['difficult_words', 'mastered_words'])) {
+        $conn->query("DROP TABLE `$tableToDelete`");
+        $audioPath = "cache/$tableToDelete.mp3";
+        if (file_exists($audioPath)) {
+            unlink($audioPath);
+        }
+    }
+
+    $conn->close();
+    header("Location: " . $_SERVER['PHP_SELF']);
+    exit;
+}
+
+function getUserFoldersAndTables($conn, $username) {
+    $allTables = [];
+    $result = $conn->query("SHOW TABLES");
+    while ($row = $result->fetch_array()) {
+        $table = $row[0];
+        if (stripos($table, $username . '_') === 0) {
+            $suffix = substr($table, strlen($username) + 1);
+            $suffix = preg_replace('/_+/', '_', $suffix);
+            $parts = explode('_', $suffix, 2);
+            if (count($parts) === 2 && trim($parts[0]) !== '') {
+                $folder = $parts[0];
+                $file = $parts[1];
+            } else {
+                $folder = 'Uncategorized';
+                $file = $suffix;
+            }
+            $allTables[$folder][] = [
+                'table_name' => $table,
+                'display_name' => $file
+            ];
+        }
+    }
+    return $allTables;
+}
+
+$username = strtolower($_SESSION['username'] ?? '');
+
+$conn->set_charset("utf8mb4");
+$folders = getUserFoldersAndTables($conn, $username);
+
+// Add shared tables
+$folders['Shared'][] = ['table_name' => 'difficult_words', 'display_name' => 'Difficult Words'];
+$folders['Shared'][] = ['table_name' => 'mastered_words', 'display_name' => 'Mastered Words'];
+
+$selectedFullTable = $_POST['table'] ?? $_GET['table'] ?? '';
+
+$column1 = '';
+$column2 = '';
+$heading1 = '';
+$heading2 = '';
+
+$res = false;
+if (!empty($selectedFullTable)) {
+    $res = $conn->query("SELECT * FROM `$selectedFullTable`");
+    if ($res && $res->num_rows > 0) {
+        $columns = $res->fetch_fields();
+
+        if ($selectedFullTable === "difficult_words") {
+            $column1 = "source_word";
+            $column2 = "target_word";
+            $heading1 = "Czech";
+            $heading2 = "Foreign";
+        } else {
+            $column1 = $columns[0]->name ?? '';
+            $column2 = $columns[1]->name ?? '';
+            $heading1 = $column1;
+            $heading2 = $column2;
+        }
+
+        $_SESSION['table'] = $selectedFullTable;
+        $_SESSION['col1'] = $column1;
+        $_SESSION['col2'] = $column2;
+    }
+}
+
+echo "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>Manage Tables</title>";
+include 'styling.php';
+echo "<style>
+.folder { cursor: pointer; margin: 5px 0; color: goldenrod; font-weight: bold; }
+.subtable { margin-left: 20px; display: none; }
+.subtable span { cursor: pointer; display: block; margin: 2px 0; }
+.subtable span:hover { background-color: #eef; }
+textarea {
+    width: 100%;
+    min-height: 1.5em;
+    resize: none;
+    overflow: hidden;
+    box-sizing: border-box;
+    font-family: inherit;
+    font-size: 1em;
+}
+</style>";
+echo "</head><body>";
+
+// MENU BAR
+echo "<div style='text-align: center; margin-bottom: 20px;'>";
+echo "<a href='upload.php'><button>⬆ Upload</button></a> ";
+echo "<a href='generate_mp3_google_ssml.php'><button>🎧 Create MP3</button></a> ";
+echo "<a href='create_table.php'><button>🏗Create Table</button></a> ";
+echo "<a href='edit.php'><button>🖋 Edit</button></a> ";
+echo "</div>";
+
+echo "<div class='content'>";
+echo "👋 Logged in as " . htmlspecialchars($username) . " | <a href='logout.php'>Logout</a><br><br>";
+
+
+// Upload section
+echo <<<HTML
+<h2>📤 Upload</h2>
+<form method="POST" action="upload_handler.php" enctype="multipart/form-data">
+    <label>Select CSV Files:</label>
+    <input type="file" name="csv_files[]" accept=".csv" multiple required><br><br>
+
+    <p style="font-size: 0.9em; color: gray;">
+        ➤ Recommended format: FolderName_FileName.csv <br>
+        ➤ CSVs must have a <strong>“Czech”</strong> column and at least one other language column.<br>
+        ➤ Microsoft Excel allows saving .xls files as .csv.<br>
+        ➤ Encoding must be <strong>UTF-8</strong> without BOM.
+    </p>
+
+    <button type="submit">Upload Files</button>
+</form>
+HTML;
+
+echo "</div></body></html>";
+?>
+<script>
+function autoResize(textarea) {
+    textarea.style.height = 'auto';
+    textarea.style.overflow = 'hidden';
+    textarea.style.height = textarea.scrollHeight + 'px';
+}
+
+function toggleFolder(folder) {
+    const el = document.getElementById("sub_" + folder);
+    if (el) {
+        el.style.display = (el.style.display === "block") ? "none" : "block";
+    }
+}
+
+function selectTable(fullTableName) {
+    document.getElementById("selectedTableInput").value = fullTableName;
+    document.getElementById("tableActionForm").submit();
+}
+
+document.addEventListener("DOMContentLoaded", function () {
+    document.querySelectorAll("textarea").forEach(function (el) {
+        autoResize(el); 
+    });
+});
+
+
+async function translateNewRow() {
+    const sourceTextarea = document.querySelector('textarea[name="new_row[col2]"]');
+    const targetTextarea = document.querySelector('textarea[name="new_row[col1]"]');
+
+    const sourceText = sourceTextarea.value.trim();
+    const sourceLang = "<?php echo strtolower($heading2); ?>";
+    const targetLang = "cs"; // Czech
+
+    if (!sourceText) {
+        alert("Please enter a word to translate.");
+        return;
+    }
+
+    const formData = new URLSearchParams();
+    formData.append("text", sourceText);
+    formData.append("source", sourceLang);
+    formData.append("target", targetLang);
+
+    try {
+        const response = await fetch("translate_api.php", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/x-www-form-urlencoded"
+            },
+            body: formData.toString()
+        });
+
+        const data = await response.json();
+        if (data.translated) {
+            targetTextarea.value = data.translated;
+            autoResize(targetTextarea);
+        } else {
+            alert("Translation failed.");
+        }
+    } catch (err) {
+        alert("Error during translation: " + err.message);
+    }
+}
+
+</script>
