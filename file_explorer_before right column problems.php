@@ -96,20 +96,11 @@
     <div style="display:flex;justify-content:center;">
         <div id="fileExplorer" class='two-column'>
             <div class='folder-panel' id='folderPanel'>
-                <?php
-                $firstFolderName = '';
-                $isFirst = true;
-                foreach ($folders as $folder => $tableList):
-                    if ($isFirst) { $firstFolderName = $folder; }
-                ?>
-                    <div class='folder-item<?php echo $isFirst ? " active" : ""; ?>'
-                         onclick="showFiles('<?php echo htmlspecialchars($folder); ?>', this)">
+                <?php foreach ($folders as $folder => $tableList): ?>
+                    <div class='folder-item' onclick="showFiles('<?php echo htmlspecialchars($folder); ?>', this)">
                         <?php echo htmlspecialchars(ucfirst($folder)); ?>
                     </div>
-                <?php
-                    $isFirst = false;
-                endforeach;
-                ?>
+                <?php endforeach; ?>
             </div>
             <div class='file-panel' id='filePanel'>
                 <em style="padding:8px;display:block;">Select a folder to view its tables</em>
@@ -122,18 +113,10 @@
 
 <script>
 const folderData = <?php echo json_encode($folderData, JSON_UNESCAPED_UNICODE); ?>;
-const firstFolderName = <?php echo json_encode($firstFolderName); ?>;
 
 function showFileExplorer() {
     const explorer = document.getElementById("fileExplorer");
     explorer.classList.add("visible");
-    // Automatically open first folder if exists
-    if (firstFolderName && folderData[firstFolderName]) {
-        const firstFolderEl = document.querySelector(".folder-item.active");
-        if (firstFolderEl) {
-            showFiles(firstFolderName, firstFolderEl);
-        }
-    }
 }
 
 function showFiles(folderName, element) {
@@ -157,10 +140,12 @@ function showFiles(folderName, element) {
 }
 
 function selectTable(fullTableName, displayName) {
+    // Show the selected file message instantly
     const msgEl = document.getElementById("fileSelectedMsg");
     msgEl.textContent = "File \"" + displayName + "\" selected";
     msgEl.style.display = "block";
 
+    // Set hidden input and submit form
     document.getElementById("selectedTableInput").value = fullTableName;
     document.getElementById("tableActionForm").submit();
 }
