@@ -9,7 +9,7 @@ $OPENROUTER_REFERER = 'https://kremlik.byethost15.com';
 $APP_TITLE = 'KahootGenerator';
 $THROTTLE_SECONDS = 1;
 
-$PIXABAY_API_KEY = 'YOUR_PIXABAY_API_KEY_HERE'; // Insert your free Pixabay key
+$PIXABAY_API_KEY = '51629627-a41f1d96812d8b351d3f25867'; // Insert your free Pixabay key
 
 /* --- Pixabay direct image search --- */
 function getImageFromPixabay($searchTerm, $pixabayKey) {
@@ -156,12 +156,10 @@ EOT;
     preg_match('/Image URL:\s*(https?:\/\/\S+\.(?:jpg|jpeg|png|webp))/i', $output, $imgMatch);
     $imageUrl = $imgMatch[1] ?? '';
 
-    // If AI didn't provide a usable image, try Pixabay
     if (empty($imageUrl)) {
         $imageUrl = getImageFromPixabay($correctAnswer, $pixabayKey);
     }
 
-    // If Pixabay also failed, fallback to Wikimedia
     if (empty($imageUrl)) {
         $imageUrl = getWikimediaImage($correctAnswer);
     }
@@ -177,8 +175,154 @@ function naiveWrongAnswers($correct) {
 }
 
 /* --- Save edits with uploads --- */
-// (this part stays unchanged from your working version)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_table'])) {
+    $saveTable = $conn->real_escape_string($_POST['save_table']);
+    $editedRows = $_POST['edited_rows'] ?? [];
+    $deleteRows = $_POST['delete_rows'] ?? [];
+
+    $uploadDir = __DIR__ . "/uploads/quiz_images/";
+    if (!is_dir($uploadDir)) mkdir($uploadDir, 0777, true);
+
+    foreach ($editedRows as $id => $row) {
+        if (in_array($id, $deleteRows)) {
+            $conn->query("DELETE FROM `$saveTable` WHERE id=" . intval($id));
+            continue;
+        }
+
+        $imageUrl = trim($row['image_url']);
+
+        if (isset($_FILES['image_file']['name'][$id]) && $_FILES['image_file']['error'][$id] === UPLOAD_ERR_OK) {
+            $tmpName = $_FILES['image_file']['tmp_name'][$id];
+            $fileSize = $_FILES['image_file']['size'][$id];
+            $ext = strtolower(pathinfo($_FILES['image_file']['name'][$id], PATHINFO_EXTENSION));
+            if (in_array($ext, ['jpg', 'jpeg', 'png', 'webp']) && $fileSize <= 2 * 1024 * 1024) {
+                $newName = "quiz_" . intval($id) . "_" . uniqid() . "." . $ext;
+                if (move_uploaded_file($tmpName, $uploadDir . $newName)) {
+                    $imageUrl = "uploads/quiz_images/" . $newName;
+                }
+            }
+        }
+
+        $stmt = $conn->prepare("UPDATE `$saveTable` SET correct_answer=?, wrong1=?, wrong2=?, wrong3=?, image_url=? WHERE id=?");
+        $stmt->bind_param("sssssi", $row['correct'], $row['wrong1'], $row['wrong2'], $row['wrong3'], $imageUrl, $id);
+        $stmt->execute();
+        $stmt->close();
+    }
+}
 
 /* --- Generate quiz --- */
-// (replace callOpenRouter call with new one including $PIXABAY_API_KEY)
+$generatedTable = '';
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_quiz']) && !empty($selectedTable)) {
+    $table = $conn->real_escape_string($selectedTable);
+    $sourceLang = $autoSourceLang;
+    $targetLang = $autoTargetLang;
 
+    $result = $conn->query("SELECT * FROM `$table`");
+    $totalRows = $result->num_rows;
+    if ($result && $totalRows > 0) {
+        $col1 = $result->fetch_fields()[0]->name;
+        $col2 = $result->fetch_fields()[1]->name;
+
+        $quizTable = "quiz_choices_" . $table;
+        $conn->query("DROP TABLE IF EXISTS `$quizTable`");
+        $conn->query("CREATE TABLE `$quizTable` (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            question TEXT,
+            correct_answer TEXT,
+            wrong1 TEXT,
+            wrong2 TEXT,
+            wrong3 TEXT,
+            source_lang VARCHAR(50),
+            target_lang VARCHAR(50),
+            image_url TEXT
+        )");
+
+        echo "<div style='text-align:center;'><div style='width:50%;margin:auto;border:1px solid #333;height:30px;'>
+                <div id='progressBar' style='height:100%;width:0%;background:green;color:white;text-align:center;line-height:30px;'>0%</div>
+              </div></div>";
+        ob_flush(); flush();
+
+        $processed = 0;
+        while ($row = $result->fetch_assoc()) {
+            $question = trim($row[$col1]);
+            $correct = trim($row[$col2]);
+            if ($question === '' || $correct === '') continue;
+
+            $aiResult = callOpenRouter($OPENROUTER_API_KEY, $OPENROUTER_MODEL, $question, $correct, $targetLang, $OPENROUTER_REFERER, $APP_TITLE, $PIXABAY_API_KEY);
+            $wrongAnswers = $aiResult['wrongAnswers'] ?: naiveWrongAnswers($correct);
+            $imageUrl = $aiResult['imageUrl'];
+
+            [$wrong1, $wrong2, $wrong3] = array_pad($wrongAnswers, 3, '');
+            $stmt = $conn->prepare("INSERT INTO `$quizTable`
+                (question, correct_answer, wrong1, wrong2, wrong3, source_lang, target_lang, image_url)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->bind_param("ssssssss", $question, $correct, $wrong1, $wrong2, $wrong3, $sourceLang, $targetLang, $imageUrl);
+            $stmt->execute();
+            $stmt->close();
+
+            $processed++;
+            $percent = intval(($processed / $totalRows) * 100);
+            echo "<script>document.getElementById('progressBar').style.width='{$percent}%';
+                         document.getElementById('progressBar').textContent='{$percent}%';</script>";
+            ob_flush(); flush();
+
+            if ($THROTTLE_SECONDS > 0) sleep($THROTTLE_SECONDS);
+        }
+
+        echo "<script>document.getElementById('progressBar').style.background='blue';
+                      document.getElementById('progressBar').textContent='✅ Complete';</script>";
+        $generatedTable = $quizTable;
+    }
+}
+
+/* --- Output --- */
+echo "<div class='content'>👤 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Logout</a></div>";
+echo "<h2 style='text-align:center;'>Generate AI Quiz Choices</h2>";
+
+include 'file_explorer.php';
+
+if (!empty($selectedTable) && !isset($_POST['generate_quiz'])) {
+    echo "<div style='text-align:center;margin-top:10px;font-weight:bold;color:green;'>File \"$selectedTable\" selected</div>";
+    echo "<form method='POST' style='text-align:center; margin-top:20px;'>
+            <input type='hidden' name='table' value='" . htmlspecialchars($selectedTable) . "'>
+            <input type='hidden' name='generate_quiz' value='1'>
+            <button type='submit'>🚀 Generate Quiz Set from " . htmlspecialchars($selectedTable) . "</button>
+          </form>";
+}
+
+if (!empty($generatedTable)) {
+    $res = $conn->query("SELECT * FROM `$generatedTable`");
+    echo "<h3 style='text-align:center;'>📜 Edit Generated Quiz: <code>$generatedTable</code></h3>";
+    echo "<form method='POST' enctype='multipart/form-data' style='text-align:center;'>
+            <input type='hidden' name='save_table' value='" . htmlspecialchars($generatedTable) . "'>
+            <table border='1' cellpadding='5' cellspacing='0' style='margin:auto;'>
+                <tr><th>Czech</th><th>Correct</th><th>Wrong 1</th><th>Wrong 2</th><th>Wrong 3</th><th>Image URL</th><th>Upload File</th><th>Preview</th><th>Delete</th></tr>";
+    while ($row = $res->fetch_assoc()) {
+        $id = $row['id'];
+        echo "<tr>
+                <td>" . htmlspecialchars($row['question']) . "</td>
+                <td><textarea name='edited_rows[$id][correct]' oninput='autoResize(this)'>" . htmlspecialchars($row['correct_answer']) . "</textarea></td>
+                <td><textarea name='edited_rows[$id][wrong1]' oninput='autoResize(this)'>" . htmlspecialchars($row['wrong1']) . "</textarea></td>
+                <td><textarea name='edited_rows[$id][wrong2]' oninput='autoResize(this)'>" . htmlspecialchars($row['wrong2']) . "</textarea></td>
+                <td><textarea name='edited_rows[$id][wrong3]' oninput='autoResize(this)'>" . htmlspecialchars($row['wrong3']) . "</textarea></td>
+                <td><input type='text' name='edited_rows[$id][image_url]' value='" . htmlspecialchars($row['image_url']) . "'></td>
+                <td><input type='file' name='image_file[$id]'></td>
+                <td>" . (!empty($row['image_url']) ? "<img src='" . htmlspecialchars($row['image_url']) . "' style='max-height:50px;'>" : "") . "</td>
+                <td><input type='checkbox' name='delete_rows[]' value='" . intval($id) . "'></td>
+              </tr>";
+    }
+    echo "</table><br><button type='submit'>📂 Save Changes</button></form><br>";
+}
+?>
+<script>
+function autoResize(el) {
+    el.style.height = "auto";
+    el.style.height = (el.scrollHeight) + "px";
+}
+document.addEventListener("DOMContentLoaded", function () {
+    document.querySelectorAll("textarea").forEach(el => {
+        autoResize(el);
+        el.addEventListener("input", () => autoResize(el));
+    });
+});
+</script>
