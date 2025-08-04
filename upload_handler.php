@@ -125,19 +125,25 @@ if (isset($_FILES['csv_file']) && isset($_POST['table_name'])) {
 }
 
 // 🔁 Handle bulk upload (from main.php etc.)
+
 if (isset($_FILES['csv_files'])) {
+    $_SESSION['uploaded_tables'] = [];
+
     foreach ($_FILES['csv_files']['tmp_name'] as $i => $tmpName) {
         $originalName = $_FILES['csv_files']['name'][$i];
         $filenameOnly = pathinfo($originalName, PATHINFO_FILENAME);
         $table = sanitizeName($filenameOnly);
         $finalTableName = "{$username}_{$table}";
 
-        processCsvFile($tmpName, $originalName, $finalTableName, $conn);
+        if (processCsvFile($tmpName, $originalName, $finalTableName, $conn)) {
+            $_SESSION['uploaded_tables'][] = $finalTableName;
+        }
     }
 
-    header("Location: main.php");
+    header("Location: upload.php");
     exit;
 }
+
 
 $conn->close();
 ?>
