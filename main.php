@@ -112,9 +112,7 @@ echo "</head><body>";
 // echo "</div>";
 
 echo "<div class='content'>";
-echo "👤 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Logout</a>";
-// echo "</div>";
-
+echo "👤 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Logout</a><br><br>";
 
 echo "<form method='POST' action='' id='tableActionForm'>";
 echo "<label>Select a table:</label><br>";
