@@ -51,7 +51,7 @@
 
     a {
       text-decoration: none;
-      color: #000000;
+      color: white;
       transition: 0.3s;
     }
 
