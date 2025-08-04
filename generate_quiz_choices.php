@@ -10,6 +10,23 @@ $APP_TITLE = 'KahootGenerator';
 $THROTTLE_SECONDS = 1;
 
 // ----------------------
+// Wikimedia fallback
+// ----------------------
+function getWikimediaImage($searchTerm) {
+    $apiUrl = "https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=" . urlencode($searchTerm) . "&gsrlimit=1&prop=imageinfo&iiprop=url&format=json";
+    $json = @file_get_contents($apiUrl);
+    if (!$json) return '';
+    $data = json_decode($json, true);
+    if (!isset($data['query']['pages'])) return '';
+    foreach ($data['query']['pages'] as $page) {
+        if (isset($page['imageinfo'][0]['url'])) {
+            return $page['imageinfo'][0]['url'];
+        }
+    }
+    return '';
+}
+
+// ----------------------
 // Folder/table list
 // ----------------------
 function getUserFoldersAndTables($conn, $username) {
@@ -43,19 +60,6 @@ $folders = getUserFoldersAndTables($conn, $username);
 $folders['Shared'][] = ['table_name' => 'difficult_words', 'display_name' => 'Difficult Words'];
 $folders['Shared'][] = ['table_name' => 'mastered_words', 'display_name' => 'Mastered Words'];
 
-$folderData = [];
-foreach ($folders as $folder => $tableList) {
-    foreach ($tableList as $entry) {
-        $folderData[$folder][] = [
-            'table' => $entry['table_name'],
-            'display' => $entry['display_name']
-        ];
-    }
-}
-
-// ----------------------
-// Detect languages
-// ----------------------
 $selectedTable = $_POST['table'] ?? $_GET['table'] ?? '';
 $autoSourceLang = '';
 $autoTargetLang = '';
@@ -69,36 +73,38 @@ if (!empty($selectedTable)) {
 }
 
 // ----------------------
-// AI call
+// AI call + Wikimedia fallback
 // ----------------------
 function callOpenRouter($apiKey, $model, $czechWord, $correctAnswer, $targetLang, $referer, $appTitle) {
     $prompt = <<<EOT
-You are a professional language teacher who creates multiple-choice vocabulary quizzes for foreign language learners. Given a correct translation, generate 3 **plausible but incorrect** answers that simulate mistakes language learners often make.
+You are a professional language teacher who creates multiple-choice vocabulary quizzes for foreign language learners. 
 
-Mistakes should reflect:
-- False friends
-- Gender/article confusion
-- Typical typos or spelling errors
-- Words with similar pronunciation or meaning
+For the given Czech word and its correct translation in $targetLang:
 
-Do **not** invent nonsense words, reversed words, or unrealistic distractors. Each wrong answer must be a real word or plausible learner error.
+1. Generate 3 plausible but incorrect translations (realistic learner mistakes).
+2. Suggest a URL to a royalty-free or public-domain image that illustrates the correct translation.
+
+Image rules:
+- Must be from public domain / CC0 / royalty-free sites only.
+- Prefer Wikimedia Commons, Pixabay, Unsplash.
+- Direct link to the image file (.jpg, .png, .webp).
+- Must be relevant and accurate for the meaning of the correct translation.
+
+Example:
+
+Czech: "stůl"
+Correct translation: "der Tisch"
+Wrong Answers:
+1. die Tisch (article confusion)
+2. der Tasche (false friend)
+3. der Tich (spelling error)
+Image URL: https://upload.wikimedia.org/wikipedia/commons/3/3a/Wooden_table.jpg
 
 ---
 
-Czech: "stůl"  
-Target Language: German  
-Correct Answer: "der Tisch"  
-Wrong Answers:
-1. die Tisch *(article confusion)*
-2. der Tasche *(false friend)*
-3. der Tich *(spelling error)*
-
-For each Czech word, I will give you the correct translation into $targetLang. 
-Your task is to generate 3 **plausible but incorrect alternatives** — the kind of mistake a student might make. 
-
 Czech: "$czechWord"
 Correct translation: "$correctAnswer"
-Wrong alternatives:
+Wrong alternatives and image URL:
 EOT;
 
     $data = [
@@ -123,8 +129,8 @@ EOT;
 
     $decoded = json_decode($response, true);
     $output = $decoded['choices'][0]['message']['content'] ?? '';
-    preg_match_all('/\d+\.?\s*(.*?)\s*(?:\\n|$)/', $output, $matches);
 
+    preg_match_all('/\d+\.?\s*(.*?)\s*(?:\\n|$)/', $output, $matches);
     $wrongAnswers = array_map(function ($a) {
         $a = trim($a);
         $a = preg_replace('/\s*\([^)]*\)/', '', $a);
@@ -132,7 +138,17 @@ EOT;
         return $a;
     }, $matches[1]);
 
-    return count($wrongAnswers) >= 3 ? array_slice($wrongAnswers, 0, 3) : [];
+    preg_match('/Image URL:\s*(https?:\/\/\S+\.(?:jpg|jpeg|png|webp))/i', $output, $imgMatch);
+    $imageUrl = $imgMatch[1] ?? '';
+
+    if (empty($imageUrl)) {
+        $imageUrl = getWikimediaImage($correctAnswer);
+    }
+
+    return [
+        'wrongAnswers' => count($wrongAnswers) >= 3 ? array_slice($wrongAnswers, 0, 3) : [],
+        'imageUrl' => $imageUrl
+    ];
 }
 
 function naiveWrongAnswers($correct) {
@@ -140,7 +156,51 @@ function naiveWrongAnswers($correct) {
 }
 
 // ----------------------
-// Process
+// Handle saving edited table with uploads
+// ----------------------
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_table'])) {
+    $saveTable = $conn->real_escape_string($_POST['save_table']);
+    $editedRows = $_POST['edited_rows'] ?? [];
+    $deleteRows = $_POST['delete_rows'] ?? [];
+
+    // Ensure upload dir exists
+    $uploadDir = __DIR__ . "/uploads/quiz_images/";
+    if (!is_dir($uploadDir)) {
+        mkdir($uploadDir, 0777, true);
+    }
+
+    foreach ($editedRows as $id => $row) {
+        if (in_array($id, $deleteRows)) {
+            $conn->query("DELETE FROM `$saveTable` WHERE id=" . intval($id));
+            continue;
+        }
+
+        $imageUrl = trim($row['image_url']);
+
+        // Handle file upload if provided
+        if (isset($_FILES['image_file']['name'][$id]) && $_FILES['image_file']['error'][$id] === UPLOAD_ERR_OK) {
+            $tmpName = $_FILES['image_file']['tmp_name'][$id];
+            $fileSize = $_FILES['image_file']['size'][$id];
+            $ext = strtolower(pathinfo($_FILES['image_file']['name'][$id], PATHINFO_EXTENSION));
+
+            if (in_array($ext, ['jpg', 'jpeg', 'png', 'webp']) && $fileSize <= 2 * 1024 * 1024) {
+                $newName = "quiz_" . intval($id) . "_" . uniqid() . "." . $ext;
+                $destPath = $uploadDir . $newName;
+                if (move_uploaded_file($tmpName, $destPath)) {
+                    $imageUrl = "uploads/quiz_images/" . $newName;
+                }
+            }
+        }
+
+        $stmt = $conn->prepare("UPDATE `$saveTable` SET correct_answer=?, wrong1=?, wrong2=?, wrong3=?, image_url=? WHERE id=?");
+        $stmt->bind_param("sssssi", $row['correct'], $row['wrong1'], $row['wrong2'], $row['wrong3'], $imageUrl, $id);
+        $stmt->execute();
+        $stmt->close();
+    }
+}
+
+// ----------------------
+// Quiz generation
 // ----------------------
 $generatedTable = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_quiz']) && !empty($selectedTable)) {
@@ -165,13 +225,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_quiz']) && !
             wrong3 TEXT,
             source_lang VARCHAR(50),
             target_lang VARCHAR(50),
-            image_file TEXT
+            image_url TEXT
         )");
 
         echo "<div style='text-align:center;'><div style='width:50%;margin:auto;border:1px solid #333;height:30px;'>
                 <div id='progressBar' style='height:100%;width:0%;background:green;color:white;text-align:center;line-height:30px;'>0%</div>
               </div></div>";
-        echo str_repeat(' ', 1024); // force flush space
+        echo str_repeat(' ', 1024);
         ob_flush(); flush();
 
         $processed = 0;
@@ -180,19 +240,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_quiz']) && !
             $correct = trim($row[$col2]);
             if ($question === '' || $correct === '') continue;
 
-            $wrongAnswers = callOpenRouter(
+            $aiResult = callOpenRouter(
                 $OPENROUTER_API_KEY, $OPENROUTER_MODEL, $question, $correct,
                 $targetLang, $OPENROUTER_REFERER, $APP_TITLE
             );
+            $wrongAnswers = $aiResult['wrongAnswers'];
+            $imageUrl = $aiResult['imageUrl'];
+
             if (count($wrongAnswers) < 3) {
                 $wrongAnswers = naiveWrongAnswers($correct);
             }
 
             [$wrong1, $wrong2, $wrong3] = array_pad($wrongAnswers, 3, '');
             $stmt = $conn->prepare("INSERT INTO `$quizTable`
-                (question, correct_answer, wrong1, wrong2, wrong3, source_lang, target_lang, image_file)
-                VALUES (?, ?, ?, ?, ?, ?, ?, '')");
-            $stmt->bind_param("sssssss", $question, $correct, $wrong1, $wrong2, $wrong3, $sourceLang, $targetLang);
+                (question, correct_answer, wrong1, wrong2, wrong3, source_lang, target_lang, image_url)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+            $stmt->bind_param("ssssssss", $question, $correct, $wrong1, $wrong2, $wrong3, $sourceLang, $targetLang, $imageUrl);
             $stmt->execute();
             $stmt->close();
 
@@ -237,7 +300,7 @@ if (!empty($generatedTable)) {
     echo "<form method='POST' enctype='multipart/form-data' style='text-align:center;'>";
     echo "<input type='hidden' name='save_table' value='" . htmlspecialchars($generatedTable) . "'>";
     echo "<table border='1' cellpadding='5' cellspacing='0' style='margin:auto;'>";
-    echo "<tr><th>Czech</th><th>Correct</th><th>Wrong 1</th><th>Wrong 2</th><th>Wrong 3</th><th>Image File</th><th>Delete</th></tr>";
+    echo "<tr><th>Czech</th><th>Correct</th><th>Wrong 1</th><th>Wrong 2</th><th>Wrong 3</th><th>Image URL</th><th>Upload File</th><th>Preview</th><th>Delete</th></tr>";
     while ($row = $res->fetch_assoc()) {
         $id = $row['id'];
         echo "<tr>";
@@ -246,7 +309,13 @@ if (!empty($generatedTable)) {
         echo "<td><textarea name='edited_rows[$id][wrong1]' oninput='autoResize(this)'>" . htmlspecialchars($row['wrong1']) . "</textarea></td>";
         echo "<td><textarea name='edited_rows[$id][wrong2]' oninput='autoResize(this)'>" . htmlspecialchars($row['wrong2']) . "</textarea></td>";
         echo "<td><textarea name='edited_rows[$id][wrong3]' oninput='autoResize(this)'>" . htmlspecialchars($row['wrong3']) . "</textarea></td>";
-        echo "<td><input type='file' name='edited_rows[$id][image_file]'></td>";
+        echo "<td><input type='text' name='edited_rows[$id][image_url]' value='" . htmlspecialchars($row['image_url']) . "'></td>";
+        echo "<td><input type='file' name='image_file[$id]'></td>";
+        echo "<td>";
+        if (!empty($row['image_url'])) {
+            echo "<img src='" . htmlspecialchars($row['image_url']) . "' alt='Image' style='max-height:50px;'>";
+        }
+        echo "</td>";
         echo "<td><input type='checkbox' name='delete_rows[]' value='" . intval($id) . "'></td>";
         echo "</tr>";
     }
