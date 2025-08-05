@@ -2,22 +2,22 @@
 require_once 'db.php';
 require_once 'session.php';
 
-
 $PIXABAY_API_KEY = '51629627-a41f1d96812d8b351d3f25867';
 
-// $table = $_GET['table'] ?? '';
-
 $table = $_GET['table'] ?? '';
-if (!$table) {
-    die("No table specified. POST or GET variable missing.");
-}
-echo "<!-- Debug: Table = $table -->";
-
-
-
-
 $msg = $_GET['msg'] ?? '';
-if (!$table) die("No table specified.");
+
+if (!$table) {
+    die("<p style='color:red;font-weight:bold;'>❌ No table specified.</p>");
+}
+
+// Validate table exists
+$tableEsc = $conn->real_escape_string($table);
+$resCheck = $conn->query("SHOW TABLES LIKE '$tableEsc'");
+if (!$resCheck || $resCheck->num_rows === 0) {
+    die("<p style='color:red;font-weight:bold;'>❌ Table '$table' does not exist in the database.</p>");
+}
+
 $conn->set_charset("utf8mb4");
 
 /* Save updates */
@@ -45,6 +45,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     $msg = "✅ Images saved successfully!";
 }
+
+
 
 $res = $conn->query("SELECT id, question, image_url FROM `$table` ORDER BY id ASC");
 if (!$res) die("Table not found.");

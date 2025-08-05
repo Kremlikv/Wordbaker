@@ -109,7 +109,11 @@ function naiveWrongAnswers($correct) {
 
 /* --- Save edits --- */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_table'])) {
-    $saveTable = $conn->real_escape_string($_POST['save_table']);
+    $saveTable = trim($_POST['save_table']);
+    if (empty($saveTable)) {
+        die("Error: No table name provided for saving.");
+    }
+
     $editedRows = $_POST['edited_rows'] ?? [];
     $deleteRows = $_POST['delete_rows'] ?? [];
     foreach ($editedRows as $id => $row) {
@@ -122,9 +126,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_table'])) {
         $stmt->execute();
         $stmt->close();
     }
+
+    // Redirect to add_images.php with exact table name
     header("Location: add_images.php?table=" . urlencode($saveTable) . "&msg=" . urlencode("✅ File $saveTable saved. Now select pictures."));
     exit;
 }
+
 
 /* --- Delete quiz and images --- */
 if (isset($_POST['delete_quiz']) && !empty($_POST['delete_table'])) {
