@@ -2,9 +2,20 @@
 require_once 'db.php';
 require_once 'session.php';
 
+
 $PIXABAY_API_KEY = '51629627-a41f1d96812d8b351d3f25867';
 
+// $table = $_GET['table'] ?? '';
+
 $table = $_GET['table'] ?? '';
+if (!$table) {
+    die("No table specified. POST or GET variable missing.");
+}
+echo "<!-- Debug: Table = $table -->";
+
+
+
+
 $msg = $_GET['msg'] ?? '';
 if (!$table) die("No table specified.");
 $conn->set_charset("utf8mb4");
