@@ -263,7 +263,13 @@ function saveQuiz() {
     .then(r => r.text())
     .then(resp => {
         if (resp.trim() === "OK") {
-            showMessage("✅ File saved");
+            showMessage("✅ Table saved successfully");
+
+            // Remove rows that were ticked for deletion
+            document.querySelectorAll('input[name="delete_rows[]"]:checked').forEach(chk => {
+                chk.closest('tr').remove();
+            });
+
         } else {
             showMessage("❌ " + resp);
         }
@@ -272,6 +278,7 @@ function saveQuiz() {
         showMessage("❌ Error saving");
     });
 }
+
 
 function goToAddPictures() {
     if (quizTableName) {
