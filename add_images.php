@@ -1,6 +1,7 @@
 <?php
 require_once 'db.php';
 require_once 'session.php';
+include 'styling.php';
 
 $PIXABAY_API_KEY = '51629627-a41f1d96812d8b351d3f25867';
 
@@ -100,6 +101,10 @@ function selectImage(qid, url, imgElement) {
 </script>
 </head>
 <body>
+
+<div class='content'>
+<p>👤 Logged in as: <strong><?= htmlspecialchars($_SESSION['username']) ?></strong> | <a href='logout.php'>Logout</a></p>
+</div>
 
 <?php if ($msg): ?>
 <div class="msg"><?php echo htmlspecialchars($msg); ?></div>

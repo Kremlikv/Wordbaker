@@ -1,4 +1,9 @@
 <?php
+// Debug mode: show all PHP errors
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
 require_once 'db.php';
 require_once 'session.php';
 include 'styling.php';
@@ -186,7 +191,7 @@ if (!empty($generatedTable)) {
     }
     $res = $conn->query("SELECT * FROM `$generatedTable`");
     echo "<h3 style='text-align:center;'>📜 Edit Generated Quiz: <code>$generatedTable</code></h3>";
-    echo "<form method='POST' style='text-align:center;'>
+    echo "<form method='POST' action='generate_quiz_choices.php' style='text-align:center;'>
             <input type='hidden' name='save_table' value='" . htmlspecialchars($generatedTable) . "'>
             <table border='1' cellpadding='5' cellspacing='0' style='margin:auto;'>
                 <tr><th>Czech</th><th>Correct</th><th>Wrong 1</th><th>Wrong 2</th><th>Wrong 3</th><th>Delete</th></tr>";
