@@ -72,6 +72,10 @@ if (isset($_POST['start_new']) && !empty($_POST['quiz_table'])) {
 
     shuffle($questions);
     $_SESSION['questions'] = $questions;
+
+    // ✅ Redirect to start clean GET request for JS to load first question
+    header("Location: play_quiz.php");
+    exit;
 }
 
 include 'styling.php';
@@ -144,19 +148,9 @@ include 'styling.php';
 
 <hr>
 
-<div id="quizBox">
-<?php
-// Show first question immediately if we have questions loaded
-if (!empty($_SESSION['questions'])) {
-    include 'load_question.php';
-}
-?>
-</div>
+<div id="quizBox"></div>
 
 <script>
-let countdown;
-let timeLeft;
-
 function toggleCustomMusic(value) {
     document.getElementById("customMusicInput").style.display = (value === "custom") ? "block" : "none";
 }
@@ -187,6 +181,21 @@ function toggleMusic() {
     } else {
         music.pause();
     }
+}
+
+// Load first question via AJAX if quiz session exists
+<?php if (!empty($_SESSION['questions'])): ?>
+document.addEventListener("DOMContentLoaded", function () {
+    loadNextQuestion();
+});
+<?php endif; ?>
+
+function loadNextQuestion() {
+    fetch("load_question.php")
+        .then(res => res.text())
+        .then(html => {
+            document.getElementById("quizBox").innerHTML = html;
+        });
 }
 </script>
 
