@@ -48,6 +48,18 @@ $folders = getUserFoldersAndTables($conn, $username);
 $folders['Shared'][] = ['table_name' => 'difficult_words', 'display_name' => 'Difficult Words'];
 $folders['Shared'][] = ['table_name' => 'mastered_words', 'display_name' => 'Mastered Words'];
 
+$folderData = [];
+foreach ($folders as $folder => $tableList) {
+    foreach ($tableList as $entry) {
+        $folderData[$folder][] = [
+            'table' => $entry['table_name'],
+            'display' => $entry['display_name']
+        ];
+    }
+}
+
+
+
 $selectedTable = $_POST['table'] ?? $_GET['table'] ?? '';
 $autoSourceLang = '';
 $autoTargetLang = '';
