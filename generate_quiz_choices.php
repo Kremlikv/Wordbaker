@@ -264,14 +264,9 @@ function saveQuiz() {
     .then(resp => {
         if (resp.trim() === "OK") {
             showMessage("✅ Table saved successfully");
-
-            // Remove rows that were ticked for deletion
-            const deleteCheckboxes = document.querySelectorAll('input[name="delete_rows[]"]:checked');
-            deleteCheckboxes.forEach(function(chk) {
-                let row = chk.parentNode.parentNode; // move up to <tr>
-                row.parentNode.removeChild(row);
-            });
-
+            setTimeout(() => {
+                location.reload();
+            }, 800); // short delay so user sees the message
         } else {
             showMessage("❌ " + resp);
         }
