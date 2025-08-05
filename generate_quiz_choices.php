@@ -16,7 +16,8 @@ $THROTTLE_SECONDS = 1;
 
 /* --- AJAX save handler --- */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax_save']) && $_POST['ajax_save'] == '1') {
-    $saveTable = trim($_POST['save_table']);
+    ob_clean(); // clear any accidental whitespace or debug output
+    $saveTable = trim($_POST['save_table'] ?? '');
     if (!empty($saveTable)) {
         $editedRows = $_POST['edited_rows'] ?? [];
         $deleteRows = $_POST['delete_rows'] ?? [];
@@ -110,15 +111,13 @@ function callOpenRouter($apiKey, $model, $czechWord, $correctAnswer, $targetLang
     Don't add any symbols like ()':"-/_ or numbering or bulletpoints.     
     EOT;
 
-
     $data = [
         "model" => $model,
         "messages" => [[
             "role" => "user",
             "content" => $prompt
-            ]] 
-        ];
-   
+        ]] 
+    ];
 
     $ch = curl_init("https://openrouter.ai/api/v1/chat/completions");
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -134,8 +133,14 @@ function callOpenRouter($apiKey, $model, $czechWord, $correctAnswer, $targetLang
 
     $decoded = json_decode($response, true);
     $output = $decoded['choices'][0]['message']['content'] ?? '';
-    preg_match_all('/\d+\.?\s*(.*?)\s*(?:\\n|$)/', $output, $matches);
-    return array_slice(array_map('trim', $matches[1]), 0, 3);
+
+    // Safer parsing: split by lines, clean unwanted symbols
+    $lines = preg_split('/\r\n|\r|\n/', $output);
+    $lines = array_map(function($line) {
+        return trim(preg_replace('/^[\-\:\"]+/', '', $line));
+    }, $lines);
+    $lines = array_filter($lines, fn($l) => $l !== '');
+    return array_slice(array_values($lines), 0, 3);
 }
 
 function naiveWrongAnswers($correct) {
@@ -147,7 +152,6 @@ function cleanAIOutput($answers) {
         return trim(preg_replace('/^[\-\:\"]+/', '', $a)); // remove leading - : "
     }, $answers);
 }
-
 
 /* --- Delete quiz and images --- */
 if (isset($_POST['delete_quiz']) && !empty($_POST['delete_table'])) {
@@ -269,14 +273,14 @@ function saveQuiz() {
             }, 800); // short delay so user sees the message
         } else {
             showMessage("❌ " + resp);
+            console.log("Server response:", resp);
         }
     })
     .catch(err => {
         showMessage("❌ Error saving");
+        console.error(err);
     });
 }
-
-
 
 function goToAddPictures() {
     if (quizTableName) {
