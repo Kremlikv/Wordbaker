@@ -121,7 +121,7 @@ include 'styling.php';
 
 <div class="content">
     👤 Logged in as <?= htmlspecialchars($_SESSION['username']) ?> | <a href='logout.php'>Logout</a>
-</div>
+
 
 <audio id="bgMusic" loop>
     <source id="bgMusicSource" src="<?= htmlspecialchars($musicSrc) ?>" type="audio/mpeg">
@@ -259,5 +259,6 @@ document.addEventListener("DOMContentLoaded", function () {
 });
 </script>
 
+</div>
 </body>
 </html>
