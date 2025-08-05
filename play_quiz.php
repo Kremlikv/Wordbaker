@@ -103,8 +103,8 @@ include 'styling.php';
     #timer { font-size: 1.3em; color: darkred; margin: 10px; }
     .quiz-buttons { text-align: center; margin-top: 20px; }
     .quiz-buttons button {
-        background-color: #4CAF50;
-        color: white;
+        background-color: #d3d3d3;
+        color: black;
         padding: 10px 20px;
         border: none;
         border-radius: 5px;
@@ -113,7 +113,7 @@ include 'styling.php';
         margin: 0 5px;
     }
     .quiz-buttons button:hover {
-        background-color: #45a049;
+        background-color: #bfbfbf;
     }
 </style>
 </head>
@@ -177,6 +177,9 @@ include 'styling.php';
 <?php endif; ?>
 
 <script>
+let countdown = null;
+let timeLeft = 15;
+
 function toggleCustomMusic(value) {
     document.getElementById("customMusicInput").style.display = (value === "custom") ? "block" : "none";
 }
@@ -210,9 +213,10 @@ function toggleMusic() {
 }
 
 function startTimer() {
-    let timeLeft = 15;
+    clearInterval(countdown); // ✅ Prevent multiple timers
+    timeLeft = 15;
     const timerDisplay = document.getElementById("timer");
-    let countdown = setInterval(() => {
+    countdown = setInterval(() => {
         timeLeft--;
         if (timerDisplay) timerDisplay.textContent = `⏳ ${timeLeft}`;
         if (timeLeft <= 0) {
@@ -226,10 +230,11 @@ function startTimer() {
 function submitAnswer(btn) {
     const value = btn.getAttribute("data-value");
     document.querySelectorAll(".answer-btn").forEach(b => b.disabled = true);
+    clearInterval(countdown);
     fetch("load_question.php", {
         method: "POST",
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: new URLSearchParams({ answer: value, time_taken: 15 })
+        body: new URLSearchParams({ answer: value, time_taken: 15 - timeLeft })
     })
     .then(res => res.text())
     .then(html => {
