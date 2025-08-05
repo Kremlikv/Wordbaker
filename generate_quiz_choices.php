@@ -151,7 +151,13 @@ if (!empty($selectedTable)) {
 /* --- Generate quiz if not exists --- */
 $generatedTable = '';
 if (!empty($selectedTable)) {
-    $quizTable = "quiz_choices_" . $selectedTable;
+   
+    if (strpos($selectedTable, 'quiz_choices_') === 0) {
+            $quizTable = $selectedTable; // already a quiz table
+        } else {
+            $quizTable = "quiz_choices_" . $selectedTable;
+        }
+
     if (!quizTableExists($conn, $selectedTable)) {
         $result = $conn->query("SELECT * FROM `$selectedTable`");
         if ($result && $result->num_rows > 0) {
