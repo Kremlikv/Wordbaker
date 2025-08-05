@@ -102,19 +102,12 @@ if (!empty($selectedTable)) {
 function callOpenRouter($apiKey, $model, $czechWord, $correctAnswer, $targetLang, $referer, $appTitle) {
 
     $prompt = <<<EOT
-    Imagine that you are a beginner student of languages who makes mistakes.
-    You are given a Czech phrase and its correct translation in $targetLang.
-    Your task is to create three incorrect translations of the same Czech phrase.
-    It must be believable that these mistakes were made by a human.
-
+    Create three different usual mistakes ($wrong1, $wrong2, $wrong3) that a human student may make when translating $czechWord into $targetLang: $correctAnswer. 
     Vary the types of mistakes: article/gender confusion, false friends, near homophones, spelling errors, wrong diacritic marks, similar but incorrect verb form, wrong plural/singular, etc.
-    You can confuse two things that have something in common: have the same word-root (Aufgang, Ausgang), similar function (Car, Van), similar spelling (lie, lay).
-    Do not produce nonsense strings, reversed words, or palindromes. 
+    Sometimes the mistakes are confusion of two things that have something in common: have the same word-root (Aufgang, Ausgang), similar function (Car, Van), similar spelling (lie, lay).
+    Avoid nonsense strings, reversed words, randomly inserted letters, palindromes. 
     Avoid enclosing answers in quotes or numbering them.
     Do not explain the mistakes, do not add parentheses.
-
-    Czech phrase: $czechWord
-    Correct translation in $targetLang: $correctAnswer
     EOT;
 
 
