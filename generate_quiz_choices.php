@@ -107,7 +107,7 @@ function callOpenRouter($apiKey, $model, $czechWord, $correctAnswer, $targetLang
     Sometimes the mistakes are confusion of two things that have something in common: have the same word-root (Aufgang, Ausgang), similar function (Car, Van), similar spelling (lie, lay).
     Avoid nonsense strings, reversed words, randomly inserted letters, palindromes. 
     Avoid enclosing answers in quotes or numbering them.
-    Do not explain the mistakes, do not add parentheses.
+    Do not explain the mistakes, do not add parentheses, do not add colons (:).
     EOT;
 
 
