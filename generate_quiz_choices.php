@@ -14,7 +14,7 @@ $OPENROUTER_REFERER = 'https://kremlik.byethost15.com';
 $APP_TITLE = 'KahootGenerator';
 $THROTTLE_SECONDS = 1;
 
-/* --- Save handler (no AJAX) --- */
+/* --- Save handler (non-AJAX) --- */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_table'])) {
     $saveTable = trim($_POST['save_table']);
     if (!empty($saveTable)) {
@@ -30,7 +30,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_table'])) {
             $stmt->execute();
             $stmt->close();
         }
-        // Redirect to same page with table param to reload updated data
         header("Location: generate_quiz_choices.php?table=" . urlencode($saveTable) . "&saved=1");
         exit;
     }
@@ -217,10 +216,10 @@ if (!empty($generatedTable)) {
         $id = $row['id'];
         echo "<tr>
                 <td>" . htmlspecialchars($row['question']) . "</td>
-                <td><textarea name='edited_rows[$id][correct]'>" . htmlspecialchars($row['correct_answer']) . "</textarea></td>
-                <td><textarea name='edited_rows[$id][wrong1]'>" . htmlspecialchars($row['wrong1']) . "</textarea></td>
-                <td><textarea name='edited_rows[$id][wrong2]'>" . htmlspecialchars($row['wrong2']) . "</textarea></td>
-                <td><textarea name='edited_rows[$id][wrong3]'>" . htmlspecialchars($row['wrong3']) . "</textarea></td>
+                <td><textarea name='edited_rows[$id][correct]' oninput='autoResize(this)'>" . htmlspecialchars($row['correct_answer']) . "</textarea></td>
+                <td><textarea name='edited_rows[$id][wrong1]' oninput='autoResize(this)'>" . htmlspecialchars($row['wrong1']) . "</textarea></td>
+                <td><textarea name='edited_rows[$id][wrong2]' oninput='autoResize(this)'>" . htmlspecialchars($row['wrong2']) . "</textarea></td>
+                <td><textarea name='edited_rows[$id][wrong3]' oninput='autoResize(this)'>" . htmlspecialchars($row['wrong3']) . "</textarea></td>
                 <td><input type='checkbox' name='delete_rows[]' value='" . intval($id) . "'></td>
               </tr>";
     }
@@ -238,3 +237,13 @@ if (!empty($generatedTable)) {
           </form>";
 }
 ?>
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    document.querySelectorAll("textarea").forEach(el => autoResize(el));
+});
+
+function autoResize(el) {
+    el.style.height = "auto";
+    el.style.height = (el.scrollHeight) + "px";
+}
+</script>
