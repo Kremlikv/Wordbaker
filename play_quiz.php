@@ -27,10 +27,15 @@ while ($row = $result->fetch_array()) {
 }
 
 if (isset($_POST['start_new']) && !empty($_POST['quiz_table'])) {
+    unset($_SESSION['questions']);
+    unset($_SESSION['feedback']);
+    unset($_SESSION['mistakes']);
     $_SESSION['mistakes'] = [];
     $_SESSION['quiz_table'] = $_POST['quiz_table'];
     $_SESSION['score'] = 0;
-    $_SESSION['question_index'] = 0;
+    $_SESSION['question_index'] = 0;   
+
+
 
     $musicChoice = $_POST['bg_music_choice'] ?? '';
     $customURL = $_POST['custom_music_url'] ?? '';
