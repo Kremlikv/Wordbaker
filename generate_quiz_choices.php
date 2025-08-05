@@ -101,10 +101,57 @@ if (!empty($selectedTable)) {
 /* --- AI call --- */
 function callOpenRouter($apiKey, $model, $czechWord, $correctAnswer, $targetLang, $referer, $appTitle) {
     $prompt = <<<EOT
-You are a professional language teacher who creates multiple-choice vocabulary quizzes.
-For the given Czech word and its correct translation in $targetLang:
-1. Generate 3 plausible but incorrect translations (realistic learner mistakes).
-EOT;
+
+        You are a professional language teacher creating multiple-choice vocabulary quizzes.
+
+        For the given Czech word and its correct translation in $targetLang:
+
+        1. Generate exactly 3 plausible but incorrect translations.
+        - They should be *realistic learner mistakes* for this target language.
+        - Vary the types of mistakes: article/gender confusion, false friends, near homophones, spelling errors, wrong diacritic marks, similar but incorrect verb form, wrong plural/singular, etc.
+        - Typical human mistakes include mistaking two things that have something in common, have the same word-root, similar function, similar spelling.
+        - Ensure they are believable to a human learner of this language.
+
+        2. Do NOT:
+        - Repeat the correct translation.
+        - Produce nonsense strings, reversed words, or palindromes.
+        - Give answers that are obviously unrelated in meaning.
+        - Mix multiple languages in one answer.
+
+        3. Keep spelling and diacritics accurate to the target language.
+        4. Avoid giving hints that reveal the correct answer.
+        5. Make all answers roughly the same length and format (e.g., if the correct answer is lowercase, keep the wrong ones lowercase).
+        6. Avoid enclosing answers in quotes or numbering them.
+        7. Do not explain the mistakes.
+
+        Example 1:
+
+        Czech: "kostel"
+        Correct translation: "die Kirche"
+
+        Wrong Answers:
+        das Kirche       ← article confusion
+        die Kirh        ← spelling error
+        die Kirsche      ← a differnt word with similar spelling
+        das Kloster      ← a building with similar function    
+
+        Example 2
+
+        Czech: "stůl"
+        Correct translation: "der Tisch
+
+        Wrong answers:
+        der Stuhl   ←  false friends
+
+        ---
+
+        Czech: "$czechWord"
+        Correct translation: "$correctAnswer"
+
+        Wrong Answers:
+        EOT;
+
+
 
     $data = [
         "model" => $model,
