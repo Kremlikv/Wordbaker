@@ -14,10 +14,9 @@ $OPENROUTER_REFERER = 'https://kremlik.byethost15.com';
 $APP_TITLE = 'KahootGenerator';
 $THROTTLE_SECONDS = 1;
 
-/* --- AJAX save handler --- */
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax_save']) && $_POST['ajax_save'] == '1') {
-    ob_clean(); // clear any accidental whitespace or debug output
-    $saveTable = trim($_POST['save_table'] ?? '');
+/* --- Save handler (no AJAX) --- */
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_table'])) {
+    $saveTable = trim($_POST['save_table']);
     if (!empty($saveTable)) {
         $editedRows = $_POST['edited_rows'] ?? [];
         $deleteRows = $_POST['delete_rows'] ?? [];
@@ -31,11 +30,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax_save']) && $_POS
             $stmt->execute();
             $stmt->close();
         }
-        echo "OK";
-    } else {
-        echo "ERROR: No table specified";
+        // Redirect to same page with table param to reload updated data
+        header("Location: generate_quiz_choices.php?table=" . urlencode($saveTable) . "&saved=1");
+        exit;
     }
-    exit; // Stop here so no HTML is sent
 }
 
 /* --- Check if quiz table exists --- */
@@ -101,7 +99,6 @@ if (!empty($selectedTable)) {
 
 /* --- AI call --- */
 function callOpenRouter($apiKey, $model, $czechWord, $correctAnswer, $targetLang, $referer, $appTitle) {
-
     $prompt = <<<EOT
     Create three different usual mistakes (wrong1, wrong2, wrong3) that a human student may make when translating $czechWord into $targetLang: $correctAnswer. 
     Vary the types of mistakes: article/gender confusion, false friends, near homophones, spelling errors, wrong diacritic marks, similar but incorrect verb form, wrong plural/singular, etc.
@@ -133,8 +130,6 @@ function callOpenRouter($apiKey, $model, $czechWord, $correctAnswer, $targetLang
 
     $decoded = json_decode($response, true);
     $output = $decoded['choices'][0]['message']['content'] ?? '';
-
-    // Safer parsing: split by lines, clean unwanted symbols
     $lines = preg_split('/\r\n|\r|\n/', $output);
     $lines = array_map(function($line) {
         return trim(preg_replace('/^[\-\:\"]+/', '', $line));
@@ -149,7 +144,7 @@ function naiveWrongAnswers($correct) {
 
 function cleanAIOutput($answers) {
     return array_map(function($a) {
-        return trim(preg_replace('/^[\-\:\"]+/', '', $a)); // remove leading - : "
+        return trim(preg_replace('/^[\-\:\"]+/', '', $a));
     }, $answers);
 }
 
@@ -190,7 +185,7 @@ if (!empty($selectedTable)) {
                 $question = trim($row[$col1]);
                 $correct = trim($row[$col2]);
                 if ($question === '' || $correct === '') continue;
-                $wrongAnswers = callOpenRouter($OPENROUTER_API_KEY, $OPENROUTER_MODEL, $question, $correct, $autoTargetLang, $OPENROUTER_REFERER, $APP_TITLE) ?: naiveWrongAnswers($correct);
+                $wrongAnswers = callOpenRouter($apiKey, $model, $question, $correct, $autoTargetLang, $OPENROUTER_REFERER, $APP_TITLE) ?: naiveWrongAnswers($correct);
                 $wrongAnswers = cleanAIOutput($wrongAnswers);
                 [$wrong1, $wrong2, $wrong3] = array_pad($wrongAnswers, 3, '');
                 $stmt = $conn->prepare("INSERT INTO `$quizTable` (question, correct_answer, wrong1, wrong2, wrong3, source_lang, target_lang) VALUES (?, ?, ?, ?, ?, ?, ?)");
@@ -209,31 +204,32 @@ echo "<h2 style='text-align:center;'>Generate AI Quiz Choices</h2>";
 include 'file_explorer.php';
 
 if (!empty($generatedTable)) {
-    echo "<div id='saveMsg' style='color:green; text-align:center; font-weight:bold;'></div>";
-    $res = $conn->query("SELECT * FROM `$generatedTable`");
+    if (isset($_GET['saved']) && $_GET['saved'] == '1') {
+        echo "<div style='color:green; text-align:center; font-weight:bold;'>✅ Table saved successfully</div>";
+    }
     echo "<h3 style='text-align:center;'>📜 Edit Generated Quiz: <code>$generatedTable</code></h3>";
     echo "<form id='quizForm' method='POST' style='text-align:center;'>
-            <input type='hidden' name='save_table' id='save_table' value='" . htmlspecialchars($generatedTable) . "'>
-            <input type='hidden' name='ajax_save' value='1'>
+            <input type='hidden' name='save_table' value='" . htmlspecialchars($generatedTable) . "'>
             <table border='1' cellpadding='5' cellspacing='0' style='margin:auto;'>
                 <tr><th>Czech</th><th>Correct</th><th>Wrong 1</th><th>Wrong 2</th><th>Wrong 3</th><th>Delete</th></tr>";
+    $res = $conn->query("SELECT * FROM `$generatedTable`");
     while ($row = $res->fetch_assoc()) {
         $id = $row['id'];
         echo "<tr>
                 <td>" . htmlspecialchars($row['question']) . "</td>
-                <td><textarea name='edited_rows[$id][correct]' oninput='autoResize(this)'>" . htmlspecialchars($row['correct_answer']) . "</textarea></td>
-                <td><textarea name='edited_rows[$id][wrong1]' oninput='autoResize(this)'>" . htmlspecialchars($row['wrong1']) . "</textarea></td>
-                <td><textarea name='edited_rows[$id][wrong2]' oninput='autoResize(this)'>" . htmlspecialchars($row['wrong2']) . "</textarea></td>
-                <td><textarea name='edited_rows[$id][wrong3]' oninput='autoResize(this)'>" . htmlspecialchars($row['wrong3']) . "</textarea></td>
+                <td><textarea name='edited_rows[$id][correct]'>" . htmlspecialchars($row['correct_answer']) . "</textarea></td>
+                <td><textarea name='edited_rows[$id][wrong1]'>" . htmlspecialchars($row['wrong1']) . "</textarea></td>
+                <td><textarea name='edited_rows[$id][wrong2]'>" . htmlspecialchars($row['wrong2']) . "</textarea></td>
+                <td><textarea name='edited_rows[$id][wrong3]'>" . htmlspecialchars($row['wrong3']) . "</textarea></td>
                 <td><input type='checkbox' name='delete_rows[]' value='" . intval($id) . "'></td>
               </tr>";
     }
     echo "</table><br>
-          <button type='button' onclick='saveQuiz()'>📂 Save Changes</button>
+          <button type='submit'>📂 Save Changes</button>
           </form>
 
           <div style='text-align:center; margin-top:20px;'>
-            <button type='button' onclick='goToAddPictures()'>🖼 Do you want to add pictures?</button>
+            <button type='button' onclick='window.location.href=\"add_images.php?table=" . urlencode($generatedTable) . "\"'>🖼 Do you want to add pictures?</button>
           </div>
 
           <form method='POST' style='margin-top:20px; text-align:center;'>
@@ -242,55 +238,3 @@ if (!empty($generatedTable)) {
           </form>";
 }
 ?>
-<script>
-let quizTableName = '';
-document.addEventListener("DOMContentLoaded", () => {
-    document.querySelectorAll("textarea").forEach(el => autoResize(el));
-    const tableInput = document.getElementById('save_table');
-    if (tableInput) {
-        quizTableName = tableInput.value; // Store table name globally
-    }
-});
-
-function autoResize(el) {
-    el.style.height = "auto";
-    el.style.height = (el.scrollHeight) + "px";
-}
-
-function saveQuiz() {
-    const form = document.getElementById('quizForm');
-    const formData = new FormData(form);
-    fetch('generate_quiz_choices.php', {
-        method: 'POST',
-        body: formData
-    })
-    .then(r => r.text())
-    .then(resp => {
-        if (resp.trim() === "OK") {
-            location.reload(); // just reload the page
-        } else {
-            alert("❌ " + resp); // show any error
-        }
-    })
-    .catch(err => {
-        alert("❌ Error saving");
-        console.error(err);
-    });
-}
-
-
-function goToAddPictures() {
-    if (quizTableName) {
-        window.location.href = 'add_images.php?table=' + encodeURIComponent(quizTableName);
-    } else {
-        alert("Error: No table name found.");
-    }
-}
-
-function showMessage(msg) {
-    const msgDiv = document.getElementById('saveMsg');
-    msgDiv.textContent = msg;
-    msgDiv.style.opacity = '1';
-    setTimeout(() => { msgDiv.style.opacity = '0'; }, 3000); // Fade after 3s
-}
-</script>
