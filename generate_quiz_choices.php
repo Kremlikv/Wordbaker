@@ -267,20 +267,17 @@ function saveQuiz() {
     .then(r => r.text())
     .then(resp => {
         if (resp.trim() === "OK") {
-            showMessage("✅ Table saved successfully");
-            setTimeout(() => {
-                location.reload();
-            }, 800); // short delay so user sees the message
+            location.reload(); // just reload the page
         } else {
-            showMessage("❌ " + resp);
-            console.log("Server response:", resp);
+            alert("❌ " + resp); // show any error
         }
     })
     .catch(err => {
-        showMessage("❌ Error saving");
+        alert("❌ Error saving");
         console.error(err);
     });
 }
+
 
 function goToAddPictures() {
     if (quizTableName) {
