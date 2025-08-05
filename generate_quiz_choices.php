@@ -143,6 +143,13 @@ function naiveWrongAnswers($correct) {
     return [$correct . 'x', strrev($correct), substr($correct, 1) . substr($correct, 0, 1)];
 }
 
+function cleanAIOutput($answers) {
+    return array_map(function($a) {
+        return trim(preg_replace('/^[\-\:\"]+/', '', $a)); // remove leading - : "
+    }, $answers);
+}
+
+
 /* --- Delete quiz and images --- */
 if (isset($_POST['delete_quiz']) && !empty($_POST['delete_table'])) {
     $delTable = $conn->real_escape_string($_POST['delete_table']);
@@ -181,6 +188,7 @@ if (!empty($selectedTable)) {
                 $correct = trim($row[$col2]);
                 if ($question === '' || $correct === '') continue;
                 $wrongAnswers = callOpenRouter($OPENROUTER_API_KEY, $OPENROUTER_MODEL, $question, $correct, $autoTargetLang, $OPENROUTER_REFERER, $APP_TITLE) ?: naiveWrongAnswers($correct);
+                $wrongAnswers = cleanAIOutput($wrongAnswers);
                 [$wrong1, $wrong2, $wrong3] = array_pad($wrongAnswers, 3, '');
                 $stmt = $conn->prepare("INSERT INTO `$quizTable` (question, correct_answer, wrong1, wrong2, wrong3, source_lang, target_lang) VALUES (?, ?, ?, ?, ?, ?, ?)");
                 $stmt->bind_param("sssssss", $question, $correct, $wrong1, $wrong2, $wrong3, $autoSourceLang, $autoTargetLang);
