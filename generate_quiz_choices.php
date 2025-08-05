@@ -30,6 +30,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_table'])) {
             $stmt->execute();
             $stmt->close();
         }
+        ob_clean();
         header("Location: generate_quiz_choices.php?table=" . urlencode($saveTable) . "&saved=1");
         exit;
     }
