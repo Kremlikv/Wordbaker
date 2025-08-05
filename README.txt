@@ -89,3 +89,10 @@ CREATE TABLE
 Now user can create an empety table. Upload is a separate php. 
 In Edit.php you can delete the editable tables - and add new words.
 
+FILE EXPLORER
+We created a nicer file explorer.
+
+PIXABAY
+I got an API and now we can add images to the quiz.
+
+
