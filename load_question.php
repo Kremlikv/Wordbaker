@@ -1,10 +1,13 @@
 <?php
 
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
 // require_once 'session.php';
 require_once 'db.php';
 
-header("Content-Type: text/html; charset=UTF-8");
+// header("Content-Type: text/html; charset=UTF-8");
 
 if (!isset($_SESSION['questions'], $_SESSION['question_index'], $_SESSION['score'], $_SESSION['quiz_table'])) {
     echo "<p>❌ Session expired. Please restart the quiz.</p>";
