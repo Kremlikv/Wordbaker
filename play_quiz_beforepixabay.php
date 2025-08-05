@@ -26,16 +26,12 @@ while ($row = $result->fetch_array()) {
     }
 }
 
-$selectedTable = $_SESSION['quiz_table'] ?? '';
-$musicSrc = $_SESSION['bg_music'] ?? '';
-
 if (isset($_POST['start_new']) && !empty($_POST['quiz_table'])) {
     $_SESSION['mistakes'] = [];
     $_SESSION['quiz_table'] = $_POST['quiz_table'];
     $_SESSION['score'] = 0;
     $_SESSION['question_index'] = 0;
 
-    // Music choice
     $musicChoice = $_POST['bg_music_choice'] ?? '';
     $customURL = $_POST['custom_music_url'] ?? '';
     if ($musicChoice === 'custom' && filter_var($customURL, FILTER_VALIDATE_URL)) {
@@ -45,10 +41,8 @@ if (isset($_POST['start_new']) && !empty($_POST['quiz_table'])) {
     } else {
         $_SESSION['bg_music'] = '';
     }
-    $musicSrc = $_SESSION['bg_music'];
 
-    // Load questions immediately
-    $selectedTable = $_SESSION['quiz_table'];
+    $selectedTable = $_POST['quiz_table'];
     $res = $conn->query("SELECT * FROM `$selectedTable`");
     if (!$res) die("❌ Query failed: " . $conn->error);
 
@@ -67,37 +61,41 @@ if (isset($_POST['start_new']) && !empty($_POST['quiz_table'])) {
     if (empty($questions)) die("⚠️ No questions found in '$selectedTable'.");
     shuffle($questions);
     $_SESSION['questions'] = $questions;
-
-    // ✅ No redirect — first question is loaded right away
+    header("Location: play_quiz.php");
+    exit;
 }
 
+$selectedTable = $_SESSION['quiz_table'] ?? '';
+$musicSrc = $_SESSION['bg_music'] ?? '';
 include 'styling.php';
+
+echo "<div class='content'>";
+echo "👤 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Logout</a>";
+echo "</div>";
+
 ?>
+
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="UTF-8">
-<title>Play Quiz</title>
-<style>
-    body { font-family: sans-serif; text-align: center; padding: 0px; }
-    .question-box { font-size: 1.5em; margin-bottom: 20px; }
-    .answer-grid { display: flex; flex-wrap: wrap; justify-content: center; max-width: 600px; margin: auto; }
-    .answer-col { flex: 0 0 50%; padding: 10px; }
-    .answer-btn { width: 100%; padding: 20px; font-size: 1.1em; cursor: pointer; border: none; border-radius: 10px; background-color: #eee; transition: 0.3s; }
-    .answer-btn:hover { background-color: #ddd; }
-    .feedback { font-size: 1.2em; margin-top: 20px; }
-    .score { margin-bottom: 10px; font-weight: bold; }
-    .image-container { margin: 20px auto; }
-    img.question-image { max-width: 80%; max-height: 300px; }
-    select, button, input[type="url"] { padding: 10px; font-size: 1em; }
-    #timer { font-size: 1.3em; color: darkred; margin: 10px; }
-</style>
+    <meta charset="UTF-8">
+    <title>Play Quiz</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; padding: 0px; }
+        .question-box { font-size: 1.5em; margin-bottom: 20px; }
+        .answer-grid { display: flex; flex-wrap: wrap; justify-content: center; max-width: 600px; margin: auto; }
+        .answer-col { flex: 0 0 50%; padding: 10px; }
+        .answer-btn { width: 100%; padding: 20px; font-size: 1.1em; cursor: pointer; border: none; border-radius: 10px; background-color: #eee; transition: 0.3s; }
+        .answer-btn:hover { background-color: #ddd; }
+        .feedback { font-size: 1.2em; margin-top: 20px; }
+        .score { margin-bottom: 10px; font-weight: bold; }
+        .image-container { margin: 20px auto; }
+        img.question-image { max-width: 80%; max-height: 300px; }
+        select, button, input[type="url"] { padding: 10px; font-size: 1em; }
+        #timer { font-size: 1.3em; color: darkred; margin: 10px; }
+    </style>
 </head>
 <body>
-
-<div class="content">
-    👤 Logged in as <?= htmlspecialchars($_SESSION['username']) ?> | <a href='logout.php'>Logout</a>
-</div>
 
 <audio id="bgMusic" loop>
     <source id="bgMusicSource" src="<?= htmlspecialchars($musicSrc) ?>" type="audio/mpeg">
@@ -141,12 +139,9 @@ include 'styling.php';
 
 <hr>
 
-<?php
-// Show first question immediately if we have questions loaded
-if (!empty($_SESSION['questions'])) {
-    include 'load_question.php';
-}
-?>
+<?php if ($selectedTable): ?>
+    <div id="quizBox"></div>
+<?php endif; ?>
 
 <script>
 let countdown;
@@ -218,6 +213,15 @@ function submitAnswer(btn) {
     });
 }
 
+function loadNextQuestion() {
+    fetch("load_question.php")
+        .then(res => res.text())
+        .then(html => {
+            document.getElementById("quizBox").innerHTML = html;
+            startTimer();
+        });
+}
+
 document.addEventListener("DOMContentLoaded", function () {
     const music = document.getElementById("bgMusic");
     const source = document.getElementById("bgMusicSource");
@@ -234,6 +238,10 @@ document.addEventListener("DOMContentLoaded", function () {
     setInterval(() => {
         localStorage.setItem("quiz_music_time", music.currentTime);
     }, 1000);
+
+    if (<?= json_encode((bool)$selectedTable) ?>) { 
+        loadNextQuestion();
+    }
 });
 </script>
 
