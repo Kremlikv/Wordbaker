@@ -29,22 +29,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_table'])) {
             $stmt->execute();
             $stmt->close();
         }
-        ob_clean();
         header("Location: generate_quiz_choices.php?table=" . urlencode($saveTable) . "&saved=1");
         exit;
     }
 }
 
-include 'styling.php';
+/* --- Delete quiz and images --- */
+if (isset($_POST['delete_quiz']) && !empty($_POST['delete_table'])) {
+    $delTable = $conn->real_escape_string($_POST['delete_table']);
+    $res = $conn->query("SELECT image_url FROM `$delTable` WHERE image_url LIKE 'uploads/quiz_images/%'");
+    while ($row = $res->fetch_assoc()) {
+        $filePath = __DIR__ . '/' . $row['image_url'];
+        if (file_exists($filePath)) unlink($filePath);
+    }
+    $conn->query("DROP TABLE IF EXISTS `$delTable`");
+    header("Location: generate_quiz_choices.php");
+    exit;
+}
 
-/* --- Check if quiz table exists --- */
+/* --- Functions --- */
 function quizTableExists($conn, $table) {
     $quizTable = "quiz_choices_" . $table;
     $result = $conn->query("SHOW TABLES LIKE '" . $conn->real_escape_string($quizTable) . "'");
     return $result && $result->num_rows > 0;
 }
 
-/* --- Get folders & tables --- */
 function getUserFoldersAndTables($conn, $username) {
     $allTables = [];
     $result = $conn->query("SHOW TABLES");
@@ -70,35 +79,6 @@ function getUserFoldersAndTables($conn, $username) {
     return $allTables;
 }
 
-$username = strtolower($_SESSION['username'] ?? '');
-$conn->set_charset("utf8mb4");
-$folders = getUserFoldersAndTables($conn, $username);
-$folders['Shared'][] = ['table_name' => 'difficult_words', 'display_name' => 'Difficult Words'];
-$folders['Shared'][] = ['table_name' => 'mastered_words', 'display_name' => 'Mastered Words'];
-
-$folderData = [];
-foreach ($folders as $folder => $tableList) {
-    foreach ($tableList as $entry) {
-        $folderData[$folder][] = [
-            'table' => $entry['table_name'],
-            'display' => $entry['display_name'] 
-        ];
-    }
-}
-
-$selectedTable = $_POST['table'] ?? $_GET['table'] ?? '';
-$autoSourceLang = '';
-$autoTargetLang = '';
-if (!empty($selectedTable)) {
-    $columnsRes = $conn->query("SHOW COLUMNS FROM `$selectedTable`");
-    if ($columnsRes && $columnsRes->num_rows >= 2) {
-        $cols = $columnsRes->fetch_all(MYSQLI_ASSOC);
-        $autoSourceLang = ucfirst($cols[0]['Field']);
-        $autoTargetLang = ucfirst($cols[1]['Field']);
-    }
-}
-
-/* --- AI call --- */
 function callOpenRouter($apiKey, $model, $czechWord, $correctAnswer, $targetLang, $referer, $appTitle) {
     $prompt = <<<EOT
     Create three different usual mistakes (wrong1, wrong2, wrong3) that a human student may make when translating $czechWord into $targetLang: $correctAnswer. 
@@ -149,17 +129,23 @@ function cleanAIOutput($answers) {
     }, $answers);
 }
 
-/* --- Delete quiz and images --- */
-if (isset($_POST['delete_quiz']) && !empty($_POST['delete_table'])) {
-    $delTable = $conn->real_escape_string($_POST['delete_table']);
-    $res = $conn->query("SELECT image_url FROM `$delTable` WHERE image_url LIKE 'uploads/quiz_images/%'");
-    while ($row = $res->fetch_assoc()) {
-        $filePath = __DIR__ . '/' . $row['image_url'];
-        if (file_exists($filePath)) unlink($filePath);
+/* --- Main variables --- */
+$username = strtolower($_SESSION['username'] ?? '');
+$conn->set_charset("utf8mb4");
+$folders = getUserFoldersAndTables($conn, $username);
+$folders['Shared'][] = ['table_name' => 'difficult_words', 'display_name' => 'Difficult Words'];
+$folders['Shared'][] = ['table_name' => 'mastered_words', 'display_name' => 'Mastered Words'];
+
+$selectedTable = $_POST['table'] ?? $_GET['table'] ?? '';
+$autoSourceLang = '';
+$autoTargetLang = '';
+if (!empty($selectedTable)) {
+    $columnsRes = $conn->query("SHOW COLUMNS FROM `$selectedTable`");
+    if ($columnsRes && $columnsRes->num_rows >= 2) {
+        $cols = $columnsRes->fetch_all(MYSQLI_ASSOC);
+        $autoSourceLang = ucfirst($cols[0]['Field']);
+        $autoTargetLang = ucfirst($cols[1]['Field']);
     }
-    $conn->query("DROP TABLE IF EXISTS `$delTable`");
-    header("Location: generate_quiz_choices.php");
-    exit;
 }
 
 /* --- Generate quiz if not exists --- */
@@ -186,7 +172,7 @@ if (!empty($selectedTable)) {
                 $question = trim($row[$col1]);
                 $correct = trim($row[$col2]);
                 if ($question === '' || $correct === '') continue;
-                $wrongAnswers = callOpenRouter($apiKey, $model, $question, $correct, $autoTargetLang, $OPENROUTER_REFERER, $APP_TITLE) ?: naiveWrongAnswers($correct);
+                $wrongAnswers = callOpenRouter($OPENROUTER_API_KEY, $OPENROUTER_MODEL, $question, $correct, $autoTargetLang, $OPENROUTER_REFERER, $APP_TITLE) ?: naiveWrongAnswers($correct);
                 $wrongAnswers = cleanAIOutput($wrongAnswers);
                 [$wrong1, $wrong2, $wrong3] = array_pad($wrongAnswers, 3, '');
                 $stmt = $conn->prepare("INSERT INTO `$quizTable` (question, correct_answer, wrong1, wrong2, wrong3, source_lang, target_lang) VALUES (?, ?, ?, ?, ?, ?, ?)");
@@ -200,6 +186,7 @@ if (!empty($selectedTable)) {
 }
 
 /* --- Output --- */
+include 'styling.php';
 echo "<div class='content'>👤 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Logout</a></div>";
 echo "<h2 style='text-align:center;'>Generate AI Quiz Choices</h2>";
 include 'file_explorer.php';
@@ -209,7 +196,7 @@ if (!empty($generatedTable)) {
         echo "<div style='color:green; text-align:center; font-weight:bold;'>✅ Table saved successfully</div>";
     }
     echo "<h3 style='text-align:center;'>📜 Edit Generated Quiz: <code>$generatedTable</code></h3>";
-    echo "<form id='quizForm' method='POST' style='text-align:center;'>
+    echo "<form method='POST' style='text-align:center;'>
             <input type='hidden' name='save_table' value='" . htmlspecialchars($generatedTable) . "'>
             <table border='1' cellpadding='5' cellspacing='0' style='margin:auto;'>
                 <tr><th>Czech</th><th>Correct</th><th>Wrong 1</th><th>Wrong 2</th><th>Wrong 3</th><th>Delete</th></tr>";
@@ -243,7 +230,6 @@ if (!empty($generatedTable)) {
 document.addEventListener("DOMContentLoaded", () => {
     document.querySelectorAll("textarea").forEach(el => autoResize(el));
 });
-
 function autoResize(el) {
     el.style.height = "auto";
     el.style.height = (el.scrollHeight) + "px";
