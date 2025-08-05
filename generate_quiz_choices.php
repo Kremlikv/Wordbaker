@@ -49,10 +49,12 @@ if (isset($_POST['delete_quiz']) && !empty($_POST['delete_table'])) {
 
 /* --- Functions --- */
 function quizTableExists($conn, $table) {
-    $quizTable = "quiz_choices_" . $table;
+    // Don't double-prefix
+    $quizTable = (strpos($table, 'quiz_choices_') === 0) ? $table : "quiz_choices_" . $table;
     $result = $conn->query("SHOW TABLES LIKE '" . $conn->real_escape_string($quizTable) . "'");
     return $result && $result->num_rows > 0;
 }
+
 
 function getUserFoldersAndTables($conn, $username) {
     $allTables = [];
