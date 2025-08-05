@@ -6,19 +6,6 @@ error_reporting(E_ALL);
 require_once 'db.php';
 require_once 'session.php';
 
-// ✅ Wipe clean ONLY when first visiting the page (GET), not on Start Quiz
-if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-    unset(
-        $_SESSION['score'],
-        $_SESSION['question_index'],
-        $_SESSION['questions'],
-        $_SESSION['quiz_table'],
-        $_SESSION['bg_music'],
-        $_SESSION['mistakes'],
-        $_SESSION['feedback']
-    );
-}
-
 // 📂 Get available quiz tables
 $quizTables = [];
 $result = $conn->query("SHOW TABLES");
@@ -31,7 +18,22 @@ while ($row = $result->fetch_array()) {
 $selectedTable = $_SESSION['quiz_table'] ?? '';
 $musicSrc = $_SESSION['bg_music'] ?? '';
 
-// 🚀 Start Quiz (POST)
+// 🧹 Clean slate if button pressed
+if (isset($_POST['clean_slate'])) {
+    unset(
+        $_SESSION['score'],
+        $_SESSION['question_index'],
+        $_SESSION['questions'],
+        $_SESSION['quiz_table'],
+        $_SESSION['bg_music'],
+        $_SESSION['mistakes'],
+        $_SESSION['feedback']
+    );
+    header("Location: play_quiz.php");
+    exit;
+}
+
+// 🚀 Start Quiz
 if (isset($_POST['start_new']) && !empty($_POST['quiz_table'])) {
     $_SESSION['quiz_table'] = $_POST['quiz_table'];
     $_SESSION['score'] = 0;
@@ -74,7 +76,7 @@ if (isset($_POST['start_new']) && !empty($_POST['quiz_table'])) {
     shuffle($questions);
     $_SESSION['questions'] = $questions;
 
-    // Refresh to load quiz without resubmitting POST
+    // Refresh to avoid form resubmission
     header("Location: play_quiz.php");
     exit;
 }
@@ -114,7 +116,7 @@ include 'styling.php';
 
 <h1>🎯 Kahoot-style Quiz</h1>
 
-<form method="POST">
+<form method="POST" style="display:inline-block;">
     <label>Select background music:</label><br><br>
     <?php $currentMusic = $_SESSION['bg_music'] ?? ''; ?>
     <select name="bg_music_choice" onchange="toggleCustomMusic(this.value)">
@@ -129,12 +131,6 @@ include 'styling.php';
         <input type="url" name="custom_music_url" placeholder="Paste full MP3 URL" style="width: 60%;" value="<?= htmlspecialchars($currentMusic) ?>">
     </div>
 
-    <div style='margin-bottom: 20px;'>
-        <button type="button" onclick="previewMusic()">🎧 Preview</button>
-        <button type="button" onclick="toggleMusic()">▶️/⏸️ Toggle Music</button>
-        <audio id="previewPlayer" controls style="display:none; margin-top: 10px;"></audio>
-    </div>
-
     <label>Select quiz set:</label><br><br>
     <select name="quiz_table" required>
         <option value="">-- Choose a quiz_choices_* table --</option>
@@ -143,8 +139,13 @@ include 'styling.php';
                 <?= htmlspecialchars($table) ?>
             </option>
         <?php endforeach; ?>
-    </select>
+    </select><br><br>
+
     <button type="submit" name="start_new" id="startQuizBtn">Start Quiz</button>
+</form>
+
+<form method="POST" style="display:inline-block; margin-left:10px;">
+    <button type="submit" name="clean_slate" style="background-color:#ff4444; color:white;">🧹 Clean Slate</button>
 </form>
 
 <hr>
