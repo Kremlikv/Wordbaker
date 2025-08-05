@@ -1,8 +1,7 @@
 <?php
-
 session_start();
-// require_once 'session.php';
 require_once 'db.php';
+require_once 'session.php';
 
 header("Content-Type: text/html; charset=UTF-8");
 
