@@ -266,8 +266,10 @@ function saveQuiz() {
             showMessage("✅ Table saved successfully");
 
             // Remove rows that were ticked for deletion
-            document.querySelectorAll('input[name="delete_rows[]"]:checked').forEach(chk => {
-                chk.closest('tr').remove();
+            const deleteCheckboxes = document.querySelectorAll('input[name="delete_rows[]"]:checked');
+            deleteCheckboxes.forEach(function(chk) {
+                let row = chk.parentNode.parentNode; // move up to <tr>
+                row.parentNode.removeChild(row);
             });
 
         } else {
@@ -278,6 +280,7 @@ function saveQuiz() {
         showMessage("❌ Error saving");
     });
 }
+
 
 
 function goToAddPictures() {
