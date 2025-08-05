@@ -102,52 +102,17 @@ if (!empty($selectedTable)) {
 function callOpenRouter($apiKey, $model, $czechWord, $correctAnswer, $targetLang, $referer, $appTitle) {
     $prompt = <<<EOT
 
-        You are a professional language teacher creating multiple-choice vocabulary quizzes.
-
-        For the given Czech word and its correct translation in $targetLang:
-
-        1. Generate exactly 3 plausible but incorrect translations.
-        2.They should be *realistic learner mistakes* for this target language.
-        3. Vary the types of mistakes: article/gender confusion, false friends, near homophones, spelling errors, wrong diacritic marks, similar but incorrect verb form, wrong plural/singular, etc.
-        4. Typical human mistakes include mistaking two things that have something in common, have the same word-root, similar function, similar spelling.
-        5. Ensure they are believable to a human learner of this language.
-
-        6. Do not repeat the correct translation.
-        7. Do not produce nonsense strings, reversed words, or palindromes.
-        8. Do not give answers that are obviously unrelated in meaning.
-        9. Do not mix multiple languages in one answer.
-
-        10. Keep spelling and diacritics accurate to the target language.
-        11. Avoid giving hints that reveal the correct answer.
-        12. Make all answers roughly the same length and format (e.g., if the correct answer is lowercase, keep the wrong ones lowercase).
-        13. Avoid enclosing answers in quotes or numbering them.
-        14. Do not explain the mistakes.
-
-        Example 1:
-
-        Czech: "kostel"
-        Correct translation: "die Kirche"
-
-        Wrong Answers:
-        das Kirche       ← article confusion
-        die Kirh        ← spelling error
-        die Kirsche      ← a differnt word with similar spelling
-        das Kloster      ← a building with similar function    
-
-        Example 2
-
-        Czech: "stůl"
-        Correct translation: "der Tisch
-
-        Wrong answers:
-        der Stuhl   ←  false friends
-
-        ---
-
-        Czech: "$czechWord"
-        Correct translation: "$correctAnswer"
-
-        Wrong Answers:
+        Imagine that you are a beginner student of languages who makes mistakes.
+        You are given a Czech phrase and its correct translation in $targetLang.
+        Your task is to create three incorrect translations of the same Czech phrase.
+        It must be believable that these mistakes were made by a human.
+        
+        Vary the types of mistakes: article/gender confusion, false friends, near homophones, spelling errors, wrong diacritic marks, similar but incorrect verb form, wrong plural/singular, etc.
+        You can confuse two things that have something in common: have the same word-root (Aufgang, Ausgang), similar function (Car, Van), similar spelling (lie, lay).
+        Do not produce nonsense strings, reversed words, or palindromes. 
+        Avoid enclosing answers in quotes or numbering them.
+        Do not explain the mistakes, do not add parentheses.     
+   
         EOT;
 
 
