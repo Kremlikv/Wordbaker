@@ -95,4 +95,5 @@ We created a nicer file explorer.
 PIXABAY
 I got an API and now we can add images to the quiz.
 
-
+AI PROMPT
+The AI which generates quiz answers needs a lot of prompting in order not to generate nonsense.

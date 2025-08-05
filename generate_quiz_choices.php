@@ -100,27 +100,32 @@ if (!empty($selectedTable)) {
 
 /* --- AI call --- */
 function callOpenRouter($apiKey, $model, $czechWord, $correctAnswer, $targetLang, $referer, $appTitle) {
+
     $prompt = <<<EOT
+    Imagine that you are a beginner student of languages who makes mistakes.
+    You are given a Czech phrase and its correct translation in $targetLang.
+    Your task is to create three incorrect translations of the same Czech phrase.
+    It must be believable that these mistakes were made by a human.
 
-        Imagine that you are a beginner student of languages who makes mistakes.
-        You are given a Czech phrase and its correct translation in $targetLang.
-        Your task is to create three incorrect translations of the same Czech phrase.
-        It must be believable that these mistakes were made by a human.
-        
-        Vary the types of mistakes: article/gender confusion, false friends, near homophones, spelling errors, wrong diacritic marks, similar but incorrect verb form, wrong plural/singular, etc.
-        You can confuse two things that have something in common: have the same word-root (Aufgang, Ausgang), similar function (Car, Van), similar spelling (lie, lay).
-        Do not produce nonsense strings, reversed words, or palindromes. 
-        Avoid enclosing answers in quotes or numbering them.
-        Do not explain the mistakes, do not add parentheses.     
-   
-        EOT;
+    Vary the types of mistakes: article/gender confusion, false friends, near homophones, spelling errors, wrong diacritic marks, similar but incorrect verb form, wrong plural/singular, etc.
+    You can confuse two things that have something in common: have the same word-root (Aufgang, Ausgang), similar function (Car, Van), similar spelling (lie, lay).
+    Do not produce nonsense strings, reversed words, or palindromes. 
+    Avoid enclosing answers in quotes or numbering them.
+    Do not explain the mistakes, do not add parentheses.
 
+    Czech phrase: $czechWord
+    Correct translation in $targetLang: $correctAnswer
+    EOT;
 
 
     $data = [
         "model" => $model,
-        "messages" => [[ "role" => "user", "content" => [["type" => "text", "text" => $prompt]] ]]
-    ];
+        "messages" => [[
+            "role" => "user",
+            "content" => $prompt
+            ]] 
+        ];
+   
 
     $ch = curl_init("https://openrouter.ai/api/v1/chat/completions");
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
