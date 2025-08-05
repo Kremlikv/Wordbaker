@@ -112,6 +112,9 @@ include 'file_explorer.php';
 
 echo "<br><br>";
 
+echo "<a href='generate_mp3_google_ssml.php'><button>🎧 Create MP3</button></a> ";
+
+
 // Table editing logic
 if (!empty($selectedFullTable) && $res !== false) {
     echo "<h3>Selected Table: " . htmlspecialchars($selectedFullTable) . "</h3>";
@@ -165,8 +168,6 @@ if (!empty($selectedFullTable) && $res !== false) {
         echo "</table><br><em>This table is read-only.</em><br><br>";
     }
 }
-
-echo "<a href='generate_mp3_google_ssml.php'><button>🎧 Create MP3</button></a> ";
 
 echo "</div>";
 
