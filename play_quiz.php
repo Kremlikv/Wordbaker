@@ -3,8 +3,8 @@ session_start();
 ini_set('display_errors', 1);
 error_reporting(E_ALL);
 
-// 🧹 Always wipe old game state unless starting a new one right now
-if (!isset($_POST['start_new'])) {
+// Only wipe if first load of page (GET), not when starting quiz
+if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     unset(
         $_SESSION['score'],
         $_SESSION['question_index'],
@@ -18,6 +18,8 @@ if (!isset($_POST['start_new'])) {
 
 require_once 'db.php';
 require_once 'session.php';
+
+
 
 // 📂 Get available quiz tables
 $quizTables = [];
