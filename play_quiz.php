@@ -131,6 +131,13 @@ include 'styling.php';
         <input type="url" name="custom_music_url" placeholder="Paste full MP3 URL" style="width: 60%;" value="<?= htmlspecialchars($currentMusic) ?>">
     </div>
 
+    <!-- 🎧 Preview & ▶️/⏸️ Toggle Music Buttons -->
+    <div style='margin-bottom: 20px;'>
+        <button type="button" onclick="previewMusic()">🎧 Preview</button>
+        <button type="button" onclick="toggleMusic()">▶️/⏸️ Toggle Music</button>
+        <audio id="previewPlayer" controls style="display:none; margin-top: 10px;"></audio>
+    </div>
+
     <label>Select quiz set:</label><br><br>
     <select name="quiz_table" required>
         <option value="">-- Choose a quiz_choices_* table --</option>
