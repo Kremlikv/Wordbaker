@@ -3,21 +3,23 @@ session_start();
 ini_set('display_errors', 1);
 error_reporting(E_ALL);
 
-// ✅ Always start with a clean slate when the page loads
-unset(
-    $_SESSION['score'],
-    $_SESSION['question_index'],
-    $_SESSION['questions'],
-    $_SESSION['quiz_table'],
-    $_SESSION['bg_music'],
-    $_SESSION['mistakes'],
-    $_SESSION['feedback']
-);
-
 require_once 'db.php';
 require_once 'session.php';
 
-// 📂 Get quiz tables
+// ✅ Wipe clean ONLY when first visiting the page (GET), not on Start Quiz
+if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+    unset(
+        $_SESSION['score'],
+        $_SESSION['question_index'],
+        $_SESSION['questions'],
+        $_SESSION['quiz_table'],
+        $_SESSION['bg_music'],
+        $_SESSION['mistakes'],
+        $_SESSION['feedback']
+    );
+}
+
+// 📂 Get available quiz tables
 $quizTables = [];
 $result = $conn->query("SHOW TABLES");
 while ($row = $result->fetch_array()) {
@@ -26,17 +28,17 @@ while ($row = $result->fetch_array()) {
     }
 }
 
-$musicSrc = '';
-$selectedTable = '';
+$selectedTable = $_SESSION['quiz_table'] ?? '';
+$musicSrc = $_SESSION['bg_music'] ?? '';
 
-// 🚀 Start Quiz
+// 🚀 Start Quiz (POST)
 if (isset($_POST['start_new']) && !empty($_POST['quiz_table'])) {
     $_SESSION['quiz_table'] = $_POST['quiz_table'];
     $_SESSION['score'] = 0;
     $_SESSION['question_index'] = 0;
     $_SESSION['mistakes'] = [];
 
-    // Music choice
+    // 🎵 Music choice
     $musicChoice = $_POST['bg_music_choice'] ?? '';
     $customURL   = $_POST['custom_music_url'] ?? '';
     if ($musicChoice === 'custom' && filter_var($customURL, FILTER_VALIDATE_URL)) {
@@ -48,7 +50,7 @@ if (isset($_POST['start_new']) && !empty($_POST['quiz_table'])) {
     }
     $musicSrc = $_SESSION['bg_music'];
 
-    // Load questions from DB
+    // 📥 Load questions
     $selectedTable = $_POST['quiz_table'];
     $res = $conn->query("SELECT question, correct_answer, wrong1, wrong2, wrong3, image_url FROM `$selectedTable`");
     if (!$res) die("❌ Query failed: " . $conn->error);
@@ -65,10 +67,14 @@ if (isset($_POST['start_new']) && !empty($_POST['quiz_table'])) {
         ];
     }
 
-    if (empty($questions)) die("⚠️ No questions found in '$selectedTable'.");
+    if (empty($questions)) {
+        die("⚠️ No questions found in '$selectedTable'.");
+    }
+
     shuffle($questions);
     $_SESSION['questions'] = $questions;
 
+    // Refresh to load quiz without resubmitting POST
     header("Location: play_quiz.php");
     exit;
 }
@@ -110,16 +116,17 @@ include 'styling.php';
 
 <form method="POST">
     <label>Select background music:</label><br><br>
+    <?php $currentMusic = $_SESSION['bg_music'] ?? ''; ?>
     <select name="bg_music_choice" onchange="toggleCustomMusic(this.value)">
-        <option value="">🔇 OFF</option>
-        <option value="track1.mp3">🎸 Track 1</option>
-        <option value="track2.mp3">🎹 Track 2</option>
-        <option value="track3.mp3">🥁 Track 3</option>
-        <option value="custom">🌐 Use custom music URL</option>
+        <option value="" <?= $currentMusic === '' ? 'selected' : '' ?>>🔇 OFF</option>
+        <option value="track1.mp3" <?= $currentMusic === 'track1.mp3' ? 'selected' : '' ?>>🎸 Track 1</option>
+        <option value="track2.mp3" <?= $currentMusic === 'track2.mp3' ? 'selected' : '' ?>>🎹 Track 2</option>
+        <option value="track3.mp3" <?= $currentMusic === 'track3.mp3' ? 'selected' : '' ?>>🥁 Track 3</option>
+        <option value="custom" <?= filter_var($currentMusic, FILTER_VALIDATE_URL) ? 'selected' : '' ?>>🌐 Use custom music URL</option>
     </select><br><br>
 
-    <div id="customMusicInput" style="display:none;">
-        <input type="url" name="custom_music_url" placeholder="Paste full MP3 URL" style="width: 60%;">
+    <div id="customMusicInput" style="<?= filter_var($currentMusic, FILTER_VALIDATE_URL) ? 'display:block;' : 'display:none;' ?>">
+        <input type="url" name="custom_music_url" placeholder="Paste full MP3 URL" style="width: 60%;" value="<?= htmlspecialchars($currentMusic) ?>">
     </div>
 
     <div style='margin-bottom: 20px;'>
@@ -132,10 +139,12 @@ include 'styling.php';
     <select name="quiz_table" required>
         <option value="">-- Choose a quiz_choices_* table --</option>
         <?php foreach ($quizTables as $table): ?>
-            <option value="<?= htmlspecialchars($table) ?>"><?= htmlspecialchars($table) ?></option>
+            <option value="<?= htmlspecialchars($table) ?>" <?= ($selectedTable === $table) ? 'selected' : '' ?>>
+                <?= htmlspecialchars($table) ?>
+            </option>
         <?php endforeach; ?>
     </select>
-    <button type="submit" name="start_new">Start Quiz</button>
+    <button type="submit" name="start_new" id="startQuizBtn">Start Quiz</button>
 </form>
 
 <hr>
