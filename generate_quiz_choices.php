@@ -113,7 +113,7 @@ function callOpenRouter($apiKey, $model, $czechWord, $correctAnswer, $targetLang
         5. Ensure they are believable to a human learner of this language.
 
         6. Do not repeat the correct translation.
-        7. Dp mpt produce nonsense strings, reversed words, or palindromes.
+        7. Do not produce nonsense strings, reversed words, or palindromes.
         8. Do not give answers that are obviously unrelated in meaning.
         9. Do not mix multiple languages in one answer.
 
