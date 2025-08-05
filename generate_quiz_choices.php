@@ -34,7 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax_save']) && $_POS
     } else {
         echo "ERROR: No table specified";
     }
-    exit; // stop here so page doesn't reload
+    exit; // Stop here so no HTML is sent
 }
 
 /* --- Check if quiz table exists --- */
@@ -192,7 +192,7 @@ if (!empty($generatedTable)) {
     $res = $conn->query("SELECT * FROM `$generatedTable`");
     echo "<h3 style='text-align:center;'>📜 Edit Generated Quiz: <code>$generatedTable</code></h3>";
     echo "<form id='quizForm' method='POST' style='text-align:center;'>
-            <input type='hidden' name='save_table' value='" . htmlspecialchars($generatedTable) . "'>
+            <input type='hidden' name='save_table' id='save_table' value='" . htmlspecialchars($generatedTable) . "'>
             <input type='hidden' name='ajax_save' value='1'>
             <table border='1' cellpadding='5' cellspacing='0' style='margin:auto;'>
                 <tr><th>Czech</th><th>Correct</th><th>Wrong 1</th><th>Wrong 2</th><th>Wrong 3</th><th>Delete</th></tr>";
@@ -210,11 +210,11 @@ if (!empty($generatedTable)) {
     echo "</table><br>
           <button type='button' onclick='saveQuiz()'>📂 Save Changes</button>
           </form>
+
           <div style='text-align:center; margin-top:20px;'>
-            <a href='add_images.php?table=" . urlencode($generatedTable) . "'>
-                <button type='button'>🖼 Do you want to add pictures?</button>
-            </a>
+            <button type='button' onclick='goToAddPictures()'>🖼 Do you want to add pictures?</button>
           </div>
+
           <form method='POST' style='margin-top:20px; text-align:center;'>
             <input type='hidden' name='delete_table' value='" . htmlspecialchars($generatedTable) . "'>
             <button type='submit' name='delete_quiz' onclick='return confirm(\"Delete this quiz and all uploaded images?\")'>🗑 Delete Quiz</button>
@@ -222,13 +222,19 @@ if (!empty($generatedTable)) {
 }
 ?>
 <script>
+let quizTableName = '';
+document.addEventListener("DOMContentLoaded", () => {
+    document.querySelectorAll("textarea").forEach(el => autoResize(el));
+    const tableInput = document.getElementById('save_table');
+    if (tableInput) {
+        quizTableName = tableInput.value; // Store table name globally
+    }
+});
+
 function autoResize(el) {
     el.style.height = "auto";
     el.style.height = (el.scrollHeight) + "px";
 }
-document.addEventListener("DOMContentLoaded", () => {
-    document.querySelectorAll("textarea").forEach(el => autoResize(el));
-});
 
 function saveQuiz() {
     const form = document.getElementById('quizForm');
@@ -240,13 +246,28 @@ function saveQuiz() {
     .then(r => r.text())
     .then(resp => {
         if (resp.trim() === "OK") {
-            document.getElementById('saveMsg').textContent = "✅ File saved";
+            showMessage("✅ File saved");
         } else {
-            document.getElementById('saveMsg').textContent = "❌ " + resp;
+            showMessage("❌ " + resp);
         }
     })
     .catch(err => {
-        document.getElementById('saveMsg').textContent = "❌ Error saving";
+        showMessage("❌ Error saving");
     });
+}
+
+function goToAddPictures() {
+    if (quizTableName) {
+        window.location.href = 'add_images.php?table=' + encodeURIComponent(quizTableName);
+    } else {
+        alert("Error: No table name found.");
+    }
+}
+
+function showMessage(msg) {
+    const msgDiv = document.getElementById('saveMsg');
+    msgDiv.textContent = msg;
+    msgDiv.style.opacity = '1';
+    setTimeout(() => { msgDiv.style.opacity = '0'; }, 3000); // Fade after 3s
 }
 </script>
