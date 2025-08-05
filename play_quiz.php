@@ -101,6 +101,20 @@ include 'styling.php';
     img.question-image { max-width: 80%; max-height: 300px; }
     select, button, input[type="url"] { padding: 10px; font-size: 1em; }
     #timer { font-size: 1.3em; color: darkred; margin: 10px; }
+    .quiz-buttons { text-align: center; margin-top: 20px; }
+    .quiz-buttons button {
+        background-color: #4CAF50;
+        color: white;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 5px;
+        font-size: 1em;
+        cursor: pointer;
+        margin: 0 5px;
+    }
+    .quiz-buttons button:hover {
+        background-color: #45a049;
+    }
 </style>
 </head>
 <body>
@@ -148,11 +162,12 @@ include 'styling.php';
         <?php endforeach; ?>
     </select><br><br>
 
-    <button type="submit" name="start_new" id="startQuizBtn">Start Quiz</button>
+    <div class="quiz-buttons">
+        <button type="submit" name="start_new" id="startQuizBtn">▶️ Start Quiz</button>
 </form>
-
-<form method="POST" style="display:inline-block; margin-left:10px;">
-    <button type="submit" name="clean_slate" style="background-color:#ff4444; color:white;">🧹 Clean Slate</button>
+<form method="POST" style="display:inline-block;">
+        <button type="submit" name="clean_slate">🧹 Clean Slate</button>
+    </div>
 </form>
 
 <hr>
