@@ -58,8 +58,6 @@ foreach ($folders as $folder => $tableList) {
     }
 }
 
-
-
 $selectedTable = $_POST['table'] ?? $_GET['table'] ?? '';
 $autoSourceLang = '';
 $autoTargetLang = '';
@@ -108,45 +106,34 @@ function naiveWrongAnswers($correct) {
 }
 
 /* --- Save edits --- */
+$saveMsg = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_table'])) {
     $saveTable = trim($_POST['save_table']);
-    if (empty($saveTable)) {
-        die("Error: No table name provided for saving.");
-    }
-
-    $editedRows = $_POST['edited_rows'] ?? [];
-    $deleteRows = $_POST['delete_rows'] ?? [];
-    foreach ($editedRows as $id => $row) {
-        if (in_array($id, $deleteRows)) {
-            $conn->query("DELETE FROM `$saveTable` WHERE id=" . intval($id));
-            continue;
+    if (!empty($saveTable)) {
+        $editedRows = $_POST['edited_rows'] ?? [];
+        $deleteRows = $_POST['delete_rows'] ?? [];
+        foreach ($editedRows as $id => $row) {
+            if (in_array($id, $deleteRows)) {
+                $conn->query("DELETE FROM `$saveTable` WHERE id=" . intval($id));
+                continue;
+            }
+            $stmt = $conn->prepare("UPDATE `$saveTable` SET correct_answer=?, wrong1=?, wrong2=?, wrong3=? WHERE id=?");
+            $stmt->bind_param("ssssi", $row['correct'], $row['wrong1'], $row['wrong2'], $row['wrong3'], $id);
+            $stmt->execute();
+            $stmt->close();
         }
-        $stmt = $conn->prepare("UPDATE `$saveTable` SET correct_answer=?, wrong1=?, wrong2=?, wrong3=? WHERE id=?");
-        $stmt->bind_param("ssssi", $row['correct'], $row['wrong1'], $row['wrong2'], $row['wrong3'], $id);
-        $stmt->execute();
-        $stmt->close();
+        $saveMsg = "✅ File $saveTable saved successfully.";
     }
-
-    // Redirect to add_images.php with exact table name
-    header("Location: add_images.php?table=" . urlencode($saveTable) . "&msg=" . urlencode("✅ File $saveTable saved. Now select pictures."));
-    exit;
 }
-
 
 /* --- Delete quiz and images --- */
 if (isset($_POST['delete_quiz']) && !empty($_POST['delete_table'])) {
     $delTable = $conn->real_escape_string($_POST['delete_table']);
-
-    // Get all local image paths from this table
     $res = $conn->query("SELECT image_url FROM `$delTable` WHERE image_url LIKE 'uploads/quiz_images/%'");
     while ($row = $res->fetch_assoc()) {
         $filePath = __DIR__ . '/' . $row['image_url'];
-        if (file_exists($filePath)) {
-            unlink($filePath);
-        }
+        if (file_exists($filePath)) unlink($filePath);
     }
-
-    // Drop table
     $conn->query("DROP TABLE IF EXISTS `$delTable`");
     header("Location: generate_quiz_choices.php");
     exit;
@@ -161,7 +148,6 @@ if (!empty($selectedTable)) {
         if ($result && $result->num_rows > 0) {
             $col1 = $result->fetch_fields()[0]->name;
             $col2 = $result->fetch_fields()[1]->name;
-
             $conn->query("CREATE TABLE `$quizTable` (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 question TEXT,
@@ -173,7 +159,6 @@ if (!empty($selectedTable)) {
                 target_lang VARCHAR(50),
                 image_url TEXT
             )");
-
             while ($row = $result->fetch_assoc()) {
                 $question = trim($row[$col1]);
                 $correct = trim($row[$col2]);
@@ -196,6 +181,9 @@ echo "<h2 style='text-align:center;'>Generate AI Quiz Choices</h2>";
 include 'file_explorer.php';
 
 if (!empty($generatedTable)) {
+    if ($saveMsg) {
+        echo "<p style='color:green; text-align:center; font-weight:bold;'>$saveMsg</p>";
+    }
     $res = $conn->query("SELECT * FROM `$generatedTable`");
     echo "<h3 style='text-align:center;'>📜 Edit Generated Quiz: <code>$generatedTable</code></h3>";
     echo "<form method='POST' style='text-align:center;'>
@@ -214,8 +202,13 @@ if (!empty($generatedTable)) {
               </tr>";
     }
     echo "</table><br>
-          <button type='submit'>📂 Save Changes & Add Pictures</button>
+          <button type='submit'>📂 Save Changes</button>
           </form>
+          <div style='text-align:center; margin-top:20px;'>
+            <a href='add_images.php?table=" . urlencode($generatedTable) . "'>
+                <button type='button'>🖼 Do you want to add pictures?</button>
+            </a>
+          </div>
           <form method='POST' style='margin-top:20px; text-align:center;'>
             <input type='hidden' name='delete_table' value='" . htmlspecialchars($generatedTable) . "'>
             <button type='submit' name='delete_quiz' onclick='return confirm(\"Delete this quiz and all uploaded images?\")'>🗑 Delete Quiz</button>
