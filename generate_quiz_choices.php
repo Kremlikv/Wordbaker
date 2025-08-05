@@ -8,8 +8,7 @@ $OPENROUTER_MODEL = 'anthropic/claude-3-haiku';
 $OPENROUTER_REFERER = 'https://kremlik.byethost15.com';
 $APP_TITLE = 'KahootGenerator';
 $THROTTLE_SECONDS = 1;
-
-$PIXABAY_API_KEY = '51629627-a41f1d96812d8b351d3f25867'; // Insert your free Pixabay key
+$PIXABAY_API_KEY = '51629627-a41f1d96812d8b351d3f25867';
 
 /* --- Pixabay direct image search --- */
 function getImageFromPixabay($searchTerm, $pixabayKey) {
@@ -18,10 +17,7 @@ function getImageFromPixabay($searchTerm, $pixabayKey) {
     $json = @file_get_contents($url);
     if (!$json) return '';
     $data = json_decode($json, true);
-    if (!empty($data['hits'][0]['largeImageURL'])) {
-        return $data['hits'][0]['largeImageURL'];
-    }
-    return '';
+    return $data['hits'][0]['largeImageURL'] ?? '';
 }
 
 /* --- Wikimedia fallback --- */
@@ -93,44 +89,18 @@ if (!empty($selectedTable)) {
     }
 }
 
-/* --- AI + Pixabay + Wikimedia image --- */
+/* --- AI call --- */
 function callOpenRouter($apiKey, $model, $czechWord, $correctAnswer, $targetLang, $referer, $appTitle, $pixabayKey) {
     $prompt = <<<EOT
 You are a professional language teacher who creates multiple-choice vocabulary quizzes.
-
 For the given Czech word and its correct translation in $targetLang:
-
 1. Generate 3 plausible but incorrect translations (realistic learner mistakes).
-2. Suggest a URL to a royalty-free or public-domain image that illustrates the correct translation.
-
-Image rules:
-- Must be from public domain / CC0 / royalty-free sources.
-- Prefer Wikimedia Commons, Pixabay, Unsplash.
-- Direct link to image file (.jpg, .png, .webp).
-
-Example:
-
-Czech: "stůl"
-Correct translation: "der Tisch"
-Wrong Answers:
-1. die Tisch (article confusion)
-2. der Tasche (false friend)
-3. der Tich (spelling error)
-Image URL: https://upload.wikimedia.org/wikipedia/commons/3/3a/Wooden_table.jpg
-
----
-
-Czech: "$czechWord"
-Correct translation: "$correctAnswer"
-Wrong alternatives and image URL:
+2. Suggest a URL to a royalty-free or public-domain image.
 EOT;
 
     $data = [
         "model" => $model,
-        "messages" => [[
-            "role" => "user",
-            "content" => [["type" => "text", "text" => $prompt]]
-        ]]
+        "messages" => [[ "role" => "user", "content" => [["type" => "text", "text" => $prompt]] ]]
     ];
 
     $ch = curl_init("https://openrouter.ai/api/v1/chat/completions");
@@ -149,70 +119,30 @@ EOT;
     $output = $decoded['choices'][0]['message']['content'] ?? '';
 
     preg_match_all('/\d+\.?\s*(.*?)\s*(?:\\n|$)/', $output, $matches);
-    $wrongAnswers = array_map(function ($a) {
-        return trim(preg_replace('/\s*\([^)]*\)/', '', trim($a)), "*\"“”‘’' ");
-    }, $matches[1]);
+    $wrongAnswers = array_slice(array_map('trim', $matches[1]), 0, 3);
 
-    preg_match('/Image URL:\s*(https?:\/\/\S+\.(?:jpg|jpeg|png|webp))/i', $output, $imgMatch);
-    $imageUrl = $imgMatch[1] ?? '';
+    preg_match('/https?:\/\/\S+\.(jpg|jpeg|png|webp)/i', $output, $imgMatch);
+    $imageUrl = $imgMatch[0] ?? getImageFromPixabay($correctAnswer, $pixabayKey) ?: getWikimediaImage($correctAnswer);
 
-    $valid = false;
-    if (!empty($imageUrl)) {
-        $lower = strtolower($imageUrl);
-        $extOk = preg_match('/\.(jpg|jpeg|png|webp)$/', $lower);
-        $notBlocked = (strpos($lower, 'wikimedia.org') === false);
-        if ($extOk && $notBlocked) {
-            $valid = true;
-        }
-    }
-    if (!$valid) {
-        $imageUrl = getImageFromPixabay($correctAnswer, $pixabayKey);
-    }
-    if (empty($imageUrl)) {
-        $imageUrl = getWikimediaImage($correctAnswer);
-    }
-
-    return [
-        'wrongAnswers' => count($wrongAnswers) >= 3 ? array_slice($wrongAnswers, 0, 3) : [],
-        'imageUrl' => $imageUrl
-    ];
+    return ['wrongAnswers' => $wrongAnswers, 'imageUrl' => $imageUrl];
 }
 
 function naiveWrongAnswers($correct) {
     return [$correct . 'x', strrev($correct), substr($correct, 1) . substr($correct, 0, 1)];
 }
 
-/* --- Save edits with uploads --- */
+/* --- Save edits --- */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_table'])) {
     $saveTable = $conn->real_escape_string($_POST['save_table']);
     $editedRows = $_POST['edited_rows'] ?? [];
     $deleteRows = $_POST['delete_rows'] ?? [];
-
-    $uploadDir = __DIR__ . "/uploads/quiz_images/";
-    if (!is_dir($uploadDir)) mkdir($uploadDir, 0777, true);
-
     foreach ($editedRows as $id => $row) {
         if (in_array($id, $deleteRows)) {
             $conn->query("DELETE FROM `$saveTable` WHERE id=" . intval($id));
             continue;
         }
-
-        $imageUrl = trim($row['image_url']);
-
-        if (isset($_FILES['image_file']['name'][$id]) && $_FILES['image_file']['error'][$id] === UPLOAD_ERR_OK) {
-            $tmpName = $_FILES['image_file']['tmp_name'][$id];
-            $fileSize = $_FILES['image_file']['size'][$id];
-            $ext = strtolower(pathinfo($_FILES['image_file']['name'][$id], PATHINFO_EXTENSION));
-            if (in_array($ext, ['jpg', 'jpeg', 'png', 'webp']) && $fileSize <= 2 * 1024 * 1024) {
-                $newName = "quiz_" . intval($id) . "_" . uniqid() . "." . $ext;
-                if (move_uploaded_file($tmpName, $uploadDir . $newName)) {
-                    $imageUrl = "uploads/quiz_images/" . $newName;
-                }
-            }
-        }
-
-        $stmt = $conn->prepare("UPDATE `$saveTable` SET correct_answer=?, wrong1=?, wrong2=?, wrong3=?, image_url=? WHERE id=?");
-        $stmt->bind_param("sssssi", $row['correct'], $row['wrong1'], $row['wrong2'], $row['wrong3'], $imageUrl, $id);
+        $stmt = $conn->prepare("UPDATE `$saveTable` SET correct_answer=?, wrong1=?, wrong2=?, wrong3=? WHERE id=?");
+        $stmt->bind_param("ssssi", $row['correct'], $row['wrong1'], $row['wrong2'], $row['wrong3'], $id);
         $stmt->execute();
         $stmt->close();
     }
@@ -301,10 +231,10 @@ if (!empty($selectedTable) && !isset($_POST['generate_quiz'])) {
 if (!empty($generatedTable)) {
     $res = $conn->query("SELECT * FROM `$generatedTable`");
     echo "<h3 style='text-align:center;'>📜 Edit Generated Quiz: <code>$generatedTable</code></h3>";
-    echo "<form method='POST' enctype='multipart/form-data' style='text-align:center;'>
+    echo "<form method='POST' style='text-align:center;'>
             <input type='hidden' name='save_table' value='" . htmlspecialchars($generatedTable) . "'>
             <table border='1' cellpadding='5' cellspacing='0' style='margin:auto;'>
-                <tr><th>Czech</th><th>Correct</th><th>Wrong 1</th><th>Wrong 2</th><th>Wrong 3</th><th>Image</th><th>Upload File</th><th>Preview</th><th>Delete</th></tr>";
+                <tr><th>Czech</th><th>Correct</th><th>Wrong 1</th><th>Wrong 2</th><th>Wrong 3</th><th>Delete</th></tr>";
     while ($row = $res->fetch_assoc()) {
         $id = $row['id'];
         echo "<tr>
@@ -313,118 +243,23 @@ if (!empty($generatedTable)) {
                 <td><textarea name='edited_rows[$id][wrong1]' oninput='autoResize(this)'>" . htmlspecialchars($row['wrong1']) . "</textarea></td>
                 <td><textarea name='edited_rows[$id][wrong2]' oninput='autoResize(this)'>" . htmlspecialchars($row['wrong2']) . "</textarea></td>
                 <td><textarea name='edited_rows[$id][wrong3]' oninput='autoResize(this)'>" . htmlspecialchars($row['wrong3']) . "</textarea></td>
-                <td>
-                    <input type='hidden' name='edited_rows[$id][image_url]' id='image_url_$id' value='" . htmlspecialchars($row['image_url']) . "'>
-                    <button type='button' onclick='openPixabaySearch($id)'>Search Pixabay</button>
-                </td>
-                <td><input type='file' name='image_file[$id]'></td>
-                <td id='preview_$id'>" . (!empty($row['image_url']) ? "<img src='" . htmlspecialchars($row['image_url']) . "' style='max-height:50px;'>" : "") . "</td>
                 <td><input type='checkbox' name='delete_rows[]' value='" . intval($id) . "'></td>
               </tr>";
     }
     echo "</table><br><button type='submit'>📂 Save Changes</button></form><br>";
+    echo "<div style='text-align:center; margin-top:20px;'>
+            <a href='add_images.php?table=" . urlencode($generatedTable) . "'>
+                <button type='button'>🖼 Do you want to add pictures?</button>
+            </a>
+          </div>";
 }
 ?>
-<style>
-#pixabayModal {
-    display: none;
-    position: fixed;
-    z-index: 9999;
-    left: 0; top: 0;
-    width: 100%; height: 100%;
-    background-color: rgba(0,0,0,0.7);
-}
-#pixabayModalContent {
-    background: white;
-    margin: 5% auto;
-    padding: 20px;
-    width: 80%;
-    max-width: 800px;
-    border-radius: 8px;
-}
-#pixabayResults {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    gap: 10px;
-    margin-top: 10px;
-    max-height: 400px;
-    overflow-y: auto;
-}
-#pixabayResults img {
-    width: 100%;
-    height: auto;
-    cursor: pointer;
-    border: 2px solid transparent;
-    border-radius: 4px;
-    object-fit: cover;
-}
-#pixabayResults img:hover {
-    border: 2px solid blue;
-}
-@media (max-width: 600px) {
-    #pixabayModalContent {
-        width: 95%;
-        margin: 10% auto;
-    }
-    #pixabayResults {
-        grid-template-columns: repeat(2, 1fr);
-    }
-}
-</style>
-<div id="pixabayModal">
-    <div id="pixabayModalContent">
-        <h3>Search Pixabay</h3>
-        <input type="text" id="pixabaySearch" placeholder="Enter search term" style="width:70%;">
-        <button onclick="searchPixabay()">Search</button>
-        <div id="pixabayResults"></div>
-        <br>
-        <button onclick="closePixabayModal()">Close</button>
-    </div>
-</div>
 <script>
-let currentRowId = null;
-const PIXABAY_KEY = <?php echo json_encode($PIXABAY_API_KEY); ?>;
 function autoResize(el) {
     el.style.height = "auto";
     el.style.height = (el.scrollHeight) + "px";
 }
 document.addEventListener("DOMContentLoaded", function () {
-    document.querySelectorAll("textarea").forEach(el => {
-        autoResize(el);
-        el.addEventListener("input", () => autoResize(el));
-    });
+    document.querySelectorAll("textarea").forEach(el => autoResize(el));
 });
-function openPixabaySearch(rowId) {
-    currentRowId = rowId;
-    document.getElementById('pixabayModal').style.display = 'block';
-    document.getElementById('pixabayResults').innerHTML = '';
-    document.getElementById('pixabaySearch').value = '';
-}
-function closePixabayModal() {
-    document.getElementById('pixabayModal').style.display = 'none';
-}
-function searchPixabay() {
-    let term = document.getElementById('pixabaySearch').value.trim();
-    if (!term) return;
-    fetch(`https://pixabay.com/api/?key=${PIXABAY_KEY}&q=${encodeURIComponent(term)}&image_type=photo&per_page=12&safe_search=true`)
-        .then(res => res.json())
-        .then(data => {
-            let container = document.getElementById('pixabayResults');
-            container.innerHTML = '';
-            if (data.hits && data.hits.length > 0) {
-                data.hits.forEach(hit => {
-                    let img = document.createElement('img');
-                    img.src = hit.previewURL;
-                    img.onclick = function() {
-                        document.getElementById('image_url_' + currentRowId).value = hit.largeImageURL;
-                        document.getElementById('preview_' + currentRowId).innerHTML = `<img src="${hit.largeImageURL}" style="max-height:50px;">`;
-                        closePixabayModal();
-                    };
-                    container.appendChild(img);
-                });
-            } else {
-                container.innerHTML = '<p>No results found.</p>';
-            }
-        });
-}
 </script>
