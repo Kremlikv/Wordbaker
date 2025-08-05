@@ -8,31 +8,12 @@ $OPENROUTER_MODEL = 'anthropic/claude-3-haiku';
 $OPENROUTER_REFERER = 'https://kremlik.byethost15.com';
 $APP_TITLE = 'KahootGenerator';
 $THROTTLE_SECONDS = 1;
-$PIXABAY_API_KEY = '51629627-a41f1d96812d8b351d3f25867';
 
-/* --- Pixabay direct image search --- */
-function getImageFromPixabay($searchTerm, $pixabayKey) {
-    if (empty($pixabayKey)) return '';
-    $url = "https://pixabay.com/api/?key={$pixabayKey}&q=" . urlencode($searchTerm) . "&image_type=photo&per_page=3&safe_search=true";
-    $json = @file_get_contents($url);
-    if (!$json) return '';
-    $data = json_decode($json, true);
-    return $data['hits'][0]['largeImageURL'] ?? '';
-}
-
-/* --- Wikimedia fallback --- */
-function getWikimediaImage($searchTerm) {
-    $apiUrl = "https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrsearch=" . urlencode($searchTerm) . "&gsrlimit=1&prop=imageinfo&iiprop=url&format=json";
-    $json = @file_get_contents($apiUrl);
-    if (!$json) return '';
-    $data = json_decode($json, true);
-    if (!isset($data['query']['pages'])) return '';
-    foreach ($data['query']['pages'] as $page) {
-        if (isset($page['imageinfo'][0]['url'])) {
-            return $page['imageinfo'][0]['url'];
-        }
-    }
-    return '';
+/* --- Check if quiz table exists --- */
+function quizTableExists($conn, $table) {
+    $quizTable = "quiz_choices_" . $table;
+    $result = $conn->query("SHOW TABLES LIKE '" . $conn->real_escape_string($quizTable) . "'");
+    return $result && $result->num_rows > 0;
 }
 
 /* --- Get folders & tables --- */
@@ -67,16 +48,6 @@ $folders = getUserFoldersAndTables($conn, $username);
 $folders['Shared'][] = ['table_name' => 'difficult_words', 'display_name' => 'Difficult Words'];
 $folders['Shared'][] = ['table_name' => 'mastered_words', 'display_name' => 'Mastered Words'];
 
-$folderData = [];
-foreach ($folders as $folder => $tableList) {
-    foreach ($tableList as $entry) {
-        $folderData[$folder][] = [
-            'table' => $entry['table_name'],
-            'display' => $entry['display_name']
-        ];
-    }
-}
-
 $selectedTable = $_POST['table'] ?? $_GET['table'] ?? '';
 $autoSourceLang = '';
 $autoTargetLang = '';
@@ -90,12 +61,11 @@ if (!empty($selectedTable)) {
 }
 
 /* --- AI call --- */
-function callOpenRouter($apiKey, $model, $czechWord, $correctAnswer, $targetLang, $referer, $appTitle, $pixabayKey) {
+function callOpenRouter($apiKey, $model, $czechWord, $correctAnswer, $targetLang, $referer, $appTitle) {
     $prompt = <<<EOT
 You are a professional language teacher who creates multiple-choice vocabulary quizzes.
 For the given Czech word and its correct translation in $targetLang:
 1. Generate 3 plausible but incorrect translations (realistic learner mistakes).
-2. Suggest a URL to a royalty-free or public-domain image.
 EOT;
 
     $data = [
@@ -117,14 +87,8 @@ EOT;
 
     $decoded = json_decode($response, true);
     $output = $decoded['choices'][0]['message']['content'] ?? '';
-
     preg_match_all('/\d+\.?\s*(.*?)\s*(?:\\n|$)/', $output, $matches);
-    $wrongAnswers = array_slice(array_map('trim', $matches[1]), 0, 3);
-
-    preg_match('/https?:\/\/\S+\.(jpg|jpeg|png|webp)/i', $output, $imgMatch);
-    $imageUrl = $imgMatch[0] ?? getImageFromPixabay($correctAnswer, $pixabayKey) ?: getWikimediaImage($correctAnswer);
-
-    return ['wrongAnswers' => $wrongAnswers, 'imageUrl' => $imageUrl];
+    return array_slice(array_map('trim', $matches[1]), 0, 3);
 }
 
 function naiveWrongAnswers($correct) {
@@ -146,87 +110,71 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_table'])) {
         $stmt->execute();
         $stmt->close();
     }
+    header("Location: add_images.php?table=" . urlencode($saveTable) . "&msg=" . urlencode("✅ File $saveTable saved. Now select pictures."));
+    exit;
 }
 
-/* --- Generate quiz --- */
-$generatedTable = '';
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['generate_quiz']) && !empty($selectedTable)) {
-    $table = $conn->real_escape_string($selectedTable);
-    $sourceLang = $autoSourceLang;
-    $targetLang = $autoTargetLang;
+/* --- Delete quiz and images --- */
+if (isset($_POST['delete_quiz']) && !empty($_POST['delete_table'])) {
+    $delTable = $conn->real_escape_string($_POST['delete_table']);
 
-    $result = $conn->query("SELECT * FROM `$table`");
-    $totalRows = $result->num_rows;
-    if ($result && $totalRows > 0) {
-        $col1 = $result->fetch_fields()[0]->name;
-        $col2 = $result->fetch_fields()[1]->name;
-
-        $quizTable = "quiz_choices_" . $table;
-        $conn->query("DROP TABLE IF EXISTS `$quizTable`");
-        $conn->query("CREATE TABLE `$quizTable` (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            question TEXT,
-            correct_answer TEXT,
-            wrong1 TEXT,
-            wrong2 TEXT,
-            wrong3 TEXT,
-            source_lang VARCHAR(50),
-            target_lang VARCHAR(50),
-            image_url TEXT
-        )");
-
-        echo "<div style='text-align:center;'><div style='width:50%;margin:auto;border:1px solid #333;height:30px;'>
-                <div id='progressBar' style='height:100%;width:0%;background:green;color:white;text-align:center;line-height:30px;'>0%</div>
-              </div></div>";
-        ob_flush(); flush();
-
-        $processed = 0;
-        while ($row = $result->fetch_assoc()) {
-            $question = trim($row[$col1]);
-            $correct = trim($row[$col2]);
-            if ($question === '' || $correct === '') continue;
-
-            $aiResult = callOpenRouter($OPENROUTER_API_KEY, $OPENROUTER_MODEL, $question, $correct, $targetLang, $OPENROUTER_REFERER, $APP_TITLE, $PIXABAY_API_KEY);
-            $wrongAnswers = $aiResult['wrongAnswers'] ?: naiveWrongAnswers($correct);
-            $imageUrl = $aiResult['imageUrl'];
-
-            [$wrong1, $wrong2, $wrong3] = array_pad($wrongAnswers, 3, '');
-            $stmt = $conn->prepare("INSERT INTO `$quizTable`
-                (question, correct_answer, wrong1, wrong2, wrong3, source_lang, target_lang, image_url)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->bind_param("ssssssss", $question, $correct, $wrong1, $wrong2, $wrong3, $sourceLang, $targetLang, $imageUrl);
-            $stmt->execute();
-            $stmt->close();
-
-            $processed++;
-            $percent = intval(($processed / $totalRows) * 100);
-            echo "<script>document.getElementById('progressBar').style.width='{$percent}%';
-                         document.getElementById('progressBar').textContent='{$percent}%';</script>";
-            ob_flush(); flush();
-
-            if ($THROTTLE_SECONDS > 0) sleep($THROTTLE_SECONDS);
+    // Get all local image paths from this table
+    $res = $conn->query("SELECT image_url FROM `$delTable` WHERE image_url LIKE 'uploads/quiz_images/%'");
+    while ($row = $res->fetch_assoc()) {
+        $filePath = __DIR__ . '/' . $row['image_url'];
+        if (file_exists($filePath)) {
+            unlink($filePath);
         }
-
-        echo "<script>document.getElementById('progressBar').style.background='blue';
-                      document.getElementById('progressBar').textContent='✅ Complete';</script>";
-        $generatedTable = $quizTable;
     }
+
+    // Drop table
+    $conn->query("DROP TABLE IF EXISTS `$delTable`");
+    header("Location: generate_quiz_choices.php");
+    exit;
+}
+
+/* --- Generate quiz if not exists --- */
+$generatedTable = '';
+if (!empty($selectedTable)) {
+    $quizTable = "quiz_choices_" . $selectedTable;
+    if (!quizTableExists($conn, $selectedTable)) {
+        $result = $conn->query("SELECT * FROM `$selectedTable`");
+        if ($result && $result->num_rows > 0) {
+            $col1 = $result->fetch_fields()[0]->name;
+            $col2 = $result->fetch_fields()[1]->name;
+
+            $conn->query("CREATE TABLE `$quizTable` (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                question TEXT,
+                correct_answer TEXT,
+                wrong1 TEXT,
+                wrong2 TEXT,
+                wrong3 TEXT,
+                source_lang VARCHAR(50),
+                target_lang VARCHAR(50),
+                image_url TEXT
+            )");
+
+            while ($row = $result->fetch_assoc()) {
+                $question = trim($row[$col1]);
+                $correct = trim($row[$col2]);
+                if ($question === '' || $correct === '') continue;
+                $wrongAnswers = callOpenRouter($OPENROUTER_API_KEY, $OPENROUTER_MODEL, $question, $correct, $autoTargetLang, $OPENROUTER_REFERER, $APP_TITLE) ?: naiveWrongAnswers($correct);
+                [$wrong1, $wrong2, $wrong3] = array_pad($wrongAnswers, 3, '');
+                $stmt = $conn->prepare("INSERT INTO `$quizTable` (question, correct_answer, wrong1, wrong2, wrong3, source_lang, target_lang) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                $stmt->bind_param("sssssss", $question, $correct, $wrong1, $wrong2, $wrong3, $autoSourceLang, $autoTargetLang);
+                $stmt->execute();
+                $stmt->close();
+            }
+        }
+    }
+    $generatedTable = $quizTable;
 }
 
 /* --- Output --- */
 echo "<div class='content'>👤 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Logout</a></div>";
 echo "<h2 style='text-align:center;'>Generate AI Quiz Choices</h2>";
-
 include 'file_explorer.php';
-
-if (!empty($selectedTable) && !isset($_POST['generate_quiz'])) {
-    echo "<div style='text-align:center;margin-top:10px;font-weight:bold;color:green;'>File \"$selectedTable\" selected</div>";
-    echo "<form method='POST' style='text-align:center; margin-top:20px;'>
-            <input type='hidden' name='table' value='" . htmlspecialchars($selectedTable) . "'>
-            <input type='hidden' name='generate_quiz' value='1'>
-            <button type='submit'>🚀 Generate Quiz Set from " . htmlspecialchars($selectedTable) . "</button>
-          </form>";
-}
 
 if (!empty($generatedTable)) {
     $res = $conn->query("SELECT * FROM `$generatedTable`");
@@ -246,12 +194,13 @@ if (!empty($generatedTable)) {
                 <td><input type='checkbox' name='delete_rows[]' value='" . intval($id) . "'></td>
               </tr>";
     }
-    echo "</table><br><button type='submit'>📂 Save Changes</button></form><br>";
-    echo "<div style='text-align:center; margin-top:20px;'>
-            <a href='add_images.php?table=" . urlencode($generatedTable) . "'>
-                <button type='button'>🖼 Do you want to add pictures?</button>
-            </a>
-          </div>";
+    echo "</table><br>
+          <button type='submit'>📂 Save Changes & Add Pictures</button>
+          </form>
+          <form method='POST' style='margin-top:20px; text-align:center;'>
+            <input type='hidden' name='delete_table' value='" . htmlspecialchars($generatedTable) . "'>
+            <button type='submit' name='delete_quiz' onclick='return confirm(\"Delete this quiz and all uploaded images?\")'>🗑 Delete Quiz</button>
+          </form>";
 }
 ?>
 <script>
@@ -259,7 +208,7 @@ function autoResize(el) {
     el.style.height = "auto";
     el.style.height = (el.scrollHeight) + "px";
 }
-document.addEventListener("DOMContentLoaded", function () {
+document.addEventListener("DOMContentLoaded", () => {
     document.querySelectorAll("textarea").forEach(el => autoResize(el));
 });
 </script>
