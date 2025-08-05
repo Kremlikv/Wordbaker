@@ -49,12 +49,10 @@ if (isset($_POST['delete_quiz']) && !empty($_POST['delete_table'])) {
 
 /* --- Functions --- */
 function quizTableExists($conn, $table) {
-    // Don't double-prefix
     $quizTable = (strpos($table, 'quiz_choices_') === 0) ? $table : "quiz_choices_" . $table;
     $result = $conn->query("SHOW TABLES LIKE '" . $conn->real_escape_string($quizTable) . "'");
     return $result && $result->num_rows > 0;
 }
-
 
 function getUserFoldersAndTables($conn, $username) {
     $allTables = [];
@@ -150,47 +148,47 @@ if (!empty($selectedTable)) {
     }
 }
 
-/* --- Generate quiz if not exists --- */
+/* --- Generate quiz or load existing --- */
 $generatedTable = '';
 if (!empty($selectedTable)) {
-   
     if (strpos($selectedTable, 'quiz_choices_') === 0) {
-            $quizTable = $selectedTable; // already a quiz table
-        } else {
-            $quizTable = "quiz_choices_" . $selectedTable;
-        }
-
-    if (!quizTableExists($conn, $selectedTable)) {
-        $result = $conn->query("SELECT * FROM `$selectedTable`");
-        if ($result && $result->num_rows > 0) {
-            $col1 = $result->fetch_fields()[0]->name;
-            $col2 = $result->fetch_fields()[1]->name;
-            $conn->query("CREATE TABLE `$quizTable` (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                question TEXT,
-                correct_answer TEXT,
-                wrong1 TEXT,
-                wrong2 TEXT,
-                wrong3 TEXT,
-                source_lang VARCHAR(50),
-                target_lang VARCHAR(50),
-                image_url TEXT
-            )");
-            while ($row = $result->fetch_assoc()) {
-                $question = trim($row[$col1]);
-                $correct = trim($row[$col2]);
-                if ($question === '' || $correct === '') continue;
-                $wrongAnswers = callOpenRouter($OPENROUTER_API_KEY, $OPENROUTER_MODEL, $question, $correct, $autoTargetLang, $OPENROUTER_REFERER, $APP_TITLE) ?: naiveWrongAnswers($correct);
-                $wrongAnswers = cleanAIOutput($wrongAnswers);
-                [$wrong1, $wrong2, $wrong3] = array_pad($wrongAnswers, 3, '');
-                $stmt = $conn->prepare("INSERT INTO `$quizTable` (question, correct_answer, wrong1, wrong2, wrong3, source_lang, target_lang) VALUES (?, ?, ?, ?, ?, ?, ?)");
-                $stmt->bind_param("sssssss", $question, $correct, $wrong1, $wrong2, $wrong3, $autoSourceLang, $autoTargetLang);
-                $stmt->execute();
-                $stmt->close();
+        // It's already a quiz table — just load it
+        $quizTable = $selectedTable;
+        $generatedTable = $quizTable;
+    } else {
+        $quizTable = "quiz_choices_" . $selectedTable;
+        if (!quizTableExists($conn, $selectedTable)) {
+            $result = $conn->query("SELECT * FROM `$selectedTable`");
+            if ($result && $result->num_rows > 0) {
+                $col1 = $result->fetch_fields()[0]->name;
+                $col2 = $result->fetch_fields()[1]->name;
+                $conn->query("CREATE TABLE `$quizTable` (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    question TEXT,
+                    correct_answer TEXT,
+                    wrong1 TEXT,
+                    wrong2 TEXT,
+                    wrong3 TEXT,
+                    source_lang VARCHAR(50),
+                    target_lang VARCHAR(50),
+                    image_url TEXT
+                )");
+                while ($row = $result->fetch_assoc()) {
+                    $question = trim($row[$col1]);
+                    $correct = trim($row[$col2]);
+                    if ($question === '' || $correct === '') continue;
+                    $wrongAnswers = callOpenRouter($OPENROUTER_API_KEY, $OPENROUTER_MODEL, $question, $correct, $autoTargetLang, $OPENROUTER_REFERER, $APP_TITLE) ?: naiveWrongAnswers($correct);
+                    $wrongAnswers = cleanAIOutput($wrongAnswers);
+                    [$wrong1, $wrong2, $wrong3] = array_pad($wrongAnswers, 3, '');
+                    $stmt = $conn->prepare("INSERT INTO `$quizTable` (question, correct_answer, wrong1, wrong2, wrong3, source_lang, target_lang) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                    $stmt->bind_param("sssssss", $question, $correct, $wrong1, $wrong2, $wrong3, $autoSourceLang, $autoTargetLang);
+                    $stmt->execute();
+                    $stmt->close();
+                }
             }
         }
+        $generatedTable = $quizTable;
     }
-    $generatedTable = $quizTable;
 }
 
 /* --- Output --- */
