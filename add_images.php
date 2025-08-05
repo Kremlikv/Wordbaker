@@ -58,7 +58,7 @@ if (!$res) die("Table not found.");
 <meta charset="UTF-8">
 <title>Add Images</title>
 <style>
-body { font-family: Arial; margin: 10px; }
+body { font-family: Arial; margin: 0px; }
 .msg { color: green; font-weight: bold; margin-bottom: 10px; }
 .question-block { border: 1px solid #ccc; padding: 10px; margin-bottom: 15px; border-radius: 8px; }
 .question-text { font-weight: bold; margin-bottom: 8px; }

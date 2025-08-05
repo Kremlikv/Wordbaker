@@ -14,6 +14,29 @@ $OPENROUTER_REFERER = 'https://kremlik.byethost15.com';
 $APP_TITLE = 'KahootGenerator';
 $THROTTLE_SECONDS = 1;
 
+/* --- AJAX save handler --- */
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['ajax_save']) && $_POST['ajax_save'] == '1') {
+    $saveTable = trim($_POST['save_table']);
+    if (!empty($saveTable)) {
+        $editedRows = $_POST['edited_rows'] ?? [];
+        $deleteRows = $_POST['delete_rows'] ?? [];
+        foreach ($editedRows as $id => $row) {
+            if (in_array($id, $deleteRows)) {
+                $conn->query("DELETE FROM `$saveTable` WHERE id=" . intval($id));
+                continue;
+            }
+            $stmt = $conn->prepare("UPDATE `$saveTable` SET correct_answer=?, wrong1=?, wrong2=?, wrong3=? WHERE id=?");
+            $stmt->bind_param("ssssi", $row['correct'], $row['wrong1'], $row['wrong2'], $row['wrong3'], $id);
+            $stmt->execute();
+            $stmt->close();
+        }
+        echo "OK";
+    } else {
+        echo "ERROR: No table specified";
+    }
+    exit; // stop here so page doesn't reload
+}
+
 /* --- Check if quiz table exists --- */
 function quizTableExists($conn, $table) {
     $quizTable = "quiz_choices_" . $table;
@@ -110,27 +133,6 @@ function naiveWrongAnswers($correct) {
     return [$correct . 'x', strrev($correct), substr($correct, 1) . substr($correct, 0, 1)];
 }
 
-/* --- Save edits --- */
-$saveMsg = '';
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_table'])) {
-    $saveTable = trim($_POST['save_table']);
-    if (!empty($saveTable)) {
-        $editedRows = $_POST['edited_rows'] ?? [];
-        $deleteRows = $_POST['delete_rows'] ?? [];
-        foreach ($editedRows as $id => $row) {
-            if (in_array($id, $deleteRows)) {
-                $conn->query("DELETE FROM `$saveTable` WHERE id=" . intval($id));
-                continue;
-            }
-            $stmt = $conn->prepare("UPDATE `$saveTable` SET correct_answer=?, wrong1=?, wrong2=?, wrong3=? WHERE id=?");
-            $stmt->bind_param("ssssi", $row['correct'], $row['wrong1'], $row['wrong2'], $row['wrong3'], $id);
-            $stmt->execute();
-            $stmt->close();
-        }
-        $saveMsg = "✅ File $saveTable saved successfully.";
-    }
-}
-
 /* --- Delete quiz and images --- */
 if (isset($_POST['delete_quiz']) && !empty($_POST['delete_table'])) {
     $delTable = $conn->real_escape_string($_POST['delete_table']);
@@ -186,13 +188,12 @@ echo "<h2 style='text-align:center;'>Generate AI Quiz Choices</h2>";
 include 'file_explorer.php';
 
 if (!empty($generatedTable)) {
-    if ($saveMsg) {
-        echo "<p style='color:green; text-align:center; font-weight:bold;'>$saveMsg</p>";
-    }
+    echo "<div id='saveMsg' style='color:green; text-align:center; font-weight:bold;'></div>";
     $res = $conn->query("SELECT * FROM `$generatedTable`");
     echo "<h3 style='text-align:center;'>📜 Edit Generated Quiz: <code>$generatedTable</code></h3>";
-    echo "<form method='POST' action='generate_quiz_choices.php' style='text-align:center;'>
+    echo "<form id='quizForm' method='POST' style='text-align:center;'>
             <input type='hidden' name='save_table' value='" . htmlspecialchars($generatedTable) . "'>
+            <input type='hidden' name='ajax_save' value='1'>
             <table border='1' cellpadding='5' cellspacing='0' style='margin:auto;'>
                 <tr><th>Czech</th><th>Correct</th><th>Wrong 1</th><th>Wrong 2</th><th>Wrong 3</th><th>Delete</th></tr>";
     while ($row = $res->fetch_assoc()) {
@@ -207,7 +208,7 @@ if (!empty($generatedTable)) {
               </tr>";
     }
     echo "</table><br>
-          <button type='submit'>📂 Save Changes</button>
+          <button type='button' onclick='saveQuiz()'>📂 Save Changes</button>
           </form>
           <div style='text-align:center; margin-top:20px;'>
             <a href='add_images.php?table=" . urlencode($generatedTable) . "'>
@@ -228,4 +229,24 @@ function autoResize(el) {
 document.addEventListener("DOMContentLoaded", () => {
     document.querySelectorAll("textarea").forEach(el => autoResize(el));
 });
+
+function saveQuiz() {
+    const form = document.getElementById('quizForm');
+    const formData = new FormData(form);
+    fetch('generate_quiz_choices.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(r => r.text())
+    .then(resp => {
+        if (resp.trim() === "OK") {
+            document.getElementById('saveMsg').textContent = "✅ File saved";
+        } else {
+            document.getElementById('saveMsg').textContent = "❌ " + resp;
+        }
+    })
+    .catch(err => {
+        document.getElementById('saveMsg').textContent = "❌ Error saving";
+    });
+}
 </script>
