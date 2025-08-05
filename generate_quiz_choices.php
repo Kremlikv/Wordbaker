@@ -81,7 +81,7 @@ foreach ($folders as $folder => $tableList) {
     foreach ($tableList as $entry) {
         $folderData[$folder][] = [
             'table' => $entry['table_name'],
-            'display' => $entry['display_name']
+            'display' => $entry['display_name'] 
         ];
     }
 }
