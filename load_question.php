@@ -1,46 +1,43 @@
 <?php
+session_start();
 require_once 'db.php';
 require_once 'session.php';
 
-header("Content-Type: text/html; charset=UTF-8");
-
-if (!isset($_SESSION['questions'], $_SESSION['question_index'], $_SESSION['score'], $_SESSION['quiz_table'])) {
-    echo "<p>❌ Session expired. Please restart the quiz.</p>";
+// ✅ Safety net — no quiz loaded
+if (empty($_SESSION['questions']) || !isset($_SESSION['question_index'], $_SESSION['score'], $_SESSION['quiz_table'])) {
+    echo "<p>⚠️ No active quiz found. Please go to <a href='play_quiz.php'>Play Quiz</a> and start a new game.</p>";
     exit;
 }
 
-
-$index = $_SESSION['question_index'];
-$questions = $_SESSION['questions'];
-$total = count($questions);
-$score = $_SESSION['score'];
-$quizTable = $_SESSION['quiz_table'];
+$index      = $_SESSION['question_index'];
+$questions  = $_SESSION['questions'];
+$total      = count($questions);
+$score      = $_SESSION['score'];
+$quizTable  = $_SESSION['quiz_table'];
 
 if (!isset($_SESSION['mistakes'])) {
     $_SESSION['mistakes'] = [];
 }
 
-// Process answer if submitted
+// 📝 Process answer if submitted
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['answer'])) {
-    $question = $questions[$index];
+    $question   = $questions[$index];
     $userAnswer = $_POST['answer'];
-    $timeTaken = intval($_POST['time_taken'] ?? 15);
-    $bonus = 0;
+    $timeTaken  = intval($_POST['time_taken'] ?? 15);
+    $bonus      = 0;
 
     if ($userAnswer === $question['correct']) {
-        if ($timeTaken <= 5) $bonus = 3;
+        if     ($timeTaken <= 5)  $bonus = 3;
         elseif ($timeTaken <= 10) $bonus = 2;
         elseif ($timeTaken <= 15) $bonus = 1;
         $_SESSION['score'] += $bonus;
         $feedback = "✅ Correct! (+$bonus)";
     } else {
         $feedback = "❌ Wrong. Correct answer: " . htmlspecialchars($question['correct']);
-
-        // Store mistake for later display
         $_SESSION['mistakes'][] = [
             'question' => $question['question'],
-            'correct' => $question['correct'],
-            'user' => $userAnswer
+            'correct'  => $question['correct'],
+            'user'     => $userAnswer
         ];
     }
 
@@ -49,31 +46,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['answer'])) {
     $index++;
 }
 
-// End of quiz
+// 🏁 End of quiz
 if ($index >= $total) {
     echo "<h2>🌟 Quiz Completed!</h2>";
     echo "<p>Your final score: {$score} out of " . ($total * 3) . " points</p>";
 
     if (!empty($_SESSION['mistakes'])) {
-        echo "<h3>🔍 Review Your Mistakes</h3><table border='1' cellpadding='5'><tr><th>Question</th><th>Your Answer</th><th>Correct</th></tr>";
+        echo "<h3>🔍 Review Your Mistakes</h3>
+              <table border='1' cellpadding='5'>
+              <tr><th>Question</th><th>Your Answer</th><th>Correct</th></tr>";
         foreach ($_SESSION['mistakes'] as $m) {
-            echo "<tr><td>" . htmlspecialchars($m['question']) . "</td><td>" . htmlspecialchars($m['user']) . "</td><td>" . htmlspecialchars($m['correct']) . "</td></tr>";
+            echo "<tr>
+                    <td>" . htmlspecialchars($m['question']) . "</td>
+                    <td>" . htmlspecialchars($m['user']) . "</td>
+                    <td>" . htmlspecialchars($m['correct']) . "</td>
+                  </tr>";
         }
         echo "</table><br>";
     }
-
 
     echo '<form method="POST" action="play_quiz.php">
             <input type="hidden" name="restart" value="1">
             <button type="submit">Play Again</button>
           </form>';
+
     unset($_SESSION['mistakes']);
     exit;
 }
 
-// Load current question
+// 📜 Load current question
 $question = $questions[$index];
-$answers = $question['answers'];
+$answers  = $question['answers'];
 shuffle($answers);
 
 echo '<div class="score">Question ' . ($index + 1) . ' of ' . $total . ' | Score: ' . $_SESSION['score'] . '</div>';
