@@ -47,28 +47,31 @@ if (isset($_POST['start_new']) && !empty($_POST['quiz_table'])) {
     }
     $musicSrc = $_SESSION['bg_music'];
 
-    // Load questions immediately
+    // Load quiz questions directly
     $selectedTable = $_SESSION['quiz_table'];
-    $res = $conn->query("SELECT * FROM `$selectedTable`");
-    if (!$res) die("❌ Query failed: " . $conn->error);
+    $res = $conn->query("SELECT question, correct_answer, wrong1, wrong2, wrong3, image_url FROM `$selectedTable`");
+    if (!$res) {
+        die("❌ Query failed: " . $conn->error);
+    }
 
     $questions = [];
     while ($row = $res->fetch_assoc()) {
-        $answers = [$row['correct_answer'], $row['wrong1'], $row['wrong2'], $row['wrong3']];
+        $answers = array_filter([$row['correct_answer'], $row['wrong1'], $row['wrong2'], $row['wrong3']]);
         shuffle($answers);
         $questions[] = [
             'question' => $row['question'],
-            'correct' => $row['correct_answer'],
-            'answers' => $answers,
-            'image' => $row['image_url'] ?? ''
+            'correct'  => $row['correct_answer'],
+            'answers'  => $answers,
+            'image'    => $row['image_url'] ?? ''
         ];
     }
 
-    if (empty($questions)) die("⚠️ No questions found in '$selectedTable'.");
+    if (empty($questions)) {
+        die("⚠️ No questions found in '$selectedTable'.");
+    }
+
     shuffle($questions);
     $_SESSION['questions'] = $questions;
-
-    // ✅ No redirect — first question is loaded right away
 }
 
 include 'styling.php';
@@ -141,12 +144,14 @@ include 'styling.php';
 
 <hr>
 
+<div id="quizBox">
 <?php
 // Show first question immediately if we have questions loaded
 if (!empty($_SESSION['questions'])) {
     include 'load_question.php';
 }
 ?>
+</div>
 
 <script>
 let countdown;
@@ -183,58 +188,6 @@ function toggleMusic() {
         music.pause();
     }
 }
-
-function startTimer() {
-    timeLeft = 15;
-    const timerDisplay = document.getElementById("timer");
-    clearInterval(countdown);
-    countdown = setInterval(() => {
-        timeLeft--;
-        if (timerDisplay) timerDisplay.textContent = `⏳ ${timeLeft}`;
-        if (timeLeft <= 0) {
-            clearInterval(countdown);
-            document.querySelectorAll(".answer-btn").forEach(btn => btn.disabled = true);
-            if (timerDisplay) timerDisplay.textContent = "⏰ Time's up!";
-        }
-    }, 1000);
-}
-
-function submitAnswer(btn) {
-    const value = btn.getAttribute("data-value");
-    document.querySelectorAll(".answer-btn").forEach(b => b.disabled = true);
-    clearInterval(countdown);
-    fetch("load_question.php", {
-        method: "POST",
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: new URLSearchParams({
-            answer: value,
-            time_taken: 15 - timeLeft
-        })
-    })
-    .then(res => res.text())
-    .then(html => {
-        document.getElementById("quizBox").innerHTML = html;
-        startTimer();
-    });
-}
-
-document.addEventListener("DOMContentLoaded", function () {
-    const music = document.getElementById("bgMusic");
-    const source = document.getElementById("bgMusicSource");
-    const storedSrc = localStorage.getItem("quiz_music_src");
-    const storedTime = parseFloat(localStorage.getItem("quiz_music_time")) || 0;
-
-    if (source.src !== storedSrc) {
-        localStorage.setItem("quiz_music_src", source.src);
-        localStorage.setItem("quiz_music_time", 0);
-    } else {
-        music.currentTime = storedTime;
-    }
-
-    setInterval(() => {
-        localStorage.setItem("quiz_music_time", music.currentTime);
-    }, 1000);
-});
 </script>
 
 </body>
