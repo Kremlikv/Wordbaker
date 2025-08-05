@@ -105,10 +105,9 @@ function callOpenRouter($apiKey, $model, $czechWord, $correctAnswer, $targetLang
     Create three different usual mistakes (wrong1, wrong2, wrong3) that a human student may make when translating $czechWord into $targetLang: $correctAnswer. 
     Vary the types of mistakes: article/gender confusion, false friends, near homophones, spelling errors, wrong diacritic marks, similar but incorrect verb form, wrong plural/singular, etc.
     Sometimes the mistakes are confusion of two things that have something in common: have the same word-root (Aufgang, Ausgang), similar function (Car, Van), similar spelling (lie, lay).
-    Avoid nonsense strings, avoid reversed words, avoid randomly inserted letters, avoid palindromes, avodi unrelated words. 
-    Avoid enclosing answers in quotes or numbering them.
-    Don't explain the mistakes, don't add parentheses, don't add colons : after or before the words.
-    
+    Don't use nonsense strings, reversed words, randomly inserted letters, palindromes, unrelated words. 
+    Don't explain the mistakes.
+    Don't add any symbols like ()':"-/_ or numbering or bulletpoints.     
     EOT;
 
 
