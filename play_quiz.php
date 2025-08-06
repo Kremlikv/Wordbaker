@@ -102,6 +102,14 @@ include 'styling.php';
 <title>Play Quiz</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
+    
+    #quizBox {
+        height: 100vh;
+        overflow-y: auto;
+        box-sizing: border-box;
+        padding: 20px;
+    }
+
     body {
         font-family: sans-serif;
         text-align: center;
@@ -197,7 +205,8 @@ include 'styling.php';
 <body>
 
 <!-- QUIZ AREA FIRST -->
-<div id="quizBox" style="margin-top: 10px;"></div>
+<div id="quizBox"></div>
+
 <hr style="margin: 30px 0;">
 
 <!-- HEADER + CONTROLS BELOW QUIZ -->
