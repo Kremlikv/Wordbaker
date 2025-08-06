@@ -89,7 +89,7 @@ include 'styling.php';
 <meta charset="UTF-8">
 <title>Play Quiz</title>
 <style>
-    body { font-family: sans-serif; text-align: center; padding: 0px; }
+    body { font-family: sans-serif; text-align: center; padding: 0px; padding-bottom: 80px;}
     .question-box { font-size: 1.5em; margin-bottom: 20px; }
     .answer-grid { display: flex; flex-wrap: wrap; justify-content: center; max-width: 600px; margin: auto; }
     .answer-col { flex: 0 0 50%; padding: 10px; }
