@@ -17,6 +17,7 @@ if (!isset($_SESSION['mistakes'])) {
     $_SESSION['mistakes'] = [];
 }
 
+// 📝 Process answer if submitted
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['answer'])) {
     $question   = $questions[$index];
     $userAnswer = $_POST['answer'];
@@ -43,6 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['answer'])) {
     $index++;
 }
 
+// 🏁 End of quiz
 if ($index >= $total) {
     echo "<h2>🌟 Quiz Completed!</h2>";
     echo "<p>Your final score: {$score} out of " . ($total * 3) . " points</p>";
@@ -70,6 +72,7 @@ if ($index >= $total) {
     exit;
 }
 
+// 📜 Load current question
 $question = $questions[$index];
 $answers  = $question['answers'];
 shuffle($answers);
@@ -78,13 +81,8 @@ $wordCount = str_word_count($question['correct']);
 $timeLimit = 15 + max(0, $wordCount - 1) * 5;
 
 echo '<style>
-.fade-in {
-    opacity: 0;
-    transition: opacity 0.6s ease-in;
-}
-.fade-in.show {
-    opacity: 1;
-}
+.fade-in { opacity: 0; transition: opacity 0.6s ease-in; }
+.fade-in.show { opacity: 1; }
 </style>';
 
 echo '<div class="score">Question ' . ($index + 1) . ' of ' . $total . ' | Score: ' . $_SESSION['score'] . '</div>';
@@ -102,7 +100,7 @@ if (!empty($question['image'])) {
           </div>';
 }
 
-echo '<div class="answer-grid fade-in" style="display:flex;">';
+echo '<div class="answer-grid fade-in">';
 foreach ($answers as $a) {
     echo '<div class="answer-col">
             <button type="button" class="answer-btn"
@@ -148,11 +146,12 @@ function startTimer() {
             clearInterval(countdown);
             document.querySelectorAll(".answer-btn").forEach(btn => btn.disabled = true);
             timerDisplay.textContent = "⏰ Time's up!";
+            setTimeout(() => { loadNextQuestion(); }, 2000);
         }
     }, 1000);
 }
 
-// Hide answers initially (opacity=0), fade in after 2s
+// Hide answers initially, fade in after 2s, then start timer
 answerGrid.classList.remove("show");
 setTimeout(() => {
     answerGrid.classList.add("show");
@@ -162,38 +161,31 @@ setTimeout(() => {
 function submitAnswer(btn) {
     const value = btn.getAttribute("data-value");
     document.querySelectorAll(".answer-btn").forEach(b => b.disabled = true);
-
     clearInterval(countdown);
 
-    // highlight selection
+    // Highlight
     document.querySelectorAll(".answer-btn").forEach(b => {
         if (b.dataset.correct === "1") {
-            b.style.backgroundColor = "#4CAF50";
-            b.style.color = "white";
+            b.style.backgroundColor = "#4CAF50"; b.style.color = "white";
         }
         if (b.getAttribute("data-value") === value && b.dataset.correct !== "1") {
-            b.style.backgroundColor = "#f44336";
-            b.style.color = "white";
+            b.style.backgroundColor = "#f44336"; b.style.color = "white";
         }
     });
 
+    // Feedback
     feedbackBox.textContent = btn.dataset.correct === "1"
         ? "✅ Correct!"
         : "❌ Wrong. Correct answer: " + document.querySelector('.answer-btn[data-correct="1"]').textContent;
-
     feedbackBox.classList.add("show");
 
-    // Delay next question by 2s
+    // Store result, then load next after 2s
     fetch("load_question.php", {
         method: "POST",
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
         body: new URLSearchParams({ answer: value, time_taken: <?= $timeLimit ?> - timeLeft })
-    })
-    .then(res => res.text())
-    .then(html => {
-        setTimeout(() => {
-            document.getElementById("quizBox").innerHTML = html;
-        }, 2000);
+    }).then(() => {
+        setTimeout(() => { loadNextQuestion(); }, 2000);
     });
 }
 </script>

@@ -79,8 +79,6 @@ if (isset($_POST['start_new']) && !empty($_POST['quiz_table'])) {
     header("Location: play_quiz.php");
     exit;
 }
-
-include 'styling.php';
 ?>
 <!DOCTYPE html>
 <html>
@@ -89,37 +87,33 @@ include 'styling.php';
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Play Quiz</title>
 <style>
-    body { font-family: sans-serif; text-align: center; padding: 0; padding-bottom: 80px; margin: 0; }
-    .question-box { font-size: clamp(1.2em, 4vw, 1.5em); margin-bottom: 20px; }
-    .answer-grid { display: flex; flex-wrap: wrap; justify-content: center; max-width: 600px; margin: auto; }
-    .answer-col { flex: 0 0 50%; padding: 10px; box-sizing: border-box; }
-    .answer-btn { width: 100%; padding: clamp(12px, 3vw, 20px); font-size: clamp(1em, 3vw, 1.1em); cursor: pointer; border: none; border-radius: 10px; background-color: #eee; transition: 0.3s; word-wrap: break-word; }
-    .answer-btn:hover { background-color: #ddd; }
-    .feedback { font-size: clamp(1em, 3vw, 1.2em); margin-top: 20px; }
-    .score { margin-bottom: 10px; font-weight: bold; }
-    .image-container { margin: 20px auto; }
-    img.question-image { max-width: 100%; height: auto; max-height: 50vh; }
-    select, button, input[type="url"] { padding: 10px; font-size: clamp(0.9em, 3vw, 1em); max-width: 90%; }
-    #timer { font-size: clamp(1.1em, 3.5vw, 1.3em); color: darkred; margin: 10px; }
-    .quiz-buttons { text-align: center; margin-top: 20px; }
-    .quiz-buttons button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; background-color: #d3d3d3; color: black; padding: 10px 20px; border: none; border-radius: 5px; font-size: clamp(0.9em, 3vw, 1em); cursor: pointer; margin: 5px; white-space: nowrap; }
-    .quiz-buttons button:hover { background-color: #bfbfbf; }
-    @media (max-width: 500px) { .answer-col { flex: 0 0 100%; } }
+body { font-family: sans-serif; text-align: center; margin:0; padding-bottom:80px; }
+.question-box { font-size: clamp(1.2em, 4vw, 1.5em); margin-bottom: 20px; }
+.answer-grid { display: flex; flex-wrap: wrap; justify-content: center; max-width: 600px; margin: auto; }
+.answer-col { flex: 0 0 50%; padding: 10px; box-sizing: border-box; }
+.answer-btn { width: 100%; padding: clamp(12px, 3vw, 20px); font-size: clamp(1em, 3vw, 1.1em); cursor: pointer; border: none; border-radius: 10px; background-color: #eee; transition: 0.3s; }
+.answer-btn:hover { background-color: #ddd; }
+.feedback { font-size: clamp(1em, 3vw, 1.2em); margin-top: 20px; }
+.score { margin-bottom: 10px; font-weight: bold; }
+.image-container { margin: 20px auto; }
+img.question-image { max-width: 100%; height: auto; max-height: 50vh; }
+select, button, input[type="url"] { padding: 10px; font-size: clamp(0.9em, 3vw, 1em); max-width: 90%; }
+.quiz-buttons button { display:inline-flex; align-items:center; justify-content:center; gap:6px; background-color:#d3d3d3; border:none; padding:10px 20px; border-radius:5px; cursor:pointer; white-space:nowrap; }
+.quiz-buttons button:hover { background-color: #bfbfbf; }
+@media (max-width: 500px) { .answer-col { flex: 0 0 100%; } }
 </style>
 </head>
 <body>
 
-<div class='content'>
-    👤 Logged in as <?= htmlspecialchars($_SESSION['username']) ?> | <a href='logout.php'>Logout</a>
+👤 Logged in as <?= htmlspecialchars($_SESSION['username']) ?> | <a href='logout.php'>Logout</a>
 
 <audio id="bgMusic" loop>
     <source id="bgMusicSource" src="<?= htmlspecialchars($musicSrc) ?>" type="audio/mpeg">
-    Your browser does not support audio.
 </audio>
 
 <h1>🎯 Quiz</h1>
 
-<form method="POST" style="display:inline-block;">
+<form method="POST" style="display:inline-block;" onsubmit="startMusicOnClick()">
     <label>Select background music:</label><br><br>
     <?php $currentMusic = $_SESSION['bg_music'] ?? ''; ?>
     <select name="bg_music_choice" onchange="toggleCustomMusic(this.value)">
@@ -151,7 +145,7 @@ include 'styling.php';
     </select><br><br>
 
     <div class="quiz-buttons">
-        <button type="submit" name="start_new" id="startQuizBtn">▶️ Start Quiz</button>
+        <button type="submit" name="start_new">▶️ Start Quiz</button>
 </form>
 <form method="POST" style="display:inline-block;">
         <button type="submit" name="clean_slate">🧹 Clean Slate</button>
@@ -183,21 +177,25 @@ function previewMusic() {
 
 function toggleMusic() {
     const music = document.getElementById("bgMusic");
-    const source = document.getElementById("bgMusicSource");
-    if (!source.src || source.src.endsWith('/')) {
-        alert("Please select a valid music track first.");
-        return;
-    }
     if (music.paused) {
         music.volume = 0.3;
-        music.play().catch(err => console.warn("Music play blocked:", err));
+        music.play().catch(()=>{});
     } else {
         music.pause();
     }
 }
 
+// 🎵 Start music when Start Quiz is clicked
+function startMusicOnClick() {
+    const music = document.getElementById("bgMusic");
+    if (music.src) {
+        music.volume = 0.3;
+        music.play().catch(()=>{});
+    }
+}
+
+// Called by load_question.php buttons
 function submitAnswer(btn) {
-    // let load_question.php handle highlight + feedback + delay
     const value = btn.getAttribute("data-value");
     fetch("load_question.php", {
         method: "POST",
@@ -224,7 +222,5 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 });
 </script>
-
-</div>
 </body>
 </html>
