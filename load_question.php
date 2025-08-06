@@ -95,8 +95,6 @@ $timeLimit = 15 + max(0, $wordCount - 1) * 5;
     </div>
 <?php endif; ?>
 <div class="answer-grid" style="display:none;">
-<div data-correct-answer="<?= htmlspecialchars($question['correct']) ?>" style="display:none;"></div>
-
 <?php foreach ($answers as $a): ?>
     <div class="answer-col">
         <button type="button" class="answer-btn" onclick="submitAnswer(this)" data-value="<?= htmlspecialchars($a) ?>">
