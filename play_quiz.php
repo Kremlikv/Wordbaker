@@ -234,7 +234,7 @@ include 'styling.php';
         <button type="submit" name="start_new" id="startQuizBtn">▶️ Start Quiz</button>
 </form>
 <form method="POST" style="display:inline-block;">
-        <button type="submit" name="clean_slate">🧹 Clean Slate</button>
+        <button type="submit" name="clean_slate">🧹 Clean</button>
     </div>
 </form>
 
