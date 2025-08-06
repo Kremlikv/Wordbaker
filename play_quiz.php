@@ -217,7 +217,7 @@ function submitAnswer(btn) {
         document.getElementById("feedback").textContent = "❌ Wrong!";
     }
     clearInterval(countdown);
-    setTimeout(loadNextQuestion, 2000);
+    setTimeout(loadNextQuestion, 2000); 
 }
 
 document.addEventListener("DOMContentLoaded", loadNextQuestion);
