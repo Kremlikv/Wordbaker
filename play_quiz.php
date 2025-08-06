@@ -248,13 +248,7 @@ include 'styling.php';
 <hr>
 
 <?php if (!empty($_SESSION['questions'])): ?>
-   
-    <div id="quizContainer" style="max-height: 80vh; overflow-y: auto; border-top: 1px solid #ccc; margin-top: 20px;">
-        <div id="quizBox"></div>
-    </div>
-
-
-
+    <div id="quizBox"></div>
 <?php endif; ?>
 
 <script>
@@ -364,13 +358,10 @@ function submitAnswer(btn) {
             fetch("load_question.php")
                 .then(res => res.text())
                 .then(html => {
-                    const quizBox = document.getElementById("quizBox");
-                    quizBox.innerHTML = html;
-                 
+                    document.getElementById("quizBox").innerHTML = html;
                     setTimeout(revealAnswers, 2000);
                 });
         }, 2000);
-
     });
 }
 
