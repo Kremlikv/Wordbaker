@@ -84,14 +84,12 @@ if (isset($_POST['start_new']) && !empty($_POST['quiz_table'])) {
 $isYouTube = false;
 $ytVideoId = '';
 if (!empty($musicSrc)) {
-
-    $musicSrc = preg_replace('/\?.*/', '', $musicSrc); // remove query params
-    if (preg_match('/youtu\.be\/([a-zA-Z0-9_-]+)/', $musicSrc, $m) ||
-        preg_match('/youtube\.com.*[?&]v=([a-zA-Z0-9_-]+)/', $musicSrc, $m)) {
+    $musicSrcNoParams = preg_replace('/\?.*/', '', $musicSrc); // remove query params
+    if (preg_match('/youtu\.be\/([a-zA-Z0-9_-]+)/', $musicSrcNoParams, $m) ||
+        preg_match('/youtube\.com.*[?&]v=([a-zA-Z0-9_-]+)/', $musicSrcNoParams, $m)) {
         $ytVideoId = $m[1];
         $isYouTube = true;
     }
-
 }
 
 include 'styling.php';
@@ -150,18 +148,19 @@ include 'styling.php';
             });
         }
         function toggleMusic() {
-            if (player && player.getPlayerState() === YT.PlayerState.PLAYING) {
+            if (!player) return;
+            if (player.getPlayerState() === YT.PlayerState.PLAYING) {
                 player.pauseVideo();
-            } else if (player) {
+            } else {
                 player.setVolume(30);
                 player.playVideo();
             }
         }
         function previewMusic() {
-            toggleMusic(); // same as toggle for YouTube
+            toggleMusic();
         }
-    </script>
 <?php else: ?>
+    </script>
     <!-- MP3 Player -->
     <audio id="bgMusic" loop>
         <source id="bgMusicSource" src="<?= htmlspecialchars($musicSrc) ?>" type="audio/mpeg">
@@ -179,12 +178,29 @@ include 'styling.php';
         function previewMusic() {
             toggleMusic();
         }
-    </script>
 <?php endif; ?>
+
+// Start Quiz and Play Music in same click
+function startQuizAndMusic(formId) {
+    <?php if ($isYouTube): ?>
+        if (player) {
+            player.setVolume(30);
+            player.playVideo();
+        }
+    <?php else: ?>
+        const music = document.getElementById("bgMusic");
+        if (music) {
+            music.volume = 0.3;
+            music.play().catch(err => console.warn("Music play blocked:", err));
+        }
+    <?php endif; ?>
+    document.getElementById(formId).submit();
+}
+    </script>
 
 <h1>🎯 Kahoot-style Quiz</h1>
 
-<form method="POST" style="display:inline-block;">
+<form method="POST" id="startQuizForm" style="display:inline-block;">
     <label>Select background music:</label><br><br>
     <?php $currentMusic = $_SESSION['bg_music'] ?? ''; ?>
     <select name="bg_music_choice" onchange="toggleCustomMusic(this.value)">
@@ -216,7 +232,7 @@ include 'styling.php';
     </select><br><br>
 
     <div class="quiz-buttons">
-        <button type="submit" name="start_new" id="startQuizBtn">▶️ Start Quiz</button>
+        <button type="button" onclick="startQuizAndMusic('startQuizForm')">▶️ Start Quiz</button>
 </form>
 <form method="POST" style="display:inline-block;">
         <button type="submit" name="clean_slate">🧹 Clean Slate</button>
