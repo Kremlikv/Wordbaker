@@ -124,7 +124,8 @@ function selectImage(qid, url, imgElement) {
 
 <div style="margin-bottom:15px;">
     <a href="?table=<?= urlencode($table) ?>&set_default=1"><button>🚫 I do not want any pictures (Use default)</button></a>
-    <a href="generate_quiz_choices.php?table=<?= urlencode($table) ?>"><button>⬅ Back</button></a>
+    <a href="generate_quiz_choices.php?table=<?= urlencode(preg_replace('/^quiz_choices_/', '', $table)) ?>"><button>⬅ Back</button></a>
+
 </div>
 
 <form method="POST" enctype="multipart/form-data">
