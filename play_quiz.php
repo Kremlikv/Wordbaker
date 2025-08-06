@@ -202,7 +202,7 @@ include 'styling.php';
     Your browser does not support audio.
 </audio>
 
-<h1>🎯 Kahoot-style Quiz</h1>
+<h1>🎯 Quiz</h1>
 
 <form method="POST" style="display:inline-block;">
     <label>Select background music:</label><br><br>
