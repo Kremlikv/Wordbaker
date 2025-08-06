@@ -314,6 +314,7 @@ function submitAnswer(btn) {
     const value = btn.getAttribute("data-value");
     document.querySelectorAll(".answer-btn").forEach(b => b.disabled = true);
     clearInterval(countdown);
+
     fetch("load_question.php", {
         method: "POST",
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
@@ -325,25 +326,21 @@ function submitAnswer(btn) {
         tempDiv.innerHTML = html;
 
         const feedback = tempDiv.querySelector('#feedbackBox');
-        const newBox = tempDiv.innerHTML;
-
-        // Get correct answer from feedback (if incorrect)
         const correctBox = tempDiv.querySelector('#correctAnswerBox');
-        const correctAnswer = correctBox ? correctBox.textContent : value;
+        const correctAnswer = correctBox ? correctBox.textContent.trim() : value;
 
-
-        // Highlight buttons
-        document.querySelectorAll(".answer-btn").forEach(btn2 => {
-            if (btn2.textContent === correctAnswer) {
-                btn2.style.backgroundColor = "#4CAF50";
+        // 🔁 Highlight correct/wrong inside tempDiv, not the current page
+        tempDiv.querySelectorAll(".answer-btn").forEach(btn2 => {
+            if (btn2.textContent.trim() === correctAnswer) {
+                btn2.style.backgroundColor = "#4CAF50"; // green
                 btn2.style.color = "white";
             } else if (btn2.getAttribute("data-value") === value) {
-                btn2.style.backgroundColor = "#f44336";
+                btn2.style.backgroundColor = "#f44336"; // red
                 btn2.style.color = "white";
             }
         });
 
-        // Show feedback
+        // Show feedback in current page (optional, since full HTML is replaced)
         if (feedback) {
             const feedbackBox = document.getElementById("feedbackBox");
             if (feedbackBox) {
@@ -352,12 +349,14 @@ function submitAnswer(btn) {
             }
         }
 
+        // 🔄 Replace content after short delay
         setTimeout(() => {
-            document.getElementById("quizBox").innerHTML = newBox;
+            document.getElementById("quizBox").innerHTML = tempDiv.innerHTML;
             setTimeout(revealAnswers, 2000);
         }, 1500);
     });
 }
+
 
 function loadNextQuestion() {
     fetch("load_question.php")
