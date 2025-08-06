@@ -21,21 +21,12 @@ if (!$resCheck || $resCheck->num_rows === 0) {
 
 $conn->set_charset("utf8mb4");
 
-// ✅ Bulk set default images if requested
-if (isset($_GET['set_default']) && $_GET['set_default'] == '1') {
-    $stmt = $conn->prepare("UPDATE `$table` SET image_url = 'quiz_logo.png'");
-    $stmt->execute();
-    $stmt->close();
-    $msg = "✅ All questions now use the default image.";
-}
-
 /* Save updates */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     foreach ($_POST['image_url'] as $id => $url) {
         $id = intval($id);
         $url = trim($url);
 
-        // Check if a file was uploaded
         if (isset($_FILES['image_file']['name'][$id]) && $_FILES['image_file']['error'][$id] === UPLOAD_ERR_OK) {
             $uploadDir = __DIR__ . "/uploads/quiz_images/";
             if (!is_dir($uploadDir)) mkdir($uploadDir, 0777, true);
@@ -48,11 +39,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        // ✅ Set default if still empty
-        if ($url === '' || $url === null) {
-            $url = 'quiz_logo.png';
-        }
-
         $stmt = $conn->prepare("UPDATE `$table` SET image_url=? WHERE id=?");
         $stmt->bind_param("si", $url, $id);
         $stmt->execute();
@@ -60,6 +46,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     $msg = "✅ Images saved successfully!";
 }
+
+
 
 $res = $conn->query("SELECT id, question, image_url FROM `$table` ORDER BY id ASC");
 if (!$res) die("Table not found.");
@@ -123,17 +111,14 @@ function selectImage(qid, url, imgElement) {
 <?php endif; ?>
 
 <div style="margin-bottom:15px;">
-    <a href="?table=<?= urlencode($table) ?>&set_default=1"><button>🚫 I do not want any pictures (Use default)</button></a>
-    <a href="generate_quiz_choices.php?table=<?= urlencode($table) ?>"><button>⬅ Back</button></a>
+    <a href="generate_quiz_choices.php"><button>🚫 I do not want any pictures</button></a>
 </div>
 
 <form method="POST" enctype="multipart/form-data">
-<?php while ($row = $res->fetch_assoc()):
-    $currentImage = (isset($row['image_url']) && trim($row['image_url']) !== '') ? $row['image_url'] : 'quiz_logo.png';
-?>
+<?php while ($row = $res->fetch_assoc()): ?>
 <div class="question-block">
     <div class="question-text"><?php echo htmlspecialchars($row['question']); ?></div>
-    <input type="hidden" name="image_url[<?php echo $row['id']; ?>]" id="image_url_<?php echo $row['id']; ?>" value="<?php echo htmlspecialchars($currentImage); ?>">
+    <input type="hidden" name="image_url[<?php echo $row['id']; ?>]" id="image_url_<?php echo $row['id']; ?>" value="<?php echo htmlspecialchars($row['image_url']); ?>">
     <div>
         <label>Upload from PC:</label>
         <input type="file" name="image_file[<?php echo $row['id']; ?>]">
@@ -143,7 +128,9 @@ function selectImage(qid, url, imgElement) {
         <button type="button" onclick="searchImages(<?php echo $row['id']; ?>)">Search Pixabay</button>
     </div>
     <div class="image-strip" id="images_<?php echo $row['id']; ?>">
-        <img src="<?php echo htmlspecialchars($currentImage); ?>" class="selected">
+        <?php if (!empty($row['image_url'])): ?>
+            <img src="<?php echo htmlspecialchars($row['image_url']); ?>" class="selected">
+        <?php endif; ?>
     </div>
 </div>
 <?php endwhile; ?>
