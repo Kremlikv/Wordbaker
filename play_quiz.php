@@ -195,16 +195,22 @@ include 'styling.php';
 </head>
 <body>
 
-<div class='content'>
-    <div class="content">
+<!-- QUIZ AREA FIRST -->
+<div id="quizBox" style="margin-top: 10px;"></div>
+<hr style="margin: 30px 0;">
+
+<!-- HEADER + CONTROLS BELOW QUIZ -->
+<div class="content">
     👤 Logged in as <?= htmlspecialchars($_SESSION['username']) ?> | <a href='logout.php'>Logout</a>
+    <h1>🎯 Quiz</h1>
 
-<audio id="bgMusic" loop>
-    <source id="bgMusicSource" src="<?= htmlspecialchars($musicSrc) ?>" type="audio/mpeg">
-    Your browser does not support audio.
-</audio>
+    <audio id="bgMusic" loop>
+        <source id="bgMusicSource" src="<?= htmlspecialchars($musicSrc) ?>" type="audio/mpeg">
+        Your browser does not support audio.
+    </audio>
 
-<h1>🎯 Quiz</h1>
+    <!-- Music selection, quiz dropdown, and buttons go here... -->
+
 
 <form method="POST" style="display:inline-block;">
     <label>Select background music:</label><br><br>
@@ -246,10 +252,6 @@ include 'styling.php';
 </form>
 
 <hr>
-
-<?php if (!empty($_SESSION['questions'])): ?>
-    <div id="quizBox"></div>
-<?php endif; ?>
 
 <script>
 let countdown = null;
