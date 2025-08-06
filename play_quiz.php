@@ -18,7 +18,7 @@ while ($row = $result->fetch_array()) {
 $selectedTable = $_SESSION['quiz_table'] ?? '';
 $musicSrc = $_SESSION['bg_music'] ?? '';
 
-// 🧹 Clean slate if button pressed
+// 🥳 Clean slate if button pressed
 if (isset($_POST['clean_slate'])) {
     unset(
         $_SESSION['score'],
@@ -88,9 +88,103 @@ include 'styling.php';
 <head>
 <meta charset="UTF-8">
 <title>Play Quiz</title>
+<head>
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Play Quiz</title>
 <style>
-<?php include 'style.css'; ?>
+    body {
+        font-family: sans-serif;
+        text-align: center;
+        padding: 0;
+        padding-bottom: 80px;
+        margin: 0;
+    }
+    .question-box {
+        font-size: clamp(1.2em, 4vw, 1.5em);
+        margin-bottom: 20px;
+    }
+    .answer-grid {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        max-width: 600px;
+        margin: auto;
+    }
+    .answer-col {
+        flex: 0 0 50%;
+        padding: 10px;
+        box-sizing: border-box;
+    }
+    .answer-btn {
+        width: 100%;
+        padding: clamp(12px, 3vw, 20px);
+        font-size: clamp(1em, 3vw, 1.1em);
+        cursor: pointer;
+        border: none;
+        border-radius: 10px;
+        background-color: #eee;
+        transition: 0.3s;
+        word-wrap: break-word;
+    }
+    .answer-btn:hover {
+        background-color: #ddd;
+    }
+    .feedback {
+        font-size: clamp(1em, 3vw, 1.2em);
+        margin-top: 20px;
+    }
+    .score {
+        margin-bottom: 10px;
+        font-weight: bold;
+    }
+    .image-container {
+        margin: 20px auto;
+    }
+    img.question-image {
+        max-width: 100%;
+        height: auto;
+        max-height: 50vh;
+    }
+    select, button, input[type="url"] {
+        padding: 10px;
+        font-size: clamp(0.9em, 3vw, 1em);
+        max-width: 90%;
+    }
+    #timer {
+        font-size: clamp(1.1em, 3.5vw, 1.3em);
+        color: darkred;
+        margin: 10px;
+    }
+    .quiz-buttons {
+        text-align: center;
+        margin-top: 20px;
+    }
+    .quiz-buttons button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        background-color: #d3d3d3;
+        color: black;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 5px;
+        font-size: clamp(0.9em, 3vw, 1em);
+        cursor: pointer;
+        margin: 5px;
+        white-space: nowrap;
+    }
+
+    .quiz-buttons button:hover {
+        background-color: #bfbfbf;
+    }
+
+    @media (max-width: 500px) {
+        .answer-col {
+            flex: 0 0 100%;
+        }
+    }
 </style>
 </head>
 <body>
@@ -186,42 +280,13 @@ function toggleMusic() {
     }
 }
 
-function showQuestionAndImage(html) {
-    const temp = document.createElement('div');
-    temp.innerHTML = html;
-    const question = temp.querySelector('.question-box');
-    const image = temp.querySelector('.image-container');
-    const score = temp.querySelector('.score');
-    const timer = temp.querySelector('#timer');
-    const progress = temp.querySelector('#progressBarContainer');
-
-    const quizBox = document.getElementById("quizBox");
-    quizBox.innerHTML = "";
-    if (score) quizBox.appendChild(score);
-    if (progress) quizBox.appendChild(progress);
-    if (timer) quizBox.appendChild(timer);
-    if (question) quizBox.appendChild(question);
-    if (image) quizBox.appendChild(image);
-}
-
-function showAnswersAndStartTimer(html) {
-    const temp = document.createElement('div');
-    temp.innerHTML = html;
-    const answers = temp.querySelector('.answer-grid');
-    const quizBox = document.getElementById("quizBox");
-    if (answers) quizBox.appendChild(answers);
-    startTimer();
-}
-
 function startTimer() {
     clearInterval(countdown);
     timeLeft = 15;
     const timerDisplay = document.getElementById("timer");
-    const progressBar = document.getElementById("progressBar");
     countdown = setInterval(() => {
         timeLeft--;
         if (timerDisplay) timerDisplay.textContent = `⏳ ${timeLeft}`;
-        if (progressBar) progressBar.style.width = (timeLeft / 15 * 100) + "%";
         if (timeLeft <= 0) {
             clearInterval(countdown);
             document.querySelectorAll(".answer-btn").forEach(btn => btn.disabled = true);
@@ -230,48 +295,27 @@ function startTimer() {
     }, 1000);
 }
 
-function highlightAnswerAndShowFeedback(userAnswer, html) {
-    const temp = document.createElement('div');
-    temp.innerHTML = html;
-    const feedback = temp.querySelector('.feedback');
-    const correct = feedback && feedback.textContent.includes("Wrong.")
-        ? feedback.textContent.split("Correct answer: ")[1]
-        : userAnswer;
-
-    document.querySelectorAll(".answer-btn").forEach(btn => {
-        if (btn.textContent === correct) {
-            btn.style.backgroundColor = "#4CAF50";
-            btn.style.color = "white";
-        } else if (btn.getAttribute("data-value") === userAnswer) {
-            btn.style.backgroundColor = "#f44336";
-            btn.style.color = "white";
-        }
-    });
-
-    if (feedback) {
-        document.getElementById("quizBox").appendChild(feedback);
-    }
+function showAnswersAndStartTimer() {
+    setTimeout(() => {
+        const grid = document.querySelector(".answer-grid");
+        if (grid) grid.style.display = "flex";
+        startTimer();
+    }, 2000);
 }
 
 function submitAnswer(btn) {
     const value = btn.getAttribute("data-value");
     document.querySelectorAll(".answer-btn").forEach(b => b.disabled = true);
     clearInterval(countdown);
-
     fetch("load_question.php", {
         method: "POST",
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-            answer: value,
-            time_taken: 15 - timeLeft
-        })
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        body: new URLSearchParams({ answer: value, time_taken: 15 - timeLeft })
     })
     .then(res => res.text())
     .then(html => {
-        highlightAnswerAndShowFeedback(value, html);
-        setTimeout(() => {
-            loadNextQuestion();
-        }, 2000);
+        document.getElementById("quizBox").innerHTML = html;
+        showAnswersAndStartTimer();
     });
 }
 
@@ -279,13 +323,13 @@ function loadNextQuestion() {
     fetch("load_question.php")
         .then(res => res.text())
         .then(html => {
-            showQuestionAndImage(html);
-            setTimeout(() => showAnswersAndStartTimer(html), 2000);
+            document.getElementById("quizBox").innerHTML = html;
+            showAnswersAndStartTimer();
         });
 }
 
 document.addEventListener("DOMContentLoaded", function () {
-    if (<?= json_encode(!empty($_SESSION['questions'])) ?>) {
+    if (<?= json_encode(!empty($_SESSION['questions'])) ?>) { 
         loadNextQuestion();
     }
 });
