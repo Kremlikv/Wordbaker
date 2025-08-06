@@ -74,123 +74,37 @@ if ($index >= $total) {
 }
 
 // 📜 Load current question
+global $question, $answers;
 $question = $questions[$index];
 $answers  = $question['answers'];
 shuffle($answers);
 
-// Calculate timer based on correct answer word count
 $wordCount = str_word_count($question['correct']);
 $timeLimit = 15 + max(0, $wordCount - 1) * 5;
 
-echo '<div class="score">Question ' . ($index + 1) . ' of ' . $total . ' | Score: ' . $_SESSION['score'] . '</div>';
-
-// Progress bar container
-echo '<div id="progressBarContainer" style="width:100%; background:#ddd; height:10px; border-radius:5px; overflow:hidden; margin:5px auto;">
-        <div id="progressBar" style="width:100%; height:100%; background:green;"></div>
-      </div>';
-
-echo '<div id="timer" style="color: green; font-weight: bold; margin-top:5px;">⏳ ' . $timeLimit . '</div>';
-echo '<div class="question-box">🧠 ' . htmlspecialchars($question['question']) . '</div>';
-
-if (!empty($question['image'])) {
-    echo '<div class="image-container">
-            <img src="' . htmlspecialchars($question['image']) . '" class="question-image">
-          </div>';
-}
-
-echo '<div class="answer-grid">';
-foreach ($answers as $a) {
-    echo '<div class="answer-col">
-            <button type="button" class="answer-btn" onclick="submitAnswer(this)" data-value="' . htmlspecialchars($a) . '">' . htmlspecialchars($a) . '</button>
-          </div>';
-}
-echo '</div>';
-
-if (!empty($_SESSION['feedback'])) {
-    echo '<div class="feedback" id="feedbackBox">' . $_SESSION['feedback'] . '</div>';
-    unset($_SESSION['feedback']);
-}
 ?>
-
-<script>
-let timeLeft = <?= $timeLimit ?>;
-let countdown = null;
-const timerDisplay = document.getElementById("timer");
-const progressBar = document.getElementById("progressBar");
-
-function updateTimerColor() {
-    if (timeLeft <= 5) {
-        timerDisplay.style.color = "red";
-        progressBar.style.backgroundColor = "red";
-    } else if (timeLeft <= <?= floor($timeLimit / 2) ?>) {
-        timerDisplay.style.color = "orange";
-        progressBar.style.backgroundColor = "orange";
-    } else {
-        timerDisplay.style.color = "green";
-        progressBar.style.backgroundColor = "green";
-    }
-}
-
-function startTimer() {
-    clearInterval(countdown);
-    countdown = setInterval(() => {
-        timeLeft--;
-        updateTimerColor();
-        timerDisplay.textContent = `⏳ ${timeLeft}`;
-        let percent = (timeLeft / <?= $timeLimit ?>) * 100;
-        progressBar.style.width = percent + "%";
-        if (timeLeft <= 0) {
-            clearInterval(countdown);
-            document.querySelectorAll(".answer-btn").forEach(btn => btn.disabled = true);
-            timerDisplay.textContent = "⏰ Time's up!";
-        }
-    }, 1000);
-}
-
-// Delay timer start by 2 seconds for reading time
-setTimeout(startTimer, 2000);
-
-function submitAnswer(btn) {
-    const value = btn.getAttribute("data-value");
-    document.querySelectorAll(".answer-btn").forEach(b => b.disabled = true);
-
-    fetch("load_question.php", {
-        method: "POST",
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: new URLSearchParams({
-            answer: value,
-            time_taken: <?= $timeLimit ?> - timeLeft
-        })
-    })
-    .then(res => res.text())
-    .then(html => {
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = html;
-        const feedback = tempDiv.querySelector('.feedback');
-        const correctAnswer = feedback && feedback.textContent.includes('Wrong.')
-            ? feedback.textContent.split('Correct answer: ')[1]
-            : value;
-
-        // Highlight answers
-        document.querySelectorAll(".answer-btn").forEach(btn2 => {
-            if (btn2.textContent === correctAnswer) {
-                btn2.style.backgroundColor = "#4CAF50"; // green
-                btn2.style.color = "white";
-            } else if (btn2.getAttribute("data-value") === value) {
-                btn2.style.backgroundColor = "#f44336"; // red
-                btn2.style.color = "white";
-            }
-        });
-
-        // Show feedback first, then load next question
-        if (feedback) {
-            document.getElementById("quizBox").innerHTML = feedback.outerHTML;
-            setTimeout(() => {
-                document.getElementById("quizBox").innerHTML = html;
-            }, 1500);
-        } else {
-            document.getElementById("quizBox").innerHTML = html;
-        }
-    });
-}
-</script>
+<div class="score">Question <?= ($index + 1) ?> of <?= $total ?> | Score: <?= $score ?></div>
+<div id="progressBarContainer" style="width:100%; background:#ddd; height:10px; border-radius:5px; overflow:hidden; margin:5px auto;">
+    <div id="progressBar" style="width:100%; height:100%; background:green;"></div>
+</div>
+<div id="timer" style="color: green; font-weight: bold; margin-top:5px;">⏳ <?= $timeLimit ?></div>
+<div class="question-box">🧠 <?= htmlspecialchars($question['question']) ?></div>
+<?php if (!empty($question['image'])): ?>
+    <div class="image-container">
+        <img src="<?= htmlspecialchars($question['image']) ?>" class="question-image">
+    </div>
+<?php endif; ?>
+<div class="answer-grid" style="display:none;">
+<?php foreach ($answers as $a): ?>
+    <div class="answer-col">
+        <button type="button" class="answer-btn" onclick="submitAnswer(this)" data-value="<?= htmlspecialchars($a) ?>">
+            <?= htmlspecialchars($a) ?>
+        </button>
+    </div>
+<?php endforeach; ?>
+</div>
+<?php if (!empty($_SESSION['feedback'])): ?>
+    <div class="feedback" id="feedbackBox">
+        <?= $_SESSION['feedback'] ?>
+    </div>
+<?php unset($_SESSION['feedback']); endif; ?>
