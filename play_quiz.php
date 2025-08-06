@@ -312,43 +312,59 @@ function startTimer() {
 
 function submitAnswer(btn) {
     const value = btn.getAttribute("data-value");
-    document.querySelectorAll(".answer-btn").forEach(b => b.disabled = true);
+    const buttons = document.querySelectorAll(".answer-btn");
+    buttons.forEach(b => b.disabled = true);
     clearInterval(countdown);
 
-    fetch("load_question.php", {
+    fetch("submit_answer.php", {
         method: "POST",
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({ answer: value, time_taken: 15 - timeLeft })
+        body: new URLSearchParams({
+            answer: value,
+            time_taken: 15 - timeLeft
+        })
     })
-    .then(res => res.text())
-    .then(html => {
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = html;
+    .then(res => res.json())
+    .then(data => {
+        if (data.error) {
+            alert(data.error);
+            return;
+        }
 
-        // Get correct answer before replacing HTML
-        const correctBox = tempDiv.querySelector('#correctAnswerBox');
-        const correctAnswer = correctBox ? correctBox.textContent.trim() : value;
+        const correctAnswer = data.correctAnswer;
+        const feedbackText = data.feedback;
 
-        // Insert new question into the page
+        // Highlight buttons
+        buttons.forEach(b => {
+            const btnText = b.textContent.trim();
+            if (btnText === correctAnswer) {
+                b.style.backgroundColor = "#4CAF50"; // green
+                b.style.color = "white";
+            } else if (b.getAttribute("data-value") === value) {
+                b.style.backgroundColor = "#f44336"; // red
+                b.style.color = "white";
+            }
+        });
+
+        // Show feedback
+        const feedbackBox = document.getElementById("feedbackBox");
+        if (feedbackBox) {
+            feedbackBox.innerHTML = feedbackText;
+            feedbackBox.style.display = "block";
+        }
+
+        // Load next question after delay
         setTimeout(() => {
-            document.getElementById("quizBox").innerHTML = tempDiv.innerHTML;
-
-            // Now highlight buttons in the current DOM (after it's inserted)
-            document.querySelectorAll(".answer-btn").forEach(btn2 => {
-                const btnText = btn2.textContent.trim();
-                if (btnText === correctAnswer) {
-                    btn2.style.backgroundColor = "#4CAF50"; // green
-                    btn2.style.color = "white";
-                } else if (btn2.getAttribute("data-value") === value) {
-                    btn2.style.backgroundColor = "#f44336"; // red
-                    btn2.style.color = "white";
-                }
-            });
-
-            setTimeout(revealAnswers, 2000);
-        }, 1500);
+            fetch("load_question.php")
+                .then(res => res.text())
+                .then(html => {
+                    document.getElementById("quizBox").innerHTML = html;
+                    setTimeout(revealAnswers, 2000);
+                });
+        }, 2000);
     });
 }
+
 
 
 
