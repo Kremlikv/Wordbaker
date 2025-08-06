@@ -84,11 +84,14 @@ if (isset($_POST['start_new']) && !empty($_POST['quiz_table'])) {
 $isYouTube = false;
 $ytVideoId = '';
 if (!empty($musicSrc)) {
+
+    $musicSrc = preg_replace('/\?.*/', '', $musicSrc); // remove query params
     if (preg_match('/youtu\.be\/([a-zA-Z0-9_-]+)/', $musicSrc, $m) ||
-        preg_match('/youtube\.com.*v=([a-zA-Z0-9_-]+)/', $musicSrc, $m)) {
-        $isYouTube = true;
+        preg_match('/youtube\.com.*[?&]v=([a-zA-Z0-9_-]+)/', $musicSrc, $m)) {
         $ytVideoId = $m[1];
+        $isYouTube = true;
     }
+
 }
 
 include 'styling.php';
