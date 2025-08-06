@@ -200,6 +200,7 @@ function startQuizAndMusic(formId) {
 
 <h1>🎯 Kahoot-style Quiz</h1>
 
+<!-- Start Quiz Form -->
 <form method="POST" id="startQuizForm" style="display:inline-block;">
     <label>Select background music:</label><br><br>
     <?php $currentMusic = $_SESSION['bg_music'] ?? ''; ?>
@@ -231,10 +232,15 @@ function startQuizAndMusic(formId) {
         <?php endforeach; ?>
     </select><br><br>
 
+    <input type="hidden" name="start_new" value="1">
     <div class="quiz-buttons">
         <button type="button" onclick="startQuizAndMusic('startQuizForm')">▶️ Start Quiz</button>
+    </div>
 </form>
+
+<!-- Clean Slate Form -->
 <form method="POST" style="display:inline-block;">
+    <div class="quiz-buttons">
         <button type="submit" name="clean_slate">🧹 Clean Slate</button>
     </div>
 </form>
