@@ -317,7 +317,7 @@ function submitAnswer(btn) {
 
     fetch("load_question.php", {
         method: "POST",
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({ answer: value, time_taken: 15 - timeLeft })
     })
     .then(res => res.text())
@@ -325,37 +325,31 @@ function submitAnswer(btn) {
         const tempDiv = document.createElement('div');
         tempDiv.innerHTML = html;
 
-        const feedback = tempDiv.querySelector('#feedbackBox');
+        // Get correct answer before replacing HTML
         const correctBox = tempDiv.querySelector('#correctAnswerBox');
         const correctAnswer = correctBox ? correctBox.textContent.trim() : value;
 
-        // 🔁 Highlight correct/wrong inside tempDiv, not the current page
-        tempDiv.querySelectorAll(".answer-btn").forEach(btn2 => {
-            if (btn2.textContent.trim() === correctAnswer) {
-                btn2.style.backgroundColor = "#4CAF50"; // green
-                btn2.style.color = "white";
-            } else if (btn2.getAttribute("data-value") === value) {
-                btn2.style.backgroundColor = "#f44336"; // red
-                btn2.style.color = "white";
-            }
-        });
-
-        // Show feedback in current page (optional, since full HTML is replaced)
-        if (feedback) {
-            const feedbackBox = document.getElementById("feedbackBox");
-            if (feedbackBox) {
-                feedbackBox.innerHTML = feedback.innerHTML;
-                feedbackBox.style.display = "block";
-            }
-        }
-
-        // 🔄 Replace content after short delay
+        // Insert new question into the page
         setTimeout(() => {
             document.getElementById("quizBox").innerHTML = tempDiv.innerHTML;
+
+            // Now highlight buttons in the current DOM (after it's inserted)
+            document.querySelectorAll(".answer-btn").forEach(btn2 => {
+                const btnText = btn2.textContent.trim();
+                if (btnText === correctAnswer) {
+                    btn2.style.backgroundColor = "#4CAF50"; // green
+                    btn2.style.color = "white";
+                } else if (btn2.getAttribute("data-value") === value) {
+                    btn2.style.backgroundColor = "#f44336"; // red
+                    btn2.style.color = "white";
+                }
+            });
+
             setTimeout(revealAnswers, 2000);
         }, 1500);
     });
 }
+
 
 
 function loadNextQuestion() {
