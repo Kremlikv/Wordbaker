@@ -106,6 +106,7 @@ echo "</head><body>";
 
 echo "<div class='content'>";
 echo "👤 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Logout</a><br><br>";
+echo "<h2> View and edit your tables </h2>";
 
 // Include the reusable file explorer
 include 'file_explorer.php';

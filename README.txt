@@ -103,3 +103,7 @@ SAVE (6 August 2025)
 I spent a day trying to make "save" button in editable quiz table work. I had to divide it into 
 two files. Generate_quiz_choices generates preview and edit button takes you to editable/deletable page.
 From which you can move to picture selection.
+
+EMAIL
+At registration each user must provide an email address. It is stored in the user database.
+Now I can communicate with the users of my website.

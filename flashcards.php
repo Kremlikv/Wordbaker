@@ -139,6 +139,8 @@ $conn->close();
 <div class='content'>
 <p>👤 Logged in as: <strong><?= htmlspecialchars($_SESSION['username']) ?></strong> | <a href='logout.php'>Logout</a></p>
 
+<h2>Flashcards for Table: <?= htmlspecialchars($selectedTable) ?></h2>
+
 <!-- Include the reusable file explorer -->
 <?php include 'file_explorer.php'; ?>
 
@@ -148,8 +150,6 @@ $conn->close();
   <label><input type="checkbox" name="difficult_only" value="1" <?= $difficultOnly ? 'checked' : '' ?>> Show only my difficult words</label>
   <button type="submit">Apply</button>
 </form>
-
-<h2>Flashcards for Table: <?= htmlspecialchars($selectedTable) ?></h2>
 
 <div id="card" class="card" onclick="flipCard()"></div>
 <div class="controls">
