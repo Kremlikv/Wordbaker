@@ -4,7 +4,18 @@ ini_set('display_errors', 1);
 error_reporting(E_ALL);
 
 require_once 'db.php';
-require_once 'session.php';
+require_once 'session.php';¨
+
+
+// ⛔ Temporarily disable session checking for AJAX fetch
+if (
+    !empty($_SERVER['HTTP_X_REQUESTED_WITH']) &&
+    strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest'
+) {
+    // Bypass session check logic if present in session.php
+    return;
+}
+
 
 // 📂 Get available quiz tables
 $quizTables = [];
