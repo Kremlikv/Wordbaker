@@ -163,7 +163,7 @@ include 'styling.php';
     .quiz-buttons button {
         background-color: #d3d3d3;
         color: black;
-        padding: 10px 20px;
+        padding: 5px 10px;
         border: none;
         border-radius: 5px;
         font-size: clamp(0.9em, 3vw, 1em);
