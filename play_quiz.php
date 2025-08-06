@@ -248,7 +248,13 @@ include 'styling.php';
 <hr>
 
 <?php if (!empty($_SESSION['questions'])): ?>
-    <div id="quizBox"></div>
+   
+    <div id="quizContainer" style="max-height: 80vh; overflow-y: auto; border-top: 1px solid #ccc; margin-top: 20px;">
+        <div id="quizBox"></div>
+    </div>
+
+
+
 <?php endif; ?>
 
 <script>
@@ -360,10 +366,7 @@ function submitAnswer(btn) {
                 .then(html => {
                     const quizBox = document.getElementById("quizBox");
                     quizBox.innerHTML = html;
-
-                    // 👇 Scroll to quiz content (with smooth animation)
-                    quizBox.scrollIntoView({ behavior: "smooth", block: "start" });
-
+                 
                     setTimeout(revealAnswers, 2000);
                 });
         }, 2000);
