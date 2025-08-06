@@ -49,8 +49,50 @@ function cleanAIOutput($answers) {
     return array_map(fn($a) => trim(preg_replace('/^[\-\:\"]+/', '', $a)), $answers);
 }
 
+// ===== SAME PRE-EXPLORER LOGIC AS main.php =====
 $username = strtolower($_SESSION['username'] ?? '');
 $conn->set_charset("utf8mb4");
+
+function getUserFoldersAndTables($conn, $username) {
+    $allTables = [];
+    $result = $conn->query("SHOW TABLES");
+    while ($row = $result->fetch_array()) {
+        $table = $row[0];
+        if (strpos($table, 'quiz_choices_') === 0) continue; // skip quiz tables
+        if (stripos($table, $username . '_') === 0) {
+            $suffix = substr($table, strlen($username) + 1);
+            $suffix = preg_replace('/_+/', '_', $suffix);
+            $parts = explode('_', $suffix, 2);
+            if (count($parts) === 2 && trim($parts[0]) !== '') {
+                $folder = $parts[0];
+                $file = $parts[1];
+            } else {
+                $folder = 'Uncategorized';
+                $file = $suffix;
+            }
+            $allTables[$folder][] = [
+                'table_name' => $table,
+                'display_name' => $file
+            ];
+        }
+    }
+    return $allTables;
+}
+
+$folders = getUserFoldersAndTables($conn, $username);
+$folders['Shared'][] = ['table_name' => 'difficult_words', 'display_name' => 'Difficult Words'];
+$folders['Shared'][] = ['table_name' => 'mastered_words', 'display_name' => 'Mastered Words'];
+
+$folderData = [];
+foreach ($folders as $folder => $tableList) {
+    foreach ($tableList as $entry) {
+        $folderData[$folder][] = [
+            'table' => $entry['table_name'],
+            'display' => $entry['display_name']
+        ];
+    }
+}
+// ===== END PRE-EXPLORER LOGIC =====
 
 $selectedTable = $_POST['table'] ?? $_GET['table'] ?? '';
 $autoSourceLang = '';
@@ -103,10 +145,8 @@ if ($selectedTable) {
 echo "<div class='content'>👤 Logged in as ".$_SESSION['username']." | <a href='logout.php'>Logout</a></div>";
 echo "<h2 style='text-align:center;'>Generate AI Quiz Choices</h2>";
 
-// Show foldered file explorer (filtered)
 include 'file_explorer.php';
 
-// Only show preview if table was selected
 if ($generatedTable) {
     echo "<h3 style='text-align:center;'>Preview: <code>$generatedTable</code></h3>";
     echo "<div style='overflow-x:auto;'><table border='1' style='width:100%; max-width:100%; border-collapse:collapse;'>
