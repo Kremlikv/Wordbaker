@@ -4,7 +4,6 @@ error_reporting(E_ALL);
 
 require_once 'db.php';
 require_once 'session.php';
-include 'styling.php';
 
 $table = $_GET['table'] ?? '';
 if (!$table) die("No table selected.");
@@ -34,7 +33,12 @@ if (isset($_POST['delete_quiz'])) {
     header("Location: generate_quiz_choices.php");
     exit;
 }
+
+// Now safe to output HTML
+include 'styling.php';
 ?>
+
+
 <style>
 .table-container { overflow-x:auto; -webkit-overflow-scrolling:touch; }
 table { border-collapse:collapse; width:100%; max-width:100%; }
