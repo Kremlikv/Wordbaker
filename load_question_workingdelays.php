@@ -45,7 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['answer'])) {
     $index++;
 }
 
-// 🏍️ End of quiz
+// 🏁 End of quiz
 if ($index >= $total) {
     echo "<h2>🌟 Quiz Completed!</h2>";
     echo "<p>Your final score: {$score} out of " . ($total * 3) . " points</p>";
@@ -103,4 +103,8 @@ $timeLimit = 15 + max(0, $wordCount - 1) * 5;
     </div>
 <?php endforeach; ?>
 </div>
-<div id="feedbackBox" class="feedback" style="display:none;"></div>
+<?php if (!empty($_SESSION['feedback'])): ?>
+    <div class="feedback" id="feedbackBox">
+        <?= $_SESSION['feedback'] ?>
+    </div>
+<?php unset($_SESSION['feedback']); endif; ?>
