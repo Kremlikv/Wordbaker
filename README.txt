@@ -107,3 +107,7 @@ From which you can move to picture selection.
 EMAIL
 At registration each user must provide an email address. It is stored in the user database.
 Now I can communicate with the users of my website.
+
+RED-GREEN
+Quiz highlights correct answers in red and wrong in red. Result of a day of editing!
+It required moving part of the logic to a separate file submit_answer.php
