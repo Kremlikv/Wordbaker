@@ -183,7 +183,9 @@ include 'styling.php';
 </style>
 </head>
 <body>
+
 <div class='content'>
+    <div class="content">
     👤 Logged in as <?= htmlspecialchars($_SESSION['username']) ?> | <a href='logout.php'>Logout</a>
 
 <audio id="bgMusic" loop>
@@ -192,6 +194,7 @@ include 'styling.php';
 </audio>
 
 <h1>🎯 Quiz</h1>
+
 <form method="POST" style="display:inline-block;">
     <label>Select background music:</label><br><br>
     <?php $currentMusic = $_SESSION['bg_music'] ?? ''; ?>
@@ -199,7 +202,7 @@ include 'styling.php';
         <option value="" <?= $currentMusic === '' ? 'selected' : '' ?>>🔇 OFF</option>
         <option value="track1.mp3" <?= $currentMusic === 'track1.mp3' ? 'selected' : '' ?>>🎸 Track 1</option>
         <option value="track2.mp3" <?= $currentMusic === 'track2.mp3' ? 'selected' : '' ?>>🎹 Track 2</option>
-        <option value="track3.mp3" <?= $currentMusic === 'track3.mp3' ? 'selected' : '' ?>>🥁 Track 3</option>
+        <option value="track3.mp3" <?= $currentMusic === 'track3.mp3' ? 'selected' : '' ?>>🥛 Track 3</option>
         <option value="custom" <?= filter_var($currentMusic, FILTER_VALIDATE_URL) ? 'selected' : '' ?>>🌐 Use custom music URL</option>
     </select><br><br>
 
@@ -230,7 +233,9 @@ include 'styling.php';
         <button type="submit" name="clean_slate">🧹 Clean Slate</button>
     </div>
 </form>
+
 <hr>
+
 <?php if (!empty($_SESSION['questions'])): ?>
     <div id="quizBox"></div>
 <?php endif; ?>
@@ -271,19 +276,25 @@ function toggleMusic() {
     }
 }
 
+function revealAnswers() {
+    const grid = document.querySelector(".answer-grid");
+    if (grid) {
+        grid.style.display = "flex";
+        startTimer();
+    }
+}
+
 function startTimer() {
     clearInterval(countdown);
+    timeLeft = 15;
     const timerDisplay = document.getElementById("timer");
-    const progressBar = document.getElementById("progressBar");
     countdown = setInterval(() => {
         timeLeft--;
-        timerDisplay.textContent = `⏳ ${timeLeft}`;
-        let percent = (timeLeft / 15) * 100;
-        progressBar.style.width = percent + "%";
+        if (timerDisplay) timerDisplay.textContent = `⏳ ${timeLeft}`;
         if (timeLeft <= 0) {
             clearInterval(countdown);
             document.querySelectorAll(".answer-btn").forEach(btn => btn.disabled = true);
-            timerDisplay.textContent = "⏰ Time's up!";
+            if (timerDisplay) timerDisplay.textContent = "⏰ Time's up!";
         }
     }, 1000);
 }
@@ -292,22 +303,26 @@ function submitAnswer(btn) {
     const value = btn.getAttribute("data-value");
     document.querySelectorAll(".answer-btn").forEach(b => b.disabled = true);
     clearInterval(countdown);
-
     fetch("load_question.php", {
         method: "POST",
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
         body: new URLSearchParams({ answer: value, time_taken: 15 - timeLeft })
     })
     .then(res => res.text())
     .then(html => {
         const tempDiv = document.createElement('div');
         tempDiv.innerHTML = html;
-        const newQuizBox = tempDiv.querySelector('#quizBox') || tempDiv;
-        const feedbackText = tempDiv.querySelector('.feedback')?.innerHTML || "";
-        const correctAnswer = feedbackText.includes('Correct answer: ')
-            ? feedbackText.split('Correct answer: ')[1]
+
+        const feedback = tempDiv.querySelector('#feedbackBox');
+        const newBox = tempDiv.innerHTML;
+
+        // Get correct answer from feedback (if incorrect)
+        const feedbackText = feedback ? feedback.textContent : "";
+        const correctAnswer = feedbackText.includes("Correct answer: ")
+            ? feedbackText.split("Correct answer: ")[1]
             : value;
 
+        // Highlight buttons
         document.querySelectorAll(".answer-btn").forEach(btn2 => {
             if (btn2.textContent === correctAnswer) {
                 btn2.style.backgroundColor = "#4CAF50";
@@ -318,14 +333,18 @@ function submitAnswer(btn) {
             }
         });
 
-        const feedbackBox = document.getElementById("feedbackBox");
-        if (feedbackBox) {
-            feedbackBox.innerHTML = feedbackText;
-            feedbackBox.style.display = "block";
+        // Show feedback
+        if (feedback) {
+            const feedbackBox = document.getElementById("feedbackBox");
+            if (feedbackBox) {
+                feedbackBox.innerHTML = feedback.innerHTML;
+                feedbackBox.style.display = "block";
+            }
         }
 
         setTimeout(() => {
-            document.getElementById("quizBox").innerHTML = html;
+            document.getElementById("quizBox").innerHTML = newBox;
+            setTimeout(revealAnswers, 2000);
         }, 1500);
     });
 }
@@ -335,11 +354,7 @@ function loadNextQuestion() {
         .then(res => res.text())
         .then(html => {
             document.getElementById("quizBox").innerHTML = html;
-            setTimeout(() => {
-                const grid = document.querySelector(".answer-grid");
-                if (grid) grid.style.display = "flex";
-                startTimer();
-            }, 2000);
+            setTimeout(revealAnswers, 2000);
         });
 }
 
@@ -349,6 +364,8 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 });
 </script>
+
+</div>
 </div>
 </body>
 </html>
