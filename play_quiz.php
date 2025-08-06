@@ -161,6 +161,10 @@ include 'styling.php';
         margin-top: 20px;
     }
     .quiz-buttons button {
+        display: inline-flex;       /* keep icon + text side-by-side */
+        align-items: center;        /* vertical align */
+        justify-content: center;
+        gap: 6px;                   /* space between emoji and text */
         background-color: #d3d3d3;
         color: black;
         padding: 10px 20px;
@@ -168,8 +172,10 @@ include 'styling.php';
         border-radius: 5px;
         font-size: clamp(0.9em, 3vw, 1em);
         cursor: pointer;
-        margin: 1px;
+        margin: 5px;
+        white-space: nowrap;        /* no line break inside */
     }
+
     .quiz-buttons button:hover {
         background-color: #bfbfbf;
     }
@@ -234,7 +240,7 @@ include 'styling.php';
         <button type="submit" name="start_new" id="startQuizBtn">▶️ Start Quiz</button>
 </form>
 <form method="POST" style="display:inline-block;">
-        <button type="submit" name="clean_slate">🧹 Clean</button>
+        <button type="submit" name="clean_slate">🧹 Clean Slate</button>
     </div>
 </form>
 
