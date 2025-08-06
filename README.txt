@@ -86,7 +86,7 @@ New - Upload, Pdf-to-text, Translate, Edit, Quizmaker,
 Study - Flashcards, Quiz, Difficult, Mastered
 
 CREATE TABLE
-Now user can create an empety table. Upload is a separate php. 
+Now user can create an empty table. Upload is a separate php. 
 In Edit.php you can delete the editable tables - and add new words.
 
 FILE EXPLORER
@@ -97,3 +97,9 @@ I got an API and now we can add images to the quiz.
 
 AI PROMPT
 The AI which generates quiz answers needs a lot of prompting in order not to generate nonsense.
+Still ot working properly.
+
+SAVE (6 August 2025)
+I spent a day trying to make "save" button in editable quiz table work. I had to divide it into 
+two files. Generate_quiz_choices generates preview and edit button takes you to editable/deletable page.
+From which you can move to picture selection.
