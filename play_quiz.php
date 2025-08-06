@@ -314,51 +314,51 @@ function submitAnswer(btn) {
     const value = btn.getAttribute("data-value");
     document.querySelectorAll(".answer-btn").forEach(b => b.disabled = true);
     clearInterval(countdown);
+
     fetch("load_question.php", {
         method: "POST",
-        headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: new URLSearchParams({ answer: value, time_taken: 15 - timeLeft })
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+            answer: value,
+            time_taken: 15 - timeLeft
+        })
     })
     .then(res => res.text())
     .then(html => {
         const tempDiv = document.createElement('div');
         tempDiv.innerHTML = html;
 
-        const feedback = tempDiv.querySelector('#feedbackBox');
-        const newBox = tempDiv.innerHTML;
+        // Get the correct answer directly from PHP-injected JS
+        const correctAnswer = tempDiv.querySelector('[data-correct-answer]')?.getAttribute('data-correct-answer') ?? value;
 
-        // Get correct answer from feedback (if incorrect)
-        const feedbackText = feedback ? feedback.textContent : "";
-        const correctAnswer = feedbackText.includes("Correct answer: ")
-            ? feedbackText.split("Correct answer: ")[1]
-            : value;
-
-        // Highlight buttons
+        // Highlight correct in green, wrong in red
         document.querySelectorAll(".answer-btn").forEach(btn2 => {
-            if (btn2.textContent === correctAnswer) {
-                btn2.style.backgroundColor = "#4CAF50";
+            const answerText = btn2.textContent.trim();
+            if (answerText === correctAnswer) {
+                btn2.style.backgroundColor = "#4CAF50"; // green
                 btn2.style.color = "white";
-            } else if (btn2.getAttribute("data-value") === value) {
-                btn2.style.backgroundColor = "#f44336";
+            } else if (answerText === value) {
+                btn2.style.backgroundColor = "#f44336"; // red
                 btn2.style.color = "white";
             }
         });
 
-        // Show feedback
+        // Show feedback below
+        const feedback = tempDiv.querySelector('#feedbackBox');
         if (feedback) {
             const feedbackBox = document.getElementById("feedbackBox");
-            if (feedbackBox) {
-                feedbackBox.innerHTML = feedback.innerHTML;
-                feedbackBox.style.display = "block";
-            }
+            feedbackBox.innerHTML = feedback.innerHTML;
+            feedbackBox.style.display = "block";
         }
 
+        // Load next question after delay
         setTimeout(() => {
-            document.getElementById("quizBox").innerHTML = newBox;
-            setTimeout(revealAnswers, 2000);
-        }, 1500);
+            document.getElementById("quizBox").innerHTML = html;
+            showAnswersAndStartTimer(); // restart timer and answer visibility
+        }, 2000);
     });
 }
+
 
 function loadNextQuestion() {
     fetch("load_question.php")

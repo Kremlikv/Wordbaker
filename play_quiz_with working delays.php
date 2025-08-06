@@ -3,8 +3,19 @@ session_start();
 ini_set('display_errors', 1);
 error_reporting(E_ALL);
 
+// ⛔ Temporarily disable session checking for AJAX fetch
+if (
+    !empty($_SERVER['HTTP_X_REQUESTED_WITH']) &&
+    strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest'
+) {
+    // Skip session check logic inside session.php during AJAX
+    require_once 'db.php';
+    return;
+}
+
 require_once 'db.php';
 require_once 'session.php';
+
 
 // 📂 Get available quiz tables
 $quizTables = [];
@@ -18,7 +29,7 @@ while ($row = $result->fetch_array()) {
 $selectedTable = $_SESSION['quiz_table'] ?? '';
 $musicSrc = $_SESSION['bg_music'] ?? '';
 
-// 🥳 Clean slate if button pressed
+// 🧹 Clean slate if button pressed
 if (isset($_POST['clean_slate'])) {
     unset(
         $_SESSION['score'],
@@ -52,7 +63,7 @@ if (isset($_POST['start_new']) && !empty($_POST['quiz_table'])) {
     }
     $musicSrc = $_SESSION['bg_music'];
 
-    // 📅 Load questions
+    // 📥 Load questions
     $selectedTable = $_POST['quiz_table'];
     $res = $conn->query("SELECT question, correct_answer, wrong1, wrong2, wrong3, image_url FROM `$selectedTable`");
     if (!$res) die("❌ Query failed: " . $conn->error);
@@ -88,10 +99,7 @@ include 'styling.php';
 <head>
 <meta charset="UTF-8">
 <title>Play Quiz</title>
-<head>
-<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Play Quiz</title>
 <style>
     body {
         font-family: sans-serif;
@@ -175,11 +183,9 @@ include 'styling.php';
         margin: 5px;
         white-space: nowrap;
     }
-
     .quiz-buttons button:hover {
         background-color: #bfbfbf;
     }
-
     @media (max-width: 500px) {
         .answer-col {
             flex: 0 0 100%;
@@ -188,6 +194,7 @@ include 'styling.php';
 </style>
 </head>
 <body>
+
 <div class='content'>
     <div class="content">
     👤 Logged in as <?= htmlspecialchars($_SESSION['username']) ?> | <a href='logout.php'>Logout</a>
@@ -206,7 +213,7 @@ include 'styling.php';
         <option value="" <?= $currentMusic === '' ? 'selected' : '' ?>>🔇 OFF</option>
         <option value="track1.mp3" <?= $currentMusic === 'track1.mp3' ? 'selected' : '' ?>>🎸 Track 1</option>
         <option value="track2.mp3" <?= $currentMusic === 'track2.mp3' ? 'selected' : '' ?>>🎹 Track 2</option>
-        <option value="track3.mp3" <?= $currentMusic === 'track3.mp3' ? 'selected' : '' ?>>🥁 Track 3</option>
+        <option value="track3.mp3" <?= $currentMusic === 'track3.mp3' ? 'selected' : '' ?>>🥛 Track 3</option>
         <option value="custom" <?= filter_var($currentMusic, FILTER_VALIDATE_URL) ? 'selected' : '' ?>>🌐 Use custom music URL</option>
     </select><br><br>
 
@@ -280,6 +287,14 @@ function toggleMusic() {
     }
 }
 
+function revealAnswers() {
+    const grid = document.querySelector(".answer-grid");
+    if (grid) {
+        grid.style.display = "flex";
+        startTimer();
+    }
+}
+
 function startTimer() {
     clearInterval(countdown);
     timeLeft = 15;
@@ -295,14 +310,6 @@ function startTimer() {
     }, 1000);
 }
 
-function showAnswersAndStartTimer() {
-    setTimeout(() => {
-        const grid = document.querySelector(".answer-grid");
-        if (grid) grid.style.display = "flex";
-        startTimer();
-    }, 2000);
-}
-
 function submitAnswer(btn) {
     const value = btn.getAttribute("data-value");
     document.querySelectorAll(".answer-btn").forEach(b => b.disabled = true);
@@ -314,8 +321,42 @@ function submitAnswer(btn) {
     })
     .then(res => res.text())
     .then(html => {
-        document.getElementById("quizBox").innerHTML = html;
-        showAnswersAndStartTimer();
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = html;
+
+        const feedback = tempDiv.querySelector('#feedbackBox');
+        const newBox = tempDiv.innerHTML;
+
+        // Get correct answer from feedback (if incorrect)
+        const feedbackText = feedback ? feedback.textContent : "";
+        const correctAnswer = feedbackText.includes("Correct answer: ")
+            ? feedbackText.split("Correct answer: ")[1]
+            : value;
+
+        // Highlight buttons
+        document.querySelectorAll(".answer-btn").forEach(btn2 => {
+            if (btn2.textContent === correctAnswer) {
+                btn2.style.backgroundColor = "#4CAF50";
+                btn2.style.color = "white";
+            } else if (btn2.getAttribute("data-value") === value) {
+                btn2.style.backgroundColor = "#f44336";
+                btn2.style.color = "white";
+            }
+        });
+
+        // Show feedback
+        if (feedback) {
+            const feedbackBox = document.getElementById("feedbackBox");
+            if (feedbackBox) {
+                feedbackBox.innerHTML = feedback.innerHTML;
+                feedbackBox.style.display = "block";
+            }
+        }
+
+        setTimeout(() => {
+            document.getElementById("quizBox").innerHTML = newBox;
+            setTimeout(revealAnswers, 2000);
+        }, 1500);
     });
 }
 
@@ -324,16 +365,17 @@ function loadNextQuestion() {
         .then(res => res.text())
         .then(html => {
             document.getElementById("quizBox").innerHTML = html;
-            showAnswersAndStartTimer();
+            setTimeout(revealAnswers, 2000);
         });
 }
 
 document.addEventListener("DOMContentLoaded", function () {
-    if (<?= json_encode(!empty($_SESSION['questions'])) ?>) { 
+    if (<?= json_encode(!empty($_SESSION['questions'])) ?>) {
         loadNextQuestion();
     }
 });
 </script>
+
 </div>
 </div>
 </body>
