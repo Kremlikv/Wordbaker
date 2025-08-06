@@ -3,20 +3,22 @@ session_start();
 require_once 'db.php';
 require_once 'session.php';
 
+// ✅ Safety net — no quiz loaded
 if (empty($_SESSION['questions']) || !isset($_SESSION['question_index'], $_SESSION['score'], $_SESSION['quiz_table'])) {
     echo "<p>⚠️ No active quiz found. Please go to <a href='play_quiz.php'>Play Quiz</a> and start a new game.</p>";
     exit;
 }
 
-$index     = $_SESSION['question_index'];
-$questions = $_SESSION['questions'];
-$total     = count($questions);
-$score     = $_SESSION['score'];
+$index      = $_SESSION['question_index'];
+$questions  = $_SESSION['questions'];
+$total      = count($questions);
+$score      = $_SESSION['score'];
 
 if (!isset($_SESSION['mistakes'])) {
     $_SESSION['mistakes'] = [];
 }
 
+// 📝 Process answer if submitted
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['answer'])) {
     $question   = $questions[$index];
     $userAnswer = $_POST['answer'];
@@ -43,6 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['answer'])) {
     $index++;
 }
 
+// 🏁 End of quiz
 if ($index >= $total) {
     echo "<h2>🌟 Quiz Completed!</h2>";
     echo "<p>Your final score: {$score} out of " . ($total * 3) . " points</p>";
@@ -70,25 +73,18 @@ if ($index >= $total) {
     exit;
 }
 
+// 📜 Load current question
 $question = $questions[$index];
 $answers  = $question['answers'];
 shuffle($answers);
 
+// Calculate timer based on correct answer word count
 $wordCount = str_word_count($question['correct']);
 $timeLimit = 15 + max(0, $wordCount - 1) * 5;
 
-echo '<style>
-.fade-in {
-    opacity: 0;
-    transition: opacity 0.6s ease-in;
-}
-.fade-in.show {
-    opacity: 1;
-}
-</style>';
-
 echo '<div class="score">Question ' . ($index + 1) . ' of ' . $total . ' | Score: ' . $_SESSION['score'] . '</div>';
 
+// Progress bar container
 echo '<div id="progressBarContainer" style="width:100%; background:#ddd; height:10px; border-radius:5px; overflow:hidden; margin:5px auto;">
         <div id="progressBar" style="width:100%; height:100%; background:green;"></div>
       </div>';
@@ -102,18 +98,18 @@ if (!empty($question['image'])) {
           </div>';
 }
 
-echo '<div class="answer-grid fade-in" style="display:flex;">';
+echo '<div class="answer-grid">';
 foreach ($answers as $a) {
     echo '<div class="answer-col">
-            <button type="button" class="answer-btn"
-                data-value="' . htmlspecialchars($a) . '"
-                data-correct="' . ($a === $question['correct'] ? '1' : '0') . '"
-                onclick="submitAnswer(this)">' . htmlspecialchars($a) . '</button>
+            <button type="button" class="answer-btn" onclick="submitAnswer(this)" data-value="' . htmlspecialchars($a) . '">' . htmlspecialchars($a) . '</button>
           </div>';
 }
 echo '</div>';
 
-echo '<div class="feedback fade-in" id="feedbackBox"></div>';
+if (!empty($_SESSION['feedback'])) {
+    echo '<div class="feedback" id="feedbackBox">' . $_SESSION['feedback'] . '</div>';
+    unset($_SESSION['feedback']);
+}
 ?>
 
 <script>
@@ -121,8 +117,6 @@ let timeLeft = <?= $timeLimit ?>;
 let countdown = null;
 const timerDisplay = document.getElementById("timer");
 const progressBar = document.getElementById("progressBar");
-const answerGrid = document.querySelector(".answer-grid");
-const feedbackBox = document.getElementById("feedbackBox");
 
 function updateTimerColor() {
     if (timeLeft <= 5) {
@@ -143,7 +137,8 @@ function startTimer() {
         timeLeft--;
         updateTimerColor();
         timerDisplay.textContent = `⏳ ${timeLeft}`;
-        progressBar.style.width = (timeLeft / <?= $timeLimit ?>) * 100 + "%";
+        let percent = (timeLeft / <?= $timeLimit ?>) * 100;
+        progressBar.style.width = percent + "%";
         if (timeLeft <= 0) {
             clearInterval(countdown);
             document.querySelectorAll(".answer-btn").forEach(btn => btn.disabled = true);
@@ -152,48 +147,50 @@ function startTimer() {
     }, 1000);
 }
 
-// Hide answers initially (opacity=0), fade in after 2s
-answerGrid.classList.remove("show");
-setTimeout(() => {
-    answerGrid.classList.add("show");
-    startTimer();
-}, 2000);
+// Delay timer start by 2 seconds for reading time
+setTimeout(startTimer, 2000);
 
 function submitAnswer(btn) {
     const value = btn.getAttribute("data-value");
     document.querySelectorAll(".answer-btn").forEach(b => b.disabled = true);
 
-    clearInterval(countdown);
-
-    // highlight selection
-    document.querySelectorAll(".answer-btn").forEach(b => {
-        if (b.dataset.correct === "1") {
-            b.style.backgroundColor = "#4CAF50";
-            b.style.color = "white";
-        }
-        if (b.getAttribute("data-value") === value && b.dataset.correct !== "1") {
-            b.style.backgroundColor = "#f44336";
-            b.style.color = "white";
-        }
-    });
-
-    feedbackBox.textContent = btn.dataset.correct === "1"
-        ? "✅ Correct!"
-        : "❌ Wrong. Correct answer: " + document.querySelector('.answer-btn[data-correct="1"]').textContent;
-
-    feedbackBox.classList.add("show");
-
-    // Delay next question by 2s
     fetch("load_question.php", {
         method: "POST",
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: new URLSearchParams({ answer: value, time_taken: <?= $timeLimit ?> - timeLeft })
+        body: new URLSearchParams({
+            answer: value,
+            time_taken: <?= $timeLimit ?> - timeLeft
+        })
     })
     .then(res => res.text())
     .then(html => {
-        setTimeout(() => {
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = html;
+        const feedback = tempDiv.querySelector('.feedback');
+        const correctAnswer = feedback && feedback.textContent.includes('Wrong.')
+            ? feedback.textContent.split('Correct answer: ')[1]
+            : value;
+
+        // Highlight answers
+        document.querySelectorAll(".answer-btn").forEach(btn2 => {
+            if (btn2.textContent === correctAnswer) {
+                btn2.style.backgroundColor = "#4CAF50"; // green
+                btn2.style.color = "white";
+            } else if (btn2.getAttribute("data-value") === value) {
+                btn2.style.backgroundColor = "#f44336"; // red
+                btn2.style.color = "white";
+            }
+        });
+
+        // Show feedback first, then load next question
+        if (feedback) {
+            document.getElementById("quizBox").innerHTML = feedback.outerHTML;
+            setTimeout(() => {
+                document.getElementById("quizBox").innerHTML = html;
+            }, 1500);
+        } else {
             document.getElementById("quizBox").innerHTML = html;
-        }, 2000);
+        }
     });
 }
 </script>
