@@ -18,7 +18,7 @@ while ($row = $result->fetch_array()) {
 $selectedTable = $_SESSION['quiz_table'] ?? '';
 $musicSrc = $_SESSION['bg_music'] ?? '';
 
-// 🧹 Clean slate if button pressed
+// 🧹 Clean slate
 if (isset($_POST['clean_slate'])) {
     unset(
         $_SESSION['score'],
@@ -76,9 +76,19 @@ if (isset($_POST['start_new']) && !empty($_POST['quiz_table'])) {
     shuffle($questions);
     $_SESSION['questions'] = $questions;
 
-    // Refresh to avoid form resubmission
     header("Location: play_quiz.php");
     exit;
+}
+
+// 🎥 Check if musicSrc is YouTube
+$isYouTube = false;
+$ytVideoId = '';
+if (!empty($musicSrc)) {
+    if (preg_match('/youtu\.be\/([a-zA-Z0-9_-]+)/', $musicSrc, $m) ||
+        preg_match('/youtube\.com.*v=([a-zA-Z0-9_-]+)/', $musicSrc, $m)) {
+        $isYouTube = true;
+        $ytVideoId = $m[1];
+    }
 }
 
 include 'styling.php';
@@ -122,11 +132,52 @@ include 'styling.php';
 <div class="content">
     👤 Logged in as <?= htmlspecialchars($_SESSION['username']) ?> | <a href='logout.php'>Logout</a>
 
-
-<audio id="bgMusic" loop>
-    <source id="bgMusicSource" src="<?= htmlspecialchars($musicSrc) ?>" type="audio/mpeg">
-    Your browser does not support audio.
-</audio>
+<?php if ($isYouTube): ?>
+    <!-- YouTube Player (Hidden) -->
+    <div id="ytPlayer"></div>
+    <script src="https://www.youtube.com/iframe_api"></script>
+    <script>
+        var player;
+        function onYouTubeIframeAPIReady() {
+            player = new YT.Player('ytPlayer', {
+                height: '0',
+                width: '0',
+                videoId: '<?= $ytVideoId ?>',
+                playerVars: { autoplay: 0, loop: 1, playlist: '<?= $ytVideoId ?>' }
+            });
+        }
+        function toggleMusic() {
+            if (player && player.getPlayerState() === YT.PlayerState.PLAYING) {
+                player.pauseVideo();
+            } else if (player) {
+                player.setVolume(30);
+                player.playVideo();
+            }
+        }
+        function previewMusic() {
+            toggleMusic(); // same as toggle for YouTube
+        }
+    </script>
+<?php else: ?>
+    <!-- MP3 Player -->
+    <audio id="bgMusic" loop>
+        <source id="bgMusicSource" src="<?= htmlspecialchars($musicSrc) ?>" type="audio/mpeg">
+    </audio>
+    <script>
+        function toggleMusic() {
+            const music = document.getElementById("bgMusic");
+            if (music.paused) {
+                music.volume = 0.3;
+                music.play().catch(err => console.warn("Music play blocked:", err));
+            } else {
+                music.pause();
+            }
+        }
+        function previewMusic() {
+            toggleMusic();
+        }
+    </script>
+<?php endif; ?>
 
 <h1>🎯 Kahoot-style Quiz</h1>
 
@@ -142,14 +193,13 @@ include 'styling.php';
     </select><br><br>
 
     <div id="customMusicInput" style="<?= filter_var($currentMusic, FILTER_VALIDATE_URL) ? 'display:block;' : 'display:none;' ?>">
-        <input type="url" name="custom_music_url" placeholder="Paste full MP3 URL" style="width: 60%;" value="<?= htmlspecialchars($currentMusic) ?>">
+        <input type="url" name="custom_music_url" placeholder="Paste full MP3 or YouTube URL" style="width: 60%;" value="<?= htmlspecialchars($currentMusic) ?>">
     </div>
 
     <!-- 🎧 Preview & ▶️/⏸️ Toggle Music Buttons -->
     <div style='margin-bottom: 20px;'>
         <button type="button" onclick="previewMusic()">🎧 Preview</button>
         <button type="button" onclick="toggleMusic()">▶️/⏸️ Toggle Music</button>
-        <audio id="previewPlayer" controls style="display:none; margin-top: 10px;"></audio>
     </div>
 
     <label>Select quiz set:</label><br><br>
@@ -184,36 +234,8 @@ function toggleCustomMusic(value) {
     document.getElementById("customMusicInput").style.display = (value === "custom") ? "block" : "none";
 }
 
-function previewMusic() {
-    const dropdown = document.querySelector('select[name="bg_music_choice"]');
-    const urlInput = document.querySelector('input[name="custom_music_url"]');
-    const player = document.getElementById('previewPlayer');
-    let src = (dropdown.value === "custom") ? urlInput.value.trim() : dropdown.value;
-
-    if (src) {
-        player.src = src;
-        player.style.display = "block";
-        player.play();
-    }
-}
-
-function toggleMusic() {
-    const music = document.getElementById("bgMusic");
-    const source = document.getElementById("bgMusicSource");
-    if (!source.src || source.src.endsWith('/')) {
-        alert("Please select a valid music track first.");
-        return;
-    }
-    if (music.paused) {
-        music.volume = 0.3;
-        music.play().catch(err => console.warn("Music play blocked:", err));
-    } else {
-        music.pause();
-    }
-}
-
 function startTimer() {
-    clearInterval(countdown); // ✅ Prevent multiple timers
+    clearInterval(countdown);
     timeLeft = 15;
     const timerDisplay = document.getElementById("timer");
     countdown = setInterval(() => {
