@@ -88,38 +88,106 @@ include 'styling.php';
 <head>
 <meta charset="UTF-8">
 <title>Play Quiz</title>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Play Quiz</title>
 <style>
-    body { font-family: sans-serif; text-align: center; padding: 0px; padding-bottom: 80px;}
-    .question-box { font-size: 1.5em; margin-bottom: 20px; }
-    .answer-grid { display: flex; flex-wrap: wrap; justify-content: center; max-width: 600px; margin: auto; }
-    .answer-col { flex: 0 0 50%; padding: 10px; }
-    .answer-btn { width: 100%; padding: 20px; font-size: 1.1em; cursor: pointer; border: none; border-radius: 10px; background-color: #eee; transition: 0.3s; }
-    .answer-btn:hover { background-color: #ddd; }
-    .feedback { font-size: 1.2em; margin-top: 20px; }
-    .score { margin-bottom: 10px; font-weight: bold; }
-    .image-container { margin: 20px auto; }
-    img.question-image { max-width: 80%; max-height: 300px; }
-    select, button, input[type="url"] { padding: 10px; font-size: 1em; }
-    #timer { font-size: 1.3em; color: darkred; margin: 10px; }
-    .quiz-buttons { text-align: center; margin-top: 20px; }
+    body {
+        font-family: sans-serif;
+        text-align: center;
+        padding: 0;
+        padding-bottom: 80px;
+        margin: 0;
+    }
+    .question-box {
+        font-size: clamp(1.2em, 4vw, 1.5em);
+        margin-bottom: 20px;
+    }
+    .answer-grid {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        max-width: 600px;
+        margin: auto;
+    }
+    .answer-col {
+        flex: 0 0 50%;
+        padding: 10px;
+        box-sizing: border-box;
+    }
+    .answer-btn {
+        width: 100%;
+        padding: clamp(12px, 3vw, 20px);
+        font-size: clamp(1em, 3vw, 1.1em);
+        cursor: pointer;
+        border: none;
+        border-radius: 10px;
+        background-color: #eee;
+        transition: 0.3s;
+        word-wrap: break-word;
+    }
+    .answer-btn:hover {
+        background-color: #ddd;
+    }
+    .feedback {
+        font-size: clamp(1em, 3vw, 1.2em);
+        margin-top: 20px;
+    }
+    .score {
+        margin-bottom: 10px;
+        font-weight: bold;
+    }
+    .image-container {
+        margin: 20px auto;
+    }
+    img.question-image {
+        max-width: 100%;
+        height: auto;
+        max-height: 50vh;
+    }
+    select, button, input[type="url"] {
+        padding: 10px;
+        font-size: clamp(0.9em, 3vw, 1em);
+        max-width: 90%;
+    }
+    #timer {
+        font-size: clamp(1.1em, 3.5vw, 1.3em);
+        color: darkred;
+        margin: 10px;
+    }
+    .quiz-buttons {
+        text-align: center;
+        margin-top: 20px;
+    }
     .quiz-buttons button {
         background-color: #d3d3d3;
         color: black;
         padding: 10px 20px;
         border: none;
         border-radius: 5px;
-        font-size: 1em;
+        font-size: clamp(0.9em, 3vw, 1em);
         cursor: pointer;
-        margin: 0 5px;
+        margin: 5px;
     }
     .quiz-buttons button:hover {
         background-color: #bfbfbf;
     }
+
+    /* 📱 Mobile adjustments */
+    @media (max-width: 500px) {
+        .answer-col {
+            flex: 0 0 100%;
+        }
+    }
 </style>
 </head>
+
 <body>
 
-<div class="content">
+
+<div class='content'>
+    <div class="content">
     👤 Logged in as <?= htmlspecialchars($_SESSION['username']) ?> | <a href='logout.php'>Logout</a>
 
 
@@ -259,6 +327,7 @@ document.addEventListener("DOMContentLoaded", function () {
 });
 </script>
 
+</div>
 </div>
 </body>
 </html>
