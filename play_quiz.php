@@ -89,42 +89,40 @@ include 'styling.php';
 <meta charset="UTF-8">
 <title>Play Quiz</title>
 <style>
-    html, body {
-        height: 100%;
-        margin: 0;
-        padding: 0;
+    body { font-family: sans-serif; text-align: center; padding: 0px; }
+    .question-box { font-size: 1.5em; margin-bottom: 20px; }
+    .answer-grid { display: flex; flex-wrap: wrap; justify-content: center; max-width: 600px; margin: auto; }
+    .answer-col { flex: 0 0 50%; padding: 10px; }
+    .answer-btn { width: 100%; padding: 20px; font-size: 1.1em; cursor: pointer; border: none; border-radius: 10px; background-color: #eee; transition: 0.3s; }
+    .answer-btn:hover { background-color: #ddd; }
+    .feedback { font-size: 1.2em; margin-top: 20px; }
+    .score { margin-bottom: 10px; font-weight: bold; }
+    .image-container { margin: 20px auto; }
+    img.question-image { max-width: 80%; max-height: 300px; }
+    select, button, input[type="url"] { padding: 10px; font-size: 1em; }
+    #timer { font-size: 1.3em; color: darkred; margin: 10px; }
+    .quiz-buttons { text-align: center; margin-top: 20px; }
+    .quiz-buttons button {
+        background-color: #d3d3d3;
+        color: black;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 5px;
+        font-size: 1em;
+        cursor: pointer;
+        margin: 0 5px;
     }
-    body {
-        display: flex;
-        flex-direction: column;
-        min-height: 100vh;
-    }
-    header {
-        padding: 10px;
-        background: #f4f4f4;
-        font-weight: bold;
-        border-bottom: 1px solid #ccc;
-        position: sticky;
-        top: 0;
-        z-index: 10;
-    }
-    main {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        justify-content: center; /* vertical centering */
-        padding-bottom: 80px; /* extra empty margin at bottom */
-        text-align: center;
+    .quiz-buttons button:hover {
+        background-color: #bfbfbf;
     }
 </style>
 </head>
 <body>
 
-<header>
+<div class="content">
     👤 Logged in as <?= htmlspecialchars($_SESSION['username']) ?> | <a href='logout.php'>Logout</a>
-</header>
 
-<main class="content">
+
 <audio id="bgMusic" loop>
     <source id="bgMusicSource" src="<?= htmlspecialchars($musicSrc) ?>" type="audio/mpeg">
     Your browser does not support audio.
@@ -177,7 +175,6 @@ include 'styling.php';
 <?php if (!empty($_SESSION['questions'])): ?>
     <div id="quizBox"></div>
 <?php endif; ?>
-</main>
 
 <script>
 let countdown = null;
@@ -262,5 +259,6 @@ document.addEventListener("DOMContentLoaded", function () {
 });
 </script>
 
+</div>
 </body>
 </html>
