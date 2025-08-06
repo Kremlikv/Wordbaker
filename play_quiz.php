@@ -358,10 +358,16 @@ function submitAnswer(btn) {
             fetch("load_question.php")
                 .then(res => res.text())
                 .then(html => {
-                    document.getElementById("quizBox").innerHTML = html;
+                    const quizBox = document.getElementById("quizBox");
+                    quizBox.innerHTML = html;
+
+                    // 👇 Scroll to quiz content (with smooth animation)
+                    quizBox.scrollIntoView({ behavior: "smooth", block: "start" });
+
                     setTimeout(revealAnswers, 2000);
                 });
         }, 2000);
+
     });
 }
 
