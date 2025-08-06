@@ -3,7 +3,7 @@ session_start();
 require_once 'db.php';
 require_once 'session.php';
 
-// ✅ Safety net — no quiz loaded
+// ✅ No quiz loaded
 if (empty($_SESSION['questions']) || !isset($_SESSION['question_index'], $_SESSION['score'], $_SESSION['quiz_table'])) {
     echo "<p>⚠️ No active quiz found. Please go to <a href='play_quiz.php'>Play Quiz</a> and start a new game.</p>";
     exit;
@@ -18,7 +18,7 @@ if (!isset($_SESSION['mistakes'])) {
     $_SESSION['mistakes'] = [];
 }
 
-// 📝 Process answer if submitted
+// 📝 Process submitted answer
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['answer'])) {
     $question   = $questions[$index];
     $userAnswer = $_POST['answer'];
@@ -68,7 +68,6 @@ if ($index >= $total) {
             <input type="hidden" name="restart" value="1">
             <button type="submit">Play Again</button>
           </form>';
-
     unset($_SESSION['mistakes']);
     exit;
 }
@@ -78,34 +77,31 @@ $question = $questions[$index];
 $answers  = $question['answers'];
 shuffle($answers);
 
-// Calculate timer based on correct answer word count
+// Dynamic time limit
 $wordCount = str_word_count($question['correct']);
 $timeLimit = 15 + max(0, $wordCount - 1) * 5;
 
-// Determine image (default if empty)
-$imageToShow = !empty($question['image']) ? $question['image'] : 'quiz_logo.png';
+// Use default image if needed
+$imageToShow = (isset($question['image']) && trim($question['image']) !== '') 
+    ? $question['image'] 
+    : 'quiz_logo.png';
 
-// --- OUTPUT HTML ---
+// Output HTML
 echo '<div class="score">Question ' . ($index + 1) . ' of ' . $total . ' | Score: ' . $_SESSION['score'] . '</div>';
 
-// Progress bar
 echo '<div id="progressBarContainer" style="width:100%; background:#ddd; height:10px; border-radius:5px; overflow:hidden; margin:5px auto;">
         <div id="progressBar" style="width:100%; height:100%; background:green;"></div>
       </div>';
 
-// Timer
 echo '<div id="timer" style="color: green; font-weight: bold; margin-top:5px;">⏳ ' . $timeLimit . '</div>';
 
-// Question text
 echo '<div class="question-box">🧠 ' . htmlspecialchars($question['question']) . '</div>';
 
-// Image
 echo '<div class="image-container">
         <img src="' . htmlspecialchars($imageToShow) . '" class="question-image">
       </div>';
 
-// Answer buttons
-echo '<div class="answer-grid">';
+echo '<div class="answer-grid" id="answerGrid" style="display:none;">';
 foreach ($answers as $a) {
     echo '<div class="answer-col">
             <button type="button" class="answer-btn" onclick="submitAnswer(this)" data-value="' . htmlspecialchars($a) . '">' . htmlspecialchars($a) . '</button>
@@ -113,7 +109,6 @@ foreach ($answers as $a) {
 }
 echo '</div>';
 
-// Feedback (if any)
 if (!empty($_SESSION['feedback'])) {
     echo '<div class="feedback" id="feedbackBox">' . $_SESSION['feedback'] . '</div>';
     unset($_SESSION['feedback']);
@@ -141,22 +136,34 @@ function updateTimerColor() {
 
 function startTimer() {
     clearInterval(countdown);
+    let totalTime = <?= $timeLimit ?>;
+    let startTime = Date.now();
+
     countdown = setInterval(() => {
-        timeLeft--;
+        let elapsed = Math.floor((Date.now() - startTime) / 1000);
+        timeLeft = totalTime - elapsed;
+
+        if (timeLeft < 0) timeLeft = 0;
+
         updateTimerColor();
         timerDisplay.textContent = `⏳ ${timeLeft}`;
-        let percent = (timeLeft / <?= $timeLimit ?>) * 100;
+
+        let percent = Math.max(0, (timeLeft / totalTime) * 100);
         progressBar.style.width = percent + "%";
+
         if (timeLeft <= 0) {
             clearInterval(countdown);
             document.querySelectorAll(".answer-btn").forEach(btn => btn.disabled = true);
             timerDisplay.textContent = "⏰ Time's up!";
         }
-    }, 1000);
+    }, 50); // smooth update
 }
 
-// Delay timer start by 2 seconds for reading
-setTimeout(startTimer, 2000);
+// Show answers after 2s delay, then start timer
+setTimeout(() => {
+    document.getElementById("answerGrid").style.display = "flex";
+    startTimer();
+}, 2000);
 
 function submitAnswer(btn) {
     const value = btn.getAttribute("data-value");
@@ -182,10 +189,10 @@ function submitAnswer(btn) {
         // Highlight answers
         document.querySelectorAll(".answer-btn").forEach(btn2 => {
             if (btn2.textContent === correctAnswer) {
-                btn2.style.backgroundColor = "#4CAF50"; // green
+                btn2.style.backgroundColor = "#4CAF50";
                 btn2.style.color = "white";
             } else if (btn2.getAttribute("data-value") === value) {
-                btn2.style.backgroundColor = "#f44336"; // red
+                btn2.style.backgroundColor = "#f44336";
                 btn2.style.color = "white";
             }
         });
