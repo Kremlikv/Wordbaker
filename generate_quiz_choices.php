@@ -49,8 +49,31 @@ function cleanAIOutput($answers) {
     return array_map(fn($a) => trim(preg_replace('/^[\-\:\"]+/', '', $a)), $answers);
 }
 
+// Always load file explorer data
 $username = strtolower($_SESSION['username'] ?? '');
 $conn->set_charset("utf8mb4");
+
+// Modified file explorer filter
+function includeFilteredFileExplorer($conn, $username) {
+    $tables = [];
+    $res = $conn->query("SHOW TABLES");
+    while ($row = $res->fetch_array()) {
+        $table = $row[0];
+        if (stripos($table, $username . '_') === 0 && strpos($table, 'quiz_choices_') !== 0) {
+            $tables[] = $table;
+        }
+    }
+
+    echo "<div style='text-align:center; margin:20px;'><h3>Select a source table:</h3>";
+    foreach ($tables as $t) {
+        echo "<div style='margin:5px;'>
+                <a href='generate_quiz_choices.php?table=" . urlencode($t) . "' style='padding:8px; background:#2196F3; color:#fff; text-decoration:none;'>
+                    " . htmlspecialchars($t) . "
+                </a>
+              </div>";
+    }
+    echo "</div>";
+}
 
 $selectedTable = $_POST['table'] ?? $_GET['table'] ?? '';
 $autoSourceLang = '';
@@ -65,7 +88,7 @@ if ($selectedTable) {
 }
 
 $generatedTable = '';
-if ($selectedTable && strpos($selectedTable, 'quiz_choices_') !== 0) {
+if ($selectedTable) {
     $quizTable = "quiz_choices_" . $selectedTable;
     if (!quizTableExists($conn, $selectedTable)) {
         $res = $conn->query("SELECT * FROM `$selectedTable`");
@@ -99,25 +122,18 @@ if ($selectedTable && strpos($selectedTable, 'quiz_choices_') !== 0) {
     }
     $generatedTable = $quizTable;
 }
-?>
-<style>
-.table-container { overflow-x:auto; -webkit-overflow-scrolling:touch; }
-table { border-collapse:collapse; width:100%; max-width:100%; }
-th, td { border:1px solid #ccc; padding:5px; text-align:left; vertical-align:top; }
-textarea { width:100%; min-width:100px; box-sizing:border-box; resize:vertical; font-size:14px; }
-@media (max-width:600px){
-  th, td { font-size:12px; padding:3px; }
-  textarea { font-size:12px; }
-}
-</style>
-<?php
+
 echo "<div class='content'>👤 Logged in as ".$_SESSION['username']." | <a href='logout.php'>Logout</a></div>";
 echo "<h2 style='text-align:center;'>Generate AI Quiz Choices</h2>";
-include 'file_explorer.php';
 
+// Always show filtered file explorer
+includeFilteredFileExplorer($conn, $username);
+
+// Only show preview if table was selected
 if ($generatedTable) {
     echo "<h3 style='text-align:center;'>Preview: <code>$generatedTable</code></h3>";
-    echo "<div class='table-container'><table><tr><th>Czech</th><th>Correct</th><th>Wrong 1</th><th>Wrong 2</th><th>Wrong 3</th></tr>";
+    echo "<div style='overflow-x:auto;'><table border='1' style='width:100%; max-width:100%; border-collapse:collapse;'>
+            <tr><th>Czech</th><th>Correct</th><th>Wrong 1</th><th>Wrong 2</th><th>Wrong 3</th></tr>";
     $res = $conn->query("SELECT * FROM `$generatedTable` LIMIT 20");
     while ($row = $res->fetch_assoc()) {
         echo "<tr>
