@@ -52,10 +52,10 @@
       transition: background-color 0.3s ease;
     }
 
-   
+    
     a {
       text-decoration: none;
-      color: white;
+      color: black;
       transition: 0.3s;
     }
 
@@ -435,7 +435,10 @@ ul ul.open {
 <body>
 
 <header>
-  <h1><a href="main.php" style >WordBaker</a></h1>
+  <h1>
+    <a href="main.php" style="color: white; text-decoration: none;">WordBaker</a>
+  </h1>
+
  
   <nav>
     <ul class="main-menu">
