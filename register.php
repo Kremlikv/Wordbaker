@@ -8,11 +8,12 @@ $show_form = true;
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $username = trim($_POST["username"]);
     $password = $_POST["password"];
+    $email = trim($_POST["email"]);
     
     if (!empty($username) && !empty($password)) {
         $hash = password_hash($password, PASSWORD_DEFAULT);
-        $stmt = $conn->prepare("INSERT INTO users (username, password_hash) VALUES (?, ?)");
-        $stmt->bind_param("ss", $username, $hash);
+        $stmt = $conn->prepare("INSERT INTO users (username, password_hash, email) VALUES (?, ?, ?)");
+        $stmt->bind_param("sss", $username, $hash, $email);
         
         if ($stmt->execute()) {
             $feedback = "✅ Registration successful. <a href='login.php'>Login here</a>.";
