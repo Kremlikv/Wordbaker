@@ -14,20 +14,6 @@ if (
 }
 
 
-// 🧹 Clean slate ONLY if not submitting form
-if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-    unset(
-        $_SESSION['score'],
-        $_SESSION['question_index'],
-        $_SESSION['questions'],
-        $_SESSION['quiz_table'],
-        $_SESSION['bg_music'],
-        $_SESSION['mistakes'],
-        $_SESSION['feedback']
-    );
-}
-
-
 require_once 'db.php';
 require_once 'session.php';
 
