@@ -104,3 +104,5 @@ $timeLimit = 15 + max(0, $wordCount - 1) * 5;
 <?php endforeach; ?>
 </div>
 <div id="feedbackBox" class="feedback" style="display:none;"></div>
+<div id="correctAnswerBox" style="display:none;"><?= htmlspecialchars($question['correct']) ?></div>
+

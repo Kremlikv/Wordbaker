@@ -328,10 +328,9 @@ function submitAnswer(btn) {
         const newBox = tempDiv.innerHTML;
 
         // Get correct answer from feedback (if incorrect)
-        const feedbackText = feedback ? feedback.textContent : "";
-        const correctAnswer = feedbackText.includes("Correct answer: ")
-            ? feedbackText.split("Correct answer: ")[1]
-            : value;
+        const correctBox = tempDiv.querySelector('#correctAnswerBox');
+        const correctAnswer = correctBox ? correctBox.textContent : value;
+
 
         // Highlight buttons
         document.querySelectorAll(".answer-btn").forEach(btn2 => {
