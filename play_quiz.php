@@ -252,6 +252,8 @@ include 'styling.php';
 <?php endif; ?>
 
 <script>
+const correctAnswer = <?= json_encode($question['correct']) ?>;
+
 let countdown = null;
 let timeLeft = 15;
 
