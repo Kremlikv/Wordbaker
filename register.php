@@ -41,6 +41,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 <form method="POST">
     Username: <input name="username" required><br>
     Password: <input type="password" name="password" required><br>
+    Email: <input name="email" required><br>
     <button type="submit">Register</button>
 </form>
 <?php endif; ?>
