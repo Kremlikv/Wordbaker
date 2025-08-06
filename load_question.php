@@ -82,16 +82,29 @@ shuffle($answers);
 $wordCount = str_word_count($question['correct']);
 $timeLimit = 15 + max(0, $wordCount - 1) * 5;
 
+// Determine image (default if empty)
+$imageToShow = !empty($question['image']) ? $question['image'] : 'quiz_logo.png';
+
+// --- OUTPUT HTML ---
 echo '<div class="score">Question ' . ($index + 1) . ' of ' . $total . ' | Score: ' . $_SESSION['score'] . '</div>';
-echo '<div id="timer" style="color: green;">⏳ ' . $timeLimit . '</div>';
+
+// Progress bar
+echo '<div id="progressBarContainer" style="width:100%; background:#ddd; height:10px; border-radius:5px; overflow:hidden; margin:5px auto;">
+        <div id="progressBar" style="width:100%; height:100%; background:green;"></div>
+      </div>';
+
+// Timer
+echo '<div id="timer" style="color: green; font-weight: bold; margin-top:5px;">⏳ ' . $timeLimit . '</div>';
+
+// Question text
 echo '<div class="question-box">🧠 ' . htmlspecialchars($question['question']) . '</div>';
 
-if (!empty($question['image'])) {
-    echo '<div class="image-container">
-            <img src="' . htmlspecialchars($question['image']) . '" class="question-image">
-          </div>';
-}
+// Image
+echo '<div class="image-container">
+        <img src="' . htmlspecialchars($imageToShow) . '" class="question-image">
+      </div>';
 
+// Answer buttons
 echo '<div class="answer-grid">';
 foreach ($answers as $a) {
     echo '<div class="answer-col">
@@ -100,6 +113,7 @@ foreach ($answers as $a) {
 }
 echo '</div>';
 
+// Feedback (if any)
 if (!empty($_SESSION['feedback'])) {
     echo '<div class="feedback" id="feedbackBox">' . $_SESSION['feedback'] . '</div>';
     unset($_SESSION['feedback']);
@@ -110,14 +124,18 @@ if (!empty($_SESSION['feedback'])) {
 let timeLeft = <?= $timeLimit ?>;
 let countdown = null;
 const timerDisplay = document.getElementById("timer");
+const progressBar = document.getElementById("progressBar");
 
 function updateTimerColor() {
     if (timeLeft <= 5) {
         timerDisplay.style.color = "red";
+        progressBar.style.backgroundColor = "red";
     } else if (timeLeft <= <?= floor($timeLimit / 2) ?>) {
         timerDisplay.style.color = "orange";
+        progressBar.style.backgroundColor = "orange";
     } else {
         timerDisplay.style.color = "green";
+        progressBar.style.backgroundColor = "green";
     }
 }
 
@@ -127,6 +145,8 @@ function startTimer() {
         timeLeft--;
         updateTimerColor();
         timerDisplay.textContent = `⏳ ${timeLeft}`;
+        let percent = (timeLeft / <?= $timeLimit ?>) * 100;
+        progressBar.style.width = percent + "%";
         if (timeLeft <= 0) {
             clearInterval(countdown);
             document.querySelectorAll(".answer-btn").forEach(btn => btn.disabled = true);
@@ -135,7 +155,7 @@ function startTimer() {
     }, 1000);
 }
 
-// Delay timer start by 2 seconds for reading time
+// Delay timer start by 2 seconds for reading
 setTimeout(startTimer, 2000);
 
 function submitAnswer(btn) {
