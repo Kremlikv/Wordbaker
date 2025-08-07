@@ -50,7 +50,7 @@ echo <<<HTML
   <button type="submit">📥 Upload</button>
   <br><br>
 
-  <form method="get" action="download_sample_csv.php">
+  <form method="get" action="foldername_filename.csv">
     <button type="submit">Download a sample CSV file</button>
 </form>
 </form>
