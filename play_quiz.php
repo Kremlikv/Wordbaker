@@ -214,55 +214,53 @@ include 'styling.php';
 <div class="content">
     👤 Logged in as <?= htmlspecialchars($_SESSION['username']) ?> | <a href='logout.php'>Logout</a>
     <h1>🎯 Quiz</h1>
-</div>
 
     <audio id="bgMusic" loop>
         <source id="bgMusicSource" src="<?= htmlspecialchars($musicSrc) ?>" type="audio/mpeg">
         Your browser does not support audio.
     </audio>
 
-<!-- Music selection, quiz dropdown, and buttons go here... -->
+    <form method="POST" style="display:block;">
+        <label>Select background music:</label><br><br>
+        <?php $currentMusic = $_SESSION['bg_music'] ?? ''; ?>
+        <select name="bg_music_choice" onchange="toggleCustomMusic(this.value)">
+            <option value="" <?= $currentMusic === '' ? 'selected' : '' ?>>🔇 OFF</option>
+            <option value="track1.mp3" <?= $currentMusic === 'track1.mp3' ? 'selected' : '' ?>>🎸 Track 1</option>
+            <option value="track2.mp3" <?= $currentMusic === 'track2.mp3' ? 'selected' : '' ?>>🎹 Track 2</option>
+            <option value="track3.mp3" <?= $currentMusic === 'track3.mp3' ? 'selected' : '' ?>>🥛 Track 3</option>
+            <option value="custom" <?= filter_var($currentMusic, FILTER_VALIDATE_URL) ? 'selected' : '' ?>>🌐 Use custom music URL</option>
+        </select><br><br>
 
-<div class='content'>
+        <div id="customMusicInput" style="<?= filter_var($currentMusic, FILTER_VALIDATE_URL) ? 'display:block;' : 'display:none;' ?>">
+            <input type="url" name="custom_music_url" placeholder="Paste full MP3 URL" style="width: 100%; max-width: 600px;" value="<?= htmlspecialchars($currentMusic) ?>">
+        </div>
 
-<form method="POST" style="display:inline-block;">
-    <label>Select background music:</label><br><br>
-    <?php $currentMusic = $_SESSION['bg_music'] ?? ''; ?>
-    <select name="bg_music_choice" onchange="toggleCustomMusic(this.value)">
-        <option value="" <?= $currentMusic === '' ? 'selected' : '' ?>>🔇 OFF</option>
-        <option value="track1.mp3" <?= $currentMusic === 'track1.mp3' ? 'selected' : '' ?>>🎸 Track 1</option>
-        <option value="track2.mp3" <?= $currentMusic === 'track2.mp3' ? 'selected' : '' ?>>🎹 Track 2</option>
-        <option value="track3.mp3" <?= $currentMusic === 'track3.mp3' ? 'selected' : '' ?>>🥛 Track 3</option>
-        <option value="custom" <?= filter_var($currentMusic, FILTER_VALIDATE_URL) ? 'selected' : '' ?>>🌐 Use custom music URL</option>
-    </select><br><br>
+        <div style='margin-bottom: 20px;'>
+            <button type="button" onclick="previewMusic()">🎧 Preview</button>
+            <button type="button" onclick="toggleMusic()">▶️/⏸️ Toggle Music</button>
+            <audio id="previewPlayer" controls style="display:none; margin-top: 10px;"></audio>
+        </div>
 
-    <div id="customMusicInput" style="<?= filter_var($currentMusic, FILTER_VALIDATE_URL) ? 'display:block;' : 'display:none;' ?>">
-        <input type="url" name="custom_music_url" placeholder="Paste full MP3 URL" style="width: 60%;" value="<?= htmlspecialchars($currentMusic) ?>">
-    </div>
+        <label>Select quiz set:</label><br><br>
+        <select name="quiz_table" required style="width: 100%; max-width: 600px;">
+            <option value="">-- Choose a quiz_choices_* table --</option>
+            <?php foreach ($quizTables as $table): ?>
+                <option value="<?= htmlspecialchars($table) ?>" <?= ($selectedTable === $table) ? 'selected' : '' ?>>
+                    <?= htmlspecialchars($table) ?>
+                </option>
+            <?php endforeach; ?>
+        </select><br><br>
 
-    <div style='margin-bottom: 20px;'>
-        <button type="button" onclick="previewMusic()">🎧 Preview</button>
-        <button type="button" onclick="toggleMusic()">▶️/⏸️ Toggle Music</button>
-        <audio id="previewPlayer" controls style="display:none; margin-top: 10px;"></audio>
-    </div>
+        <div class="quiz-buttons">
+            <button type="submit" name="start_new" id="startQuizBtn">▶️ Start Quiz</button>
+    </form>
 
-    <label>Select quiz set:</label><br><br>
-    <select name="quiz_table" required>
-        <option value="">-- Choose a quiz_choices_* table --</option>
-        <?php foreach ($quizTables as $table): ?>
-            <option value="<?= htmlspecialchars($table) ?>" <?= ($selectedTable === $table) ? 'selected' : '' ?>>
-                <?= htmlspecialchars($table) ?>
-            </option>
-        <?php endforeach; ?>
-    </select><br><br>
-
-    <div class="quiz-buttons">
-        <button type="submit" name="start_new" id="startQuizBtn">▶️ Start Quiz</button>
-</form>
-<form method="POST" style="display:block; max-width: 100%;">
+    <form method="POST" style="display:block;">
         <button type="submit" name="clean_slate">🧹 Clean Slate</button>
-    </div>
-</form>
+        </div> <!-- .quiz-buttons -->
+    </form>
+</div> <!-- ✅ only one .content div closes here -->
+
 
 <hr>
 
