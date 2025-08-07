@@ -31,6 +31,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_table'])) {
     exit;
 }
 
+
+// Handle audio file deletion BEFORE any output
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_audio_file'])) {
+    $tableForAudio = preg_replace('/[^a-zA-Z0-9_]/', '', $_POST['delete_audio_file']); // sanitize
+    $audioPath = "cache/$tableForAudio.mp3";
+
+    if (file_exists($audioPath)) {
+        unlink($audioPath);
+    }
+
+    header("Location: " . $_SERVER['PHP_SELF'] . "?table=" . urlencode($tableForAudio));
+    exit;
+}
+
+
+
 function getUserFoldersAndTables($conn, $username) {
     $allTables = [];
     $result = $conn->query("SHOW TABLES");
@@ -120,9 +136,18 @@ if (!empty($selectedFullTable) && $res !== false) {
     echo "<h3>Selected Table: " . htmlspecialchars($selectedFullTable) . "</h3>";
     $isSharedTable = in_array($selectedFullTable, ['difficult_words', 'mastered_words']);
     $audioFile = "cache/$selectedFullTable.mp3";
+
     if (file_exists($audioFile)) {
         echo "<audio controls src='$audioFile'></audio><br>";
-        echo "<a href='$audioFile' download class='button'>Download MP3</a><br><br>";
+        echo "<a href='$audioFile' download class='button'>Download MP3</a> | ";
+
+        echo "<form method='POST' action='' style='display:inline;' onsubmit=\"return confirm('Really delete the audio file for this table?');\">";
+        echo "<input type='hidden' name='delete_audio_file' value='" . htmlspecialchars($selectedFullTable) . "'>";
+        echo "<button type='submit' class='delete-button'>🗑️ Delete MP3</button>";
+        echo "</form><br><br>";
+    }
+
+
     } else {
         echo "<em>No audio generated yet for this table.</em><br><br>";
         // echo "<a href='generate_mp3_google_ssml.php'><button>🎧 Create MP3</button></a> ";
