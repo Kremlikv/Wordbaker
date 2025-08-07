@@ -405,8 +405,30 @@ document.addEventListener("DOMContentLoaded", function () {
     <?php endif; ?>
 });
 
+window.addEventListener('beforeunload', function (e) {
+    // Detect whether this is a reload (safe fallback for all browsers)
+    let isReload = false;
 
+    if (performance.getEntriesByType) {
+        const nav = performance.getEntriesByType("navigation")[0];
+        isReload = nav && nav.type === "reload";
+    } else if (performance.navigation) {
+        isReload = performance.navigation.type === 1; // TYPE_RELOAD = 1
+    }
+
+    // If it's not a reload, then clear session and hide quiz box
+    if (!isReload) {
+        navigator.sendBeacon('reset_quiz_session.php');
+
+        const quizBox = document.getElementById('quizBox');
+        if (quizBox) {
+            quizBox.style.display = 'none';
+            quizBox.innerHTML = '';
+        }
+    }
+});
 </script>
+
 
 </div>
 </div>
