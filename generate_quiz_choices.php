@@ -20,7 +20,24 @@ function quizTableExists($conn, $table) {
 
 function callOpenRouter($apiKey, $model, $czechWord, $correctAnswer, $targetLang, $referer, $appTitle) {
     $prompt = <<<EOT
-    Create three different usual mistakes...
+    You are a teacher of foreign languages preparing a quiz test.
+    As input you will have translation from $czechWord to $correctAnswer.
+    You need to simulate three common mistakes human students usually make (wrong1, wrong2, wrong3) in the $targetLang.
+    
+    Do not give students any hints which word is correct and which incorrect.
+    Do not add any symbols like ))-:'/"_.
+    Do not use unrelated words, random letters, reversed words.
+    Search the Internet and study websites like "20 common mistakes English learners make" or "typical spelling mistakes".
+    
+    Use only the following types of mistakes:
+        Word which share the same root (example: Ausgang vs Aingang)
+        Wrong article (der Tisch vs das Tisch)
+        Words that belong to the same category (cabinet vs wardrobe - both are furniture)
+        False friends (Czech "stůl" means Table but looks like the German der Stuhl which is a type of chair)
+        Correct translation but for a different word in the same quiz.
+        One spelling mistake per word (example: achieve vs acheive, address vs adress)
+        A word which begins with the same Letter (cucumber v cauliflower)
+        
     EOT;
     $data = [
         "model" => $model,
