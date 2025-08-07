@@ -8,12 +8,15 @@ if (
     !empty($_SERVER['HTTP_X_REQUESTED_WITH']) &&
     strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest'
 ) {
+    // Skip session check logic inside session.php during AJAX
     require_once 'db.php';
     return;
 }
 
+
 require_once 'db.php';
 require_once 'session.php';
+
 
 // 📂 Get available quiz tables
 $quizTables = [];
@@ -24,20 +27,10 @@ while ($row = $result->fetch_array()) {
     }
 }
 
-// 🎵 Fetch FreePD tracks
-$freepdUrl = 'https://freepd.com/music/';
-$html = @file_get_contents($freepdUrl);
-$freepdTracks = [];
-if ($html !== false) {
-    if (preg_match_all('/href="([^"\s]+\.mp3)"/i', $html, $matches)) {
-        $freepdTracks = array_unique($matches[1]);
-        sort($freepdTracks);
-    }
-}
-
 $selectedTable = $_SESSION['quiz_table'] ?? '';
 $musicSrc = $_SESSION['bg_music'] ?? '';
 
+// 🧹 Clean slate if button pressed
 if (isset($_POST['clean_slate'])) {
     unset(
         $_SESSION['score'],
@@ -52,20 +45,27 @@ if (isset($_POST['clean_slate'])) {
     exit;
 }
 
+// 🚀 Start Quiz
 if (isset($_POST['start_new']) && !empty($_POST['quiz_table'])) {
     $_SESSION['quiz_table'] = $_POST['quiz_table'];
     $_SESSION['score'] = 0;
     $_SESSION['question_index'] = 0;
     $_SESSION['mistakes'] = [];
 
-    $freepdChoice = $_POST['freepd_choice'] ?? '';
-    if (filter_var($freepdChoice, FILTER_VALIDATE_URL)) {
-        $_SESSION['bg_music'] = $freepdChoice;
+    // 🎵 Music choice
+    $musicChoice = $_POST['bg_music_choice'] ?? '';
+    $customURL   = $_POST['custom_music_url'] ?? '';
+    if ($musicChoice === 'custom' && filter_var($customURL, FILTER_VALIDATE_URL)) {
+        $_SESSION['bg_music'] = $customURL;
+    } elseif ($musicChoice !== '') {
+        $_SESSION['bg_music'] = $musicChoice;
     } else {
         $_SESSION['bg_music'] = '';
     }
     $musicSrc = $_SESSION['bg_music'];
 
+  
+    // 📥 Load questions
     $selectedTable = $_POST['quiz_table'];
     $res = $conn->query("SELECT question, correct_answer, wrong1, wrong2, wrong3, image_url FROM `$selectedTable`");
     if (!$res) die("❌ Query failed: " . $conn->error);
@@ -89,6 +89,7 @@ if (isset($_POST['start_new']) && !empty($_POST['quiz_table'])) {
     shuffle($questions);
     $_SESSION['questions'] = $questions;
 
+    // Refresh to avoid form resubmission
     header("Location: play_quiz.php");
     exit;
 }
@@ -102,87 +103,215 @@ include 'styling.php';
 <title>Play Quiz</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
-#quizBox {
-    display: none;
-    height: 100vh;
-    overflow-y: auto;
-    box-sizing: border-box;
-    padding: 20px;
-    max-width: 900px;
-    margin: 0 auto;
-}
-.image-container {
-    margin: 20px auto;
-    text-align: center;
-}
-img.question-image {
-    max-width: 100%;
+    
+    #quizBox {
+        display: none;
+        height: 100vh;
+        overflow-y: auto;
+        box-sizing: border-box;
+        padding: 20px;
+    }
+
+    body {
+        font-family: sans-serif;
+        text-align: center;
+        padding: 0;
+        padding-bottom: 80px;
+        margin: 0;
+    }
+    .question-box {
+        font-size: clamp(1.2em, 4vw, 1.5em);
+        margin-bottom: 20px;
+    }
+    .answer-grid {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        max-width: 600px;
+        margin: auto;
+    }
+    .answer-col {
+        flex: 0 0 50%;
+        padding: 10px;
+        box-sizing: border-box;
+    }
+    .answer-btn {
+        width: 100%;
+        padding: clamp(12px, 3vw, 20px);
+        font-size: clamp(1em, 3vw, 1.1em);
+        cursor: pointer;
+        border: none;
+        border-radius: 10px;
+        background-color: #eee;
+        transition: 0.3s;
+        word-wrap: break-word;
+    }
+    .answer-btn:hover {
+        background-color: #ddd;
+    }
+    .feedback {
+        font-size: clamp(1em, 3vw, 1.2em);
+        margin-top: 20px;
+    }
+    .score {
+        margin-bottom: 10px;
+        font-weight: bold;
+    }
+    .image-container {
+        margin: 20px auto;
+    }
+    img.question-image {
+        max-width: 100%;
+        height: auto;
+        max-height: 66vw;  /* ✅ percentage of viewport width */
+        object-fit: contain;
+    }
+
+
+    img.question-image {
+    width: 100vw;
     height: auto;
     max-height: 66vw;
     object-fit: contain;
     display: block;
     margin: 0 auto;
-}
-@media (min-width: 768px) {
-    img.question-image {
-        max-height: 50vh;
-        width: auto;
     }
-}
+
+    @media (min-width: 768px) {
+    img.question-image {
+        width: 50vw;
+        max-height: 50vh;
+    }
+    }
+
+
+
+    select, button, input[type="url"] {
+        padding: 10px;
+        font-size: clamp(0.9em, 3vw, 1em);
+        max-width: 90%;
+    }
+    #timer {
+        font-size: clamp(1.1em, 3.5vw, 1.3em);
+        color: darkred;
+        margin: 10px;
+    }
+    .quiz-buttons {
+        text-align: center;
+        margin-top: 20px;
+    }
+    .quiz-buttons button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        background-color: #d3d3d3;
+        color: black;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 5px;
+        font-size: clamp(0.9em, 3vw, 1em);
+        cursor: pointer;
+        margin: 5px;
+        white-space: nowrap;
+    }
+    .quiz-buttons button:hover {
+        background-color: #bfbfbf;
+    }
+    @media (max-width: 500px) {
+        .answer-col {
+            flex: 0 0 100%;
+        }
+    }
 </style>
 </head>
 <body>
 
+<!-- QUIZ AREA FIRST -->
 <div id="quizBox"></div>
 
 <hr style="margin: 30px 0;">
 
+<!-- HEADER + CONTROLS BELOW QUIZ -->
 <div class="content">
-👤 Logged in as <?= htmlspecialchars($_SESSION['username']) ?> | <a href='logout.php'>Logout</a>
-<h1>🎯 Quiz</h1>
+    👤 Logged in as <?= htmlspecialchars($_SESSION['username']) ?> | <a href='logout.php'>Logout</a>
+    <h1>🎯 Quiz</h1>
 
-<audio id="bgMusic" loop preload="auto">
-    <source id="bgMusicSource" src="<?= htmlspecialchars($musicSrc) ?>" type="audio/mpeg">
-    Your browser does not support audio.
-</audio>
+    <audio id="bgMusic" loop preload="auto">
 
-<form method="POST" style="display:block;">
-    <label for="freepdTrackSelect">Select background music:</label><br><br>
-    <select id="freepdTrackSelect" name="freepd_choice" style="width:100%; max-width:600px;">
-        <option value="">-- Choose a FreePD track --</option>
-        <?php foreach ($freepdTracks as $track): 
-            $trackUrl = $freepdUrl . $track; ?>
-            <option value="<?= htmlspecialchars($trackUrl) ?>" <?= $musicSrc === $trackUrl ? 'selected' : '' ?>>
-                <?= htmlspecialchars(urldecode($track)) ?>
-            </option>
-        <?php endforeach; ?>
-    </select><br><br>
+        <source id="bgMusicSource" src="<?= htmlspecialchars($musicSrc) ?>" type="audio/mpeg">
+        Your browser does not support audio.
+    </audio>
 
-    <label>Select quiz set:</label><br><br>
-    <select name="quiz_table" required style="width: 100%; max-width: 600px;">
-        <option value="">-- Choose a quiz_choices_* table --</option>
-        <?php foreach ($quizTables as $table): ?>
-            <option value="<?= htmlspecialchars($table) ?>" <?= ($selectedTable === $table) ? 'selected' : '' ?>>
-                <?= htmlspecialchars($table) ?>
-            </option>
-        <?php endforeach; ?>
-    </select><br><br>
+    <form method="POST" style="display:block;">
+        <label>Select background music:</label><br><br>
+        <?php $currentMusic = $_SESSION['bg_music'] ?? ''; ?>
 
-    <div class="quiz-buttons">
-        <button type="submit" name="start_new" id="startQuizBtn">▶️ Start Quiz</button>
-    </div>
-</form>
+        <select name="bg_music_choice" onchange="toggleCustomMusic(this.value)">
+        <option value="" <?= $currentMusic === '' ? 'selected' : '' ?>>🔇 OFF</option>
+            <option value="track1.mp3" <?= $currentMusic === 'track1.mp3' ? 'selected' : '' ?>>🎸 Track 1</option>
+            <option value="track2.mp3" <?= $currentMusic === 'track2.mp3' ? 'selected' : '' ?>>🎹 Track 2</option>
+            <option value="track3.mp3" <?= $currentMusic === 'track3.mp3' ? 'selected' : '' ?>>🥛 Track 3</option>
+            <option value="custom" <?= filter_var($currentMusic, FILTER_VALIDATE_URL) && !str_contains($currentMusic, 'soundhelix.com') ? 'selected' : '' ?>>🌐 Custom URL (e.g. <a href="https://freepd.com/">freepd.com</a>)</option>
+        </select>
 
-<form method="POST" style="display:block;">
-    <div class="quiz-buttons">
-        <button type="submit" name="clean_slate">🪟 Clean Slate</button>
-    </div>
-</form>
-</div>
+
+        <div id="customMusicInput" style="<?= filter_var($currentMusic, FILTER_VALIDATE_URL) ? 'display:block;' : 'display:none;' ?>">
+            <input type="url" name="custom_music_url" placeholder="Paste full MP3 URL" style="width: 100%; max-width: 600px;" value="<?= htmlspecialchars($currentMusic) ?>">          
+        </div>
+
+        <div style='margin-bottom: 20px;'>
+            <button type="button" onclick="previewMusic()">🎧 Preview</button>
+            <button type="button" onclick="toggleMusic()">▶️/⏸️ Toggle Music</button>
+            <audio id="previewPlayer" controls style="display:none; margin-top: 10px;"></audio>
+        </div>
+
+        <label>Select quiz set:</label><br><br>
+        <select name="quiz_table" required style="width: 100%; max-width: 600px;">
+            <option value="">-- Choose a quiz_choices_* table --</option>
+            <?php foreach ($quizTables as $table): ?>
+                <option value="<?= htmlspecialchars($table) ?>" <?= ($selectedTable === $table) ? 'selected' : '' ?>>
+                    <?= htmlspecialchars($table) ?>
+                </option>
+            <?php endforeach; ?>
+        </select><br><br>
+
+        <div class="quiz-buttons">
+            <button type="submit" name="start_new" id="startQuizBtn">▶️ Start Quiz</button>
+    </form>
+
+    <form method="POST" style="display:block;">
+        <button type="submit" name="clean_slate">🧹 Clean Slate</button>
+        </div> <!-- .quiz-buttons -->
+    </form>
+</div> <!-- ✅ only one .content div closes here -->
+
 
 <hr>
 
 <script>
+let countdown = null;
+let timeLeft = 15;
+
+// MUSIC FUNCTIONS 
+
+function toggleCustomMusic(value) {
+    document.getElementById("customMusicInput").style.display = (value === "custom") ? "block" : "none";
+}
+
+function previewMusic() {
+    const dropdown = document.querySelector('select[name="bg_music_choice"]');
+    const urlInput = document.querySelector('input[name="custom_music_url"]');
+    const player = document.getElementById('previewPlayer');
+    let src = (dropdown.value === "custom") ? urlInput.value.trim() : dropdown.value;
+
+    if (src) {
+        player.src = src;
+        player.style.display = "block";
+        player.play();
+    }
+}
+
 function toggleMusic() {
     const music = document.getElementById("bgMusic");
     const source = document.getElementById("bgMusicSource");
@@ -198,14 +327,7 @@ function toggleMusic() {
     }
 }
 
-function loadNextQuestion() {
-    fetch("load_question.php")
-        .then(res => res.text())
-        .then(html => {
-            document.getElementById("quizBox").innerHTML = html;
-            setTimeout(revealAnswers, 2000);
-        });
-}
+// QUIZ FUNCTIONS 
 
 function revealAnswers() {
     const grid = document.querySelector(".answer-grid");
@@ -214,9 +336,6 @@ function revealAnswers() {
         startTimer();
     }
 }
-
-let countdown = null;
-let timeLeft = 15;
 
 function startTimer() {
     clearInterval(countdown);
@@ -257,29 +376,32 @@ function submitAnswer(btn) {
         const correctAnswer = data.correctAnswer;
         const feedbackText = data.feedback;
 
+        // Highlight buttons
         buttons.forEach(b => {
             const btnText = b.textContent.trim();
             if (btnText === correctAnswer) {
-                b.style.backgroundColor = "#4CAF50";
+                b.style.backgroundColor = "#4CAF50"; // green
                 b.style.color = "white";
             } else if (b.getAttribute("data-value") === value) {
-                b.style.backgroundColor = "#f44336";
+                b.style.backgroundColor = "#f44336"; // red
                 b.style.color = "white";
             }
         });
 
+        // Show feedback
         const feedbackBox = document.getElementById("feedbackBox");
         if (feedbackBox) {
             feedbackBox.innerHTML = feedbackText;
             feedbackBox.style.display = "block";
         }
 
+        // Load next question after delay
         setTimeout(() => {
             fetch("load_question.php")
                 .then(res => res.text())
                 .then(html => {
                     const quizBox = document.getElementById("quizBox");
-                    quizBox.style.display = "block";
+                    quizBox.style.display = "block";  // ✅ make it visible
                     quizBox.innerHTML = html;
                     setTimeout(revealAnswers, 2000);
                 });
@@ -287,15 +409,29 @@ function submitAnswer(btn) {
     });
 }
 
+
+function loadNextQuestion() {
+    fetch("load_question.php")
+        .then(res => res.text())
+        .then(html => {
+            document.getElementById("quizBox").innerHTML = html;
+            setTimeout(revealAnswers, 2000);
+        });
+}
+
 document.addEventListener("DOMContentLoaded", function () {
     const quizBox = document.getElementById("quizBox");
 
     <?php if (!empty($_SESSION['questions'])): ?>
+        // Quiz already in progress, show and load question
         quizBox.style.display = "block";
         loadNextQuestion();
+
+        // ✅ Always attempt to autoplay music
         setTimeout(() => {
             const music = document.getElementById("bgMusic");
             const source = document.getElementById("bgMusicSource");
+
             if (music && source && source.src) {
                 music.volume = 0.3;
                 music.play().catch(err => {
@@ -303,10 +439,58 @@ document.addEventListener("DOMContentLoaded", function () {
                 });
             }
         }, 500);
+
     <?php else: ?>
         quizBox.style.display = "none";
     <?php endif; ?>
 });
+
+
+/*
+
+document.addEventListener("DOMContentLoaded", function () {
+    const quizBox = document.getElementById("quizBox");
+
+    <?php if (!empty($_SESSION['questions'])): ?>
+        // Quiz already in progress, show and load question
+        quizBox.style.display = "block";
+        loadNextQuestion();
+    <?php else: ?>
+        // No active quiz, keep quiz box hidden
+        quizBox.style.display = "none";
+    <?php endif; ?>
+});
+
+*/
+
+window.addEventListener('beforeunload', function (e) {
+    // Detect whether this is a reload (safe fallback for all browsers)
+    let isReload = false;
+
+    if (performance.getEntriesByType) {
+        const nav = performance.getEntriesByType("navigation")[0];
+        isReload = nav && nav.type === "reload";
+    } else if (performance.navigation) {
+        isReload = performance.navigation.type === 1; // TYPE_RELOAD = 1
+    }
+
+    // If it's not a reload, then clear session and hide quiz box
+    if (!isReload) {
+        navigator.sendBeacon('reset_quiz_session.php');
+
+        const quizBox = document.getElementById('quizBox');
+        if (quizBox) {
+            quizBox.style.display = 'none';
+            quizBox.innerHTML = '';
+        }
+    }
+}); 
 </script>
+
+
+</div>
+</div>
+</div>
+
 </body>
 </html>

@@ -121,5 +121,5 @@ Quiz AI now works reasonably well. You can add pictueres. You can select music.
 When you play the game, the gamebox is at the top of page. It is mobile responsive.
 Users have time to view question and feedback. Feedback is red or green clicked-area.
 
-UPLOAD FORMAT
+UPLOAD FORMAT 
 If you cannot format a cvs file properly to be readable for the machine, you an download a sample.
