@@ -58,7 +58,7 @@ USR;
         ],
         "max_tokens" => $maxTokens
 
-        "max_tokens" => 400 // 🧠 This is the key line that fixes your quota error
+        "max_tokens" => 300 // 🧠 This is the key line that fixes your quota error
     ];
 
     $ch = curl_init("https://openrouter.ai/api/v1/chat/completions");
