@@ -259,7 +259,7 @@ include 'styling.php';
     <div class="quiz-buttons">
         <button type="submit" name="start_new" id="startQuizBtn">▶️ Start Quiz</button>
 </form>
-<form method="POST" style="display:inline-block;">
+<form method="POST" style="display:block; max-width: 100%;">
         <button type="submit" name="clean_slate">🧹 Clean Slate</button>
     </div>
 </form>

@@ -19,11 +19,6 @@
       background-color: #f9f9f9;
     }
 
-    html, body {
-      max-width: 100%;
-      overflow-x: hidden;
-    }
-
     header {
       background-color: #666;
       padding: 20px;
@@ -64,16 +59,12 @@
       transition: 0.3s;
     }
 
-  
     .content {
       max-width: 800px;
       margin: 0 auto;
       padding: 20px;
       text-align: center;
-      width: 100%;                /* ✅ ensure it never overflows */
-      box-sizing: border-box;     /* ✅ includes padding in width */
     }
-
 
     .intro {
       background-color: #f1f1f1;
