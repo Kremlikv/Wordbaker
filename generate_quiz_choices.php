@@ -19,30 +19,35 @@ function quizTableExists($conn, $table) {
 }
 
 function callOpenRouter($apiKey, $model, $czechWord, $correctAnswer, $targetLang, $referer, $appTitle) {
-    $prompt = <<<EOT
-    You are a teacher of foreign languages preparing a quiz test.
-    As input you will have translation from $czechWord to $correctAnswer.
-    You need to simulate three common mistakes human students usually make (wrong1, wrong2, wrong3) in the $targetLang.
-    
-    Do not give students any hints which word is correct and which incorrect.
-    Do not add any symbols like ))-:'/"_.
-    Do not use unrelated words, random letters, reversed words.
-    Search the Internet and study websites like "20 common mistakes English learners make" or "typical spelling mistakes".
-    
-    Use only the following types of mistakes:
-        Word which share the same root (example: Ausgang vs Aingang)
-        Wrong article (der Tisch vs das Tisch)
-        Words that belong to the same category (cabinet vs wardrobe - both are furniture)
-        False friends (Czech "stůl" means Table but looks like the German der Stuhl which is a type of chair)
-        Correct translation but for a different word in the same quiz.
-        One spelling mistake per word (example: achieve vs acheive, address vs adress)
-        A word which begins with the same Letter (cucumber v cauliflower)
-        
-    EOT;
+    $systemMessage = <<<SYS
+You are a multilingual quiz generator. Your job is to simulate realistic mistakes language learners make when choosing translations. You output ONLY the mistaken alternatives—nothing else.
+SYS;
+
+    $userMessage = <<<USR
+Czech word: "$czechWord"
+Correct $targetLang translation: "$correctAnswer"
+
+Generate 3 plausible wrong answers that resemble common human mistakes:
+- False friends
+- Article errors (e.g., der/die/das)
+- Spelling mistakes (e.g., adress instead of address)
+- Confusing similar category words (e.g., cabinet vs wardrobe)
+- Same root but incorrect form (e.g., Ausgang vs Eingang)
+- Translation of another word in the same quiz
+
+⚠️ DO NOT reveal which one is correct.  
+⚠️ DO NOT include explanations, numbers, symbols, or extra punctuation.  
+Output exactly 3 wrong options — each on a separate line.
+USR;
+
     $data = [
         "model" => $model,
-        "messages" => [[ "role" => "user", "content" => $prompt ]]
+        "messages" => [
+            [ "role" => "system", "content" => $systemMessage ],
+            [ "role" => "user", "content" => $userMessage ]
+        ]
     ];
+
     $ch = curl_init("https://openrouter.ai/api/v1/chat/completions");
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
@@ -58,13 +63,26 @@ function callOpenRouter($apiKey, $model, $czechWord, $correctAnswer, $targetLang
     curl_close($ch);
     $decoded = json_decode($response, true);
     $output = $decoded['choices'][0]['message']['content'] ?? '';
+
     $lines = array_filter(array_map('trim', explode("\n", $output)));
-    return array_slice($lines, 0, 3);
+    $cleaned = cleanAIOutput($lines);
+    return array_slice($cleaned, 0, 3);
 }
 
+
 function cleanAIOutput($answers) {
-    return array_map(fn($a) => trim(preg_replace('/^[\-\:\"]+/', '', $a)), $answers);
+    return array_values(array_filter(array_map(function($a) {
+        $clean = trim($a);
+        // Remove numbering or symbols
+        $clean = preg_replace('/^[-\d\.\)\:\"\']+/', '', $clean);
+        // Remove overly long or gibberish strings
+        if (strlen($clean) > 50 || preg_match('/[^a-zA-Zá-žÁ-Ž0-9\s\-]/u', $clean)) {
+            return '';
+        }
+        return $clean;
+    }, $answers)));
 }
+
 
 // ===== SAME PRE-EXPLORER LOGIC AS main.php =====
 $username = strtolower($_SESSION['username'] ?? '');
