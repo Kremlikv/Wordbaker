@@ -113,6 +113,7 @@ include 'file_explorer.php';
 
 echo "<br><br>";
 
+echo "<a href='generate_mp3_google_ssml.php'><button>🎧 Create MP3</button></a> ";
 
 // Table editing logic
 if (!empty($selectedFullTable) && $res !== false) {
@@ -124,7 +125,7 @@ if (!empty($selectedFullTable) && $res !== false) {
         echo "<a href='$audioFile' download class='button'>Download MP3</a><br><br>";
     } else {
         echo "<em>No audio generated yet for this table.</em><br><br>";
-        echo "<a href='generate_mp3_google_ssml.php'><button>🎧 Create MP3</button></a> ";
+        // echo "<a href='generate_mp3_google_ssml.php'><button>🎧 Create MP3</button></a> ";
     }
 
     if (!$isSharedTable) {
