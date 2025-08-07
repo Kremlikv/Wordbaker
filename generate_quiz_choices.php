@@ -50,9 +50,6 @@ Simulate 3 wrong answers a student might mistakenly choose. They should reflect 
 - Output only 3 wrong answers, each on its own line
 USR;
 
-$inputLength = strlen($czechWord . $correctAnswer);
-$maxTokens = ($inputLength < 30) ? 300 : 800;
-
     $data = [
         "model" => $model,
         "messages" => [
@@ -61,7 +58,7 @@ $maxTokens = ($inputLength < 30) ? 300 : 800;
         ],
         "max_tokens" => $maxTokens
 
-        // "max_tokens" => 1500 // 🧠 This is the key line that fixes your quota error
+        "max_tokens" => 400 // 🧠 This is the key line that fixes your quota error
     ];
 
     $ch = curl_init("https://openrouter.ai/api/v1/chat/completions");
