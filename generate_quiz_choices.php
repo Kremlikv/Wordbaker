@@ -189,6 +189,7 @@ if ($selectedTable) {
 
 echo "<div class='content'>👤 Logged in as ".$_SESSION['username']." | <a href='logout.php'>Logout</a></div>";
 echo "<h2 style='text-align:center;'>Generate AI Quiz Choices</h2>";
+echo "<p style='text-align:center;'> This AI is designed for vocabulary, not sentences</p>";
 
 include 'file_explorer.php';
 
