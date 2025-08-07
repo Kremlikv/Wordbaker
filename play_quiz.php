@@ -165,6 +165,26 @@ include 'styling.php';
         max-height: 66vw;  /* ✅ percentage of viewport width */
         object-fit: contain;
     }
+
+
+    img.question-image {
+    width: 100vw;
+    height: auto;
+    max-height: 66vw;
+    object-fit: contain;
+    display: block;
+    margin: 0 auto;
+    }
+
+    @media (min-width: 768px) {
+    img.question-image {
+        width: 50vw;
+        max-height: 50vh;
+    }
+    }
+
+
+
     select, button, input[type="url"] {
         padding: 10px;
         font-size: clamp(0.9em, 3vw, 1em);
