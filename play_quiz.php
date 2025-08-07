@@ -216,7 +216,8 @@ include 'styling.php';
     👤 Logged in as <?= htmlspecialchars($_SESSION['username']) ?> | <a href='logout.php'>Logout</a>
     <h1>🎯 Quiz</h1>
 
-    <audio id="bgMusic" loop>
+    <audio id="bgMusic" loop preload="auto">
+
         <source id="bgMusicSource" src="<?= htmlspecialchars($musicSrc) ?>" type="audio/mpeg">
         Your browser does not support audio.
     </audio>
@@ -403,27 +404,24 @@ document.addEventListener("DOMContentLoaded", function () {
         quizBox.style.display = "block";
         loadNextQuestion();
 
-        // ✅ Try to start background music after slight delay
+        // ✅ Always attempt to autoplay music
         setTimeout(() => {
             const music = document.getElementById("bgMusic");
             const source = document.getElementById("bgMusicSource");
-            if (music && source && source.src && !music.paused) {
-                // already playing
-                return;
-            }
+
             if (music && source && source.src) {
                 music.volume = 0.3;
                 music.play().catch(err => {
-                    console.warn("Autoplay blocked:", err);
+                    console.warn("Autoplay blocked by browser:", err);
                 });
             }
         }, 500);
 
     <?php else: ?>
-        // No active quiz, keep quiz box hidden
         quizBox.style.display = "none";
     <?php endif; ?>
 });
+
 
 /*
 
