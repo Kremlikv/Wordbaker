@@ -50,9 +50,9 @@ echo <<<HTML
   <button type="submit">📥 Upload</button>
   <br><br>
 
-  <form method="get" action="foldername_filename.csv">
-    <button type="submit">Download a sample CSV file</button>
-</form>
+ <a href="foldername_filename.csv" download>
+  <button type="button">Download a sample CSV file</button>
+</a>
 </form>
 
 
