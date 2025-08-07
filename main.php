@@ -135,6 +135,8 @@ echo "<a href='generate_mp3_google_ssml.php'><button>🎧 Create MP3</button></a
 if (!empty($selectedFullTable) && $res !== false) {
     echo "<h3>Selected Table: " . htmlspecialchars($selectedFullTable) . "</h3>";
     $isSharedTable = in_array($selectedFullTable, ['difficult_words', 'mastered_words']);
+    
+    
     $audioFile = "cache/$selectedFullTable.mp3";
 
     if (file_exists($audioFile)) {
@@ -145,13 +147,11 @@ if (!empty($selectedFullTable) && $res !== false) {
         echo "<input type='hidden' name='delete_audio_file' value='" . htmlspecialchars($selectedFullTable) . "'>";
         echo "<button type='submit' class='delete-button'>🗑️ Delete MP3</button>";
         echo "</form><br><br>";
-    }
-
-
     } else {
         echo "<em>No audio generated yet for this table.</em><br><br>";
-        // echo "<a href='generate_mp3_google_ssml.php'><button>🎧 Create MP3</button></a> ";
     }
+
+
 
     if (!$isSharedTable) {
         echo "<form method='POST' action='update_table.php'>";
