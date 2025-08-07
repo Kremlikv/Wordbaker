@@ -246,6 +246,19 @@ include 'styling.php';
     <form method="POST" style="display:block;">
         <label>Select background music:</label><br><br>
         <?php $currentMusic = $_SESSION['bg_music'] ?? ''; ?>
+
+        <select name="bg_music_choice" onchange="toggleCustomMusic(this.value)">
+        <option value="" <?= $currentMusic === '' ? 'selected' : '' ?>>🔇 OFF</option>
+            <option value="track1.mp3" <?= $currentMusic === 'track1.mp3' ? 'selected' : '' ?>>🎸 Track 1</option>
+            <option value="track2.mp3" <?= $currentMusic === 'track2.mp3' ? 'selected' : '' ?>>🎹 Track 2</option>
+            <option value="track3.mp3" <?= $currentMusic === 'track3.mp3' ? 'selected' : '' ?>>🥛 Track 3</option>
+            <option value="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" <?= $currentMusic === 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3' ? 'selected' : '' ?>>🎵 SoundHelix Track 1</option>
+            <option value="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3" <?= $currentMusic === 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3' ? 'selected' : '' ?>>🎵 SoundHelix Track 2</option>
+            <option value="custom" <?= filter_var($currentMusic, FILTER_VALIDATE_URL) && !str_contains($currentMusic, 'soundhelix.com') ? 'selected' : '' ?>>🌐 Custom URL</option>
+        </select>
+
+
+    <!--
         <select name="bg_music_choice" onchange="toggleCustomMusic(this.value)">
             <option value="" <?= $currentMusic === '' ? 'selected' : '' ?>>🔇 OFF</option>
             <option value="track1.mp3" <?= $currentMusic === 'track1.mp3' ? 'selected' : '' ?>>🎸 Track 1</option>
@@ -253,13 +266,10 @@ include 'styling.php';
             <option value="track3.mp3" <?= $currentMusic === 'track3.mp3' ? 'selected' : '' ?>>🥛 Track 3</option>
             <option value="custom" <?= filter_var($currentMusic, FILTER_VALIDATE_URL) ? 'selected' : '' ?>>🌐 Use custom music URL</option>
         </select><br><br>
+    -->
 
         <div id="customMusicInput" style="<?= filter_var($currentMusic, FILTER_VALIDATE_URL) ? 'display:block;' : 'display:none;' ?>">
-            <input type="url" name="custom_music_url" placeholder="Paste full MP3 URL" style="width: 100%; max-width: 600px;" value="<?= htmlspecialchars($currentMusic) ?>">
-            <br><br>
-            <button type="button" onclick="window.open('browse_music.php', '_blank', 'width=800,height=600')">
-            🎵 Browse Pixabay Music
-            </button>
+            <input type="url" name="custom_music_url" placeholder="Paste full MP3 URL" style="width: 100%; max-width: 600px;" value="<?= htmlspecialchars($currentMusic) ?>">          
         </div>
 
         <div style='margin-bottom: 20px;'>
