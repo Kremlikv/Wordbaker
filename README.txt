@@ -111,3 +111,15 @@ Now I can communicate with the users of my website.
 RED-GREEN
 Quiz highlights correct answers in red and wrong in red. Result of a day of editing!
 It required moving part of the logic to a separate file submit_answer.php
+
+LONG MP3 AND MP3 DELETE
+We fixed the problem with ssml audio generaition for long files. And added option to delete MP3.
+So when you update your table, you can create a new audio.
+
+QUIZ 
+Quiz AI now works reasonably well. You can add pictueres. You can select music. 
+When you play the game, the gamebox is at the top of page. It is mobile responsive.
+Users have time to view question and feedback. Feedback is red or green clicked-area.
+
+UPLOAD FORMAT
+If you cannot format a cvs file properly to be readable for the machine, you an download a sample.
