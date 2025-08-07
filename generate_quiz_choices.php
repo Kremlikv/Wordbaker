@@ -56,8 +56,6 @@ USR;
             ["role" => "system", "content" => $systemMessage],
             ["role" => "user", "content" => $userMessage]
         ],
-        "max_tokens" => $maxTokens
-
         "max_tokens" => 300 // 🧠 This is the key line that fixes your quota error
     ];
 
