@@ -162,7 +162,8 @@ include 'styling.php';
     img.question-image {
         max-width: 100%;
         height: auto;
-        max-height: 50vh;
+        max-height: 25vw;  /* ✅ percentage of viewport width */
+        object-fit: contain;
     }
     select, button, input[type="url"] {
         padding: 10px;
