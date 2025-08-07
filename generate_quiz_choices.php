@@ -36,7 +36,7 @@ Simulate 3 wrong answers a student might mistakenly choose. They should reflect 
 - False friends (Czech "stůl" → German "Stuhl")
 - Similar spelling or sound (lie, lay)
 - Shared root (Ausgang, Aufgang)
-- Same category (cabinet, wardrobe)
+- Same category (trousers, skirt)
 - Spelling error (adress instead of address)
 - Different form (ride vs rode)
 - Plural vs singular
