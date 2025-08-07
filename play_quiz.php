@@ -3,7 +3,6 @@ session_start();
 ini_set('display_errors', 1);
 error_reporting(E_ALL);
 
-// ⛔ Skip session check for AJAX
 if (
     !empty($_SERVER['HTTP_X_REQUESTED_WITH']) &&
     strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest'
@@ -28,11 +27,9 @@ while ($row = $result->fetch_array()) {
 $freepdUrl = 'https://freepd.com/music/';
 $html = @file_get_contents($freepdUrl);
 $freepdTracks = [];
-if ($html !== false) {
-    if (preg_match_all('/href="([^"]+\.mp3)"/i', $html, $matches)) {
-        $freepdTracks = array_unique($matches[1]);
-        sort($freepdTracks);
-    }
+if ($html !== false && preg_match_all('/href="([^"]+\.mp3)"/i', $html, $matches)) {
+    $freepdTracks = array_unique($matches[1]);
+    sort($freepdTracks);
 }
 
 $selectedTable = $_SESSION['quiz_table'] ?? '';
@@ -53,31 +50,23 @@ if (isset($_POST['clean_slate'])) {
     exit;
 }
 
-// 🚀 Start Quiz
+// 🚀 Start quiz
 if (isset($_POST['start_new']) && !empty($_POST['quiz_table'])) {
     $_SESSION['quiz_table'] = $_POST['quiz_table'];
     $_SESSION['score'] = 0;
     $_SESSION['question_index'] = 0;
     $_SESSION['mistakes'] = [];
 
-    // 🎵 Music logic
-    $musicChoice = $_POST['bg_music_choice'] ?? '';
-    $customURL = $_POST['custom_music_url'] ?? '';
-    $freepdChoice = $_POST['freepd_choice'] ?? '';
-
-    if ($musicChoice === 'custom' && filter_var($customURL, FILTER_VALIDATE_URL)) {
-        $_SESSION['bg_music'] = $customURL;
-    } elseif ($musicChoice === 'freepd' && filter_var($freepdChoice, FILTER_VALIDATE_URL)) {
-        $_SESSION['bg_music'] = $freepdChoice;
-    } elseif ($musicChoice !== '') {
-        $_SESSION['bg_music'] = $musicChoice;
+    $chosenTrack = $_POST['freepd_choice'] ?? '';
+    if (filter_var($chosenTrack, FILTER_VALIDATE_URL)) {
+        $_SESSION['bg_music'] = $chosenTrack;
     } else {
         $_SESSION['bg_music'] = '';
     }
 
     $musicSrc = $_SESSION['bg_music'];
 
-    // 📥 Load questions
+    // Load questions
     $selectedTable = $_POST['quiz_table'];
     $res = $conn->query("SELECT question, correct_answer, wrong1, wrong2, wrong3, image_url FROM `$selectedTable`");
     if (!$res) die("❌ Query failed: " . $conn->error);
@@ -111,12 +100,12 @@ include 'styling.php';
 <!DOCTYPE html>
 <html>
 <head>
-<meta charset="UTF-8">
-<title>Play Quiz</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<style>
-/* ... keep all your previous styles unchanged ... */
-</style>
+    <meta charset="UTF-8">
+    <title>Play Quiz</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        /* Keep all your existing styles here (unchanged) */
+    </style>
 </head>
 <body>
 
@@ -133,47 +122,20 @@ include 'styling.php';
         Your browser does not support audio.
     </audio>
 
-    <form method="POST" style="display:block;">
-        <label>Select background music:</label><br><br>
-        <?php $currentMusic = $_SESSION['bg_music'] ?? ''; ?>
-        <select name="bg_music_choice" onchange="toggleCustomMusic(this.value)">
-            <option value="" <?= $currentMusic === '' ? 'selected' : '' ?>>🔇 OFF</option>
-            <option value="track1.mp3" <?= $currentMusic === 'track1.mp3' ? 'selected' : '' ?>>🎸 Track 1</option>
-            <option value="track2.mp3" <?= $currentMusic === 'track2.mp3' ? 'selected' : '' ?>>🎹 Track 2</option>
-            <option value="track3.mp3" <?= $currentMusic === 'track3.mp3' ? 'selected' : '' ?>>🥛 Track 3</option>
-            <option value="custom" <?= (filter_var($currentMusic, FILTER_VALIDATE_URL) && !str_contains($currentMusic, 'freepd.com')) ? 'selected' : '' ?>>🌐 Custom URL</option>
-            <option value="freepd" <?= str_contains($currentMusic, 'freepd.com') ? 'selected' : '' ?>>🎶 Choose from FreePD.com</option>
-        </select>
-
-        <!-- Custom URL Input -->
-        <div id="customMusicInput" style="<?= (filter_var($currentMusic, FILTER_VALIDATE_URL) && !str_contains($currentMusic, 'freepd.com')) ? 'display:block;' : 'display:none;' ?>">
-            <input type="url" name="custom_music_url" placeholder="Paste full MP3 URL" style="width: 100%; max-width: 600px;" value="<?= htmlspecialchars($currentMusic) ?>">          
-        </div>
-
-        <!-- FreePD Dropdown + Preview -->
-        <div id="freepdSelector" style="<?= str_contains($currentMusic, 'freepd.com') ? 'display:block;' : 'display:none;' ?>">
-            <select id="freepdTrackSelect" name="freepd_choice" style="width:100%; max-width:600px; margin-top:10px;">
-                <option value="">-- Select a FreePD track --</option>
-                <?php foreach ($freepdTracks as $track): 
-                    $trackUrl = $freepdUrl . $track; ?>
-                    <option value="<?= htmlspecialchars($trackUrl) ?>" <?= $musicSrc === $trackUrl ? 'selected' : '' ?>>
+    <form method="POST">
+        <label for="freepd_choice">Select background music from FreePD:</label><br><br>
+        <select name="freepd_choice" id="freepd_choice" style="width:100%; max-width:600px;">
+            <option value="">🔇 No Music</option>
+            <?php foreach ($freepdTracks as $track): 
+                $trackUrl = $freepdUrl . $track; ?>
+                <option value="<?= htmlspecialchars($trackUrl) ?>" <?= $musicSrc === $trackUrl ? 'selected' : '' ?>>
                     <?= htmlspecialchars(urldecode($track)) ?>
-                    </option>
+                </option>
+            <?php endforeach; ?>
+        </select><br><br>
 
-                <?php endforeach; ?>
-            </select><br>
-            <button type="button" onclick="previewFreepdTrack()">🎧 Preview Selected</button>
-            <audio id="freepdPreviewPlayer" controls style="display:none; margin-top:10px;"></audio>
-        </div>
-
-        <div style='margin-bottom: 20px;'>
-            <button type="button" onclick="previewMusic()">🎧 Preview</button>
-            <button type="button" onclick="toggleMusic()">▶️/⏸️ Toggle Music</button>
-            <audio id="previewPlayer" controls style="display:none; margin-top: 10px;"></audio>
-        </div>
-
-        <label>Select quiz set:</label><br><br>
-        <select name="quiz_table" required style="width: 100%; max-width: 600px;">
+        <label for="quiz_table">Select quiz set:</label><br><br>
+        <select name="quiz_table" id="quiz_table" required style="width: 100%; max-width: 600px;">
             <option value="">-- Choose a quiz_choices_* table --</option>
             <?php foreach ($quizTables as $table): ?>
                 <option value="<?= htmlspecialchars($table) ?>" <?= ($selectedTable === $table) ? 'selected' : '' ?>>
@@ -183,71 +145,120 @@ include 'styling.php';
         </select><br><br>
 
         <div class="quiz-buttons">
-            <button type="submit" name="start_new" id="startQuizBtn">▶️ Start Quiz</button>
+            <button type="submit" name="start_new">▶️ Start Quiz</button>
         </div>
-    </form> <!-- ✅ closes the whole start quiz form -->
+    </form>
 
-    <form method="POST" style="display:block;">
-    <div class="quiz-buttons">
-        <button type="submit" name="clean_slate">🧹 Clean Slate</button>
-    </div>
-</form>
+    <form method="POST">
+        <div class="quiz-buttons">
+            <button type="submit" name="clean_slate">🧹 Clean Slate</button>
+        </div>
+    </form>
 </div>
 
 <hr>
 
 <script>
-function toggleCustomMusic(value) {
-    document.getElementById("customMusicInput").style.display = (value === "custom") ? "block" : "none";
-    document.getElementById("freepdSelector").style.display = (value === "freepd") ? "block" : "none";
-}
+document.addEventListener("DOMContentLoaded", function () {
+    const quizBox = document.getElementById("quizBox");
 
-function previewMusic() {
-    const dropdown = document.querySelector('select[name="bg_music_choice"]');
-    const urlInput = document.querySelector('input[name="custom_music_url"]');
-    const player = document.getElementById('previewPlayer');
-    let src = (dropdown.value === "custom") ? urlInput.value.trim() : dropdown.value;
+    <?php if (!empty($_SESSION['questions'])): ?>
+        quizBox.style.display = "block";
+        loadNextQuestion();
 
-    if (src) {
-        player.src = src;
-        player.style.display = "block";
-        player.play();
-    }
-}
+        setTimeout(() => {
+            const music = document.getElementById("bgMusic");
+            const source = document.getElementById("bgMusicSource");
 
-function toggleMusic() {
-    const music = document.getElementById("bgMusic");
-    const source = document.getElementById("bgMusicSource");
-    if (!source.src || source.src.endsWith('/')) {
-        alert("Please select a valid music track first.");
-        return;
-    }
-    if (music.paused) {
-        music.volume = 0.3;
-        music.play().catch(err => console.warn("Music play blocked:", err));
-    } else {
-        music.pause();
-    }
-}
+            if (music && source && source.src) {
+                music.volume = 0.3;
+                music.play().catch(err => {
+                    console.warn("Autoplay blocked by browser:", err);
+                });
+            }
+        }, 500);
+    <?php else: ?>
+        quizBox.style.display = "none";
+    <?php endif; ?>
+});
 
-function previewFreepdTrack() {
-    const select = document.getElementById('freepdTrackSelect');
-    const audio = document.getElementById('freepdPreviewPlayer');
-    const url = select.value;
-
-    if (url && url.endsWith('.mp3')) {
-        audio.src = url;
-        audio.style.display = 'block';
-        audio.play().catch(err => {
-            console.warn("Preview failed:", err);
+function loadNextQuestion() {
+    fetch("load_question.php")
+        .then(res => res.text())
+        .then(html => {
+            document.getElementById("quizBox").innerHTML = html;
+            setTimeout(revealAnswers, 2000);
         });
-    } else {
-        alert("Please select a valid FreePD MP3 track first.");
+}
+
+function revealAnswers() {
+    const grid = document.querySelector(".answer-grid");
+    if (grid) {
+        grid.style.display = "flex";
+        startTimer();
     }
+}
+
+function startTimer() {
+    let countdown = null;
+    let timeLeft = 15;
+    const timerDisplay = document.getElementById("timer");
+    clearInterval(countdown);
+    countdown = setInterval(() => {
+        timeLeft--;
+        if (timerDisplay) timerDisplay.textContent = `⏳ ${timeLeft}`;
+        if (timeLeft <= 0) {
+            clearInterval(countdown);
+            document.querySelectorAll(".answer-btn").forEach(btn => btn.disabled = true);
+            if (timerDisplay) timerDisplay.textContent = "⏰ Time's up!";
+        }
+    }, 1000);
+}
+
+function submitAnswer(btn) {
+    const value = btn.getAttribute("data-value");
+    const buttons = document.querySelectorAll(".answer-btn");
+    buttons.forEach(b => b.disabled = true);
+    clearInterval(countdown);
+
+    fetch("submit_answer.php", {
+        method: "POST",
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+            answer: value,
+            time_taken: 15 - timeLeft
+        })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.error) {
+            alert(data.error);
+            return;
+        }
+
+        const correctAnswer = data.correctAnswer;
+        const feedbackText = data.feedback;
+
+        buttons.forEach(b => {
+            const btnText = b.textContent.trim();
+            if (btnText === correctAnswer) {
+                b.style.backgroundColor = "#4CAF50";
+                b.style.color = "white";
+            } else if (b.getAttribute("data-value") === value) {
+                b.style.backgroundColor = "#f44336";
+                b.style.color = "white";
+            }
+        });
+
+        const feedbackBox = document.getElementById("feedbackBox");
+        if (feedbackBox) {
+            feedbackBox.innerHTML = feedbackText;
+            feedbackBox.style.display = "block";
+        }
+
+        setTimeout(loadNextQuestion, 2000);
+    });
 }
 </script>
-
-<!-- Rest of your existing JS remains unchanged (quiz logic, timer, answer handling, etc.) -->
-
 </body>
 </html>
