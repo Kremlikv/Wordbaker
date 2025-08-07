@@ -55,7 +55,7 @@ USR;
             ["role" => "system", "content" => $systemMessage],
             ["role" => "user", "content" => $userMessage]
         ],
-        "max_tokens" => 300 // 🧠 This is the key line that fixes your quota error
+        "max_tokens" => 900 // 🧠 This is the key line that fixes your quota error
     ];
 
     $ch = curl_init("https://openrouter.ai/api/v1/chat/completions");
