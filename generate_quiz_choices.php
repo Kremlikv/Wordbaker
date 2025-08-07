@@ -20,31 +20,33 @@ function quizTableExists($conn, $table) {
 
 function callOpenRouter($apiKey, $model, $czechWord, $correctAnswer, $targetLang, $referer, $appTitle) {
     $systemMessage = <<<SYS
-You are a helpful assistant that generates realistic wrong quiz answers for language learners.
-You simulate typical human translation mistakes. Your output must be clean, without any explanations, symbols, or gibberish.
+You are an expert language teacher preparing multiple-choice quizzes.
+For each Czech word and its correct translation, simulate 3 plausible wrong answers that students often choose.
+Do NOT explain anything. Do NOT output the correct answer. Output only the 3 distractors.
 SYS;
 
     $userMessage = <<<USR
-Czech word: "$czechWord"  
-Correct $targetLang translation: "$correctAnswer"  
+Czech word: "$czechWord"
+Correct $targetLang translation: "$correctAnswer"
 
-Create three plausible *wrong* translations.  
-Each should reflect a realistic mistake, such as:  
-- Article or gender confusion (e.g., der vs das)  
-- False friends (e.g., German "Stuhl" vs Czech "stůl")  
-- Spelling error (e.g., adress instead of address)  
-- Wrong plural/singular  
-- Similar root or word family (e.g., Ausgang vs Aufgang)  
-- Confusing words in same category (e.g., sofa vs couch)  
-- Wrong diacritic or near-homophone  
+Simulate 3 wrong answers a student might mistakenly choose. They should reflect real human mistakes like:
 
-⚠️ DO NOT:
-- Use reversed words, random letters, or palindromes  
-- Add any symbols like (), :, ", ', -, /  
-- Explain your answer  
-- Number or bullet the items  
+- Article/gender confusion (der Tisch → das Tisch)
+- False friends (Czech "stůl" → German "Stuhl")
+- Similar spelling or sound (lie, lay)
+- Shared root (Ausgang, Aufgang)
+- Same category (cabinet, wardrobe)
+- Spelling error (adress instead of address)
+- Different form (ride vs rode)
+- Plural vs singular
+- Diacritic confusion (věž → vez)
 
-Output only three incorrect answers, one per line.
+⚠️ STRICT RULES:
+- Do NOT explain
+- Do NOT include the correct answer
+- Do NOT number or bullet the lines
+- Do NOT use nonsense or reversed words
+- Output only 3 wrong answers, each on its own line
 USR;
 
     $data = [
@@ -52,7 +54,8 @@ USR;
         "messages" => [
             ["role" => "system", "content" => $systemMessage],
             ["role" => "user", "content" => $userMessage]
-        ]
+        ],
+        "max_tokens" => 300 // 🧠 This is the key line that fixes your quota error
     ];
 
     $ch = curl_init("https://openrouter.ai/api/v1/chat/completions");
@@ -75,6 +78,7 @@ USR;
 
     return cleanAIOutput($lines);
 }
+
 
 
 function cleanAIOutput($answers) {
