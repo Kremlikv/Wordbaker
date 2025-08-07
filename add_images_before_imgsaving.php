@@ -36,11 +36,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $url = trim($url);
 
         // Check if a file was uploaded
-       $uploadDir = __DIR__ . "/uploads/quiz_images/";
-        if (!is_dir($uploadDir)) mkdir($uploadDir, 0777, true);
-
-        // Case 1: Uploaded from PC
         if (isset($_FILES['image_file']['name'][$id]) && $_FILES['image_file']['error'][$id] === UPLOAD_ERR_OK) {
+            $uploadDir = __DIR__ . "/uploads/quiz_images/";
+            if (!is_dir($uploadDir)) mkdir($uploadDir, 0777, true);
             $tmpName = $_FILES['image_file']['tmp_name'][$id];
             $ext = strtolower(pathinfo($_FILES['image_file']['name'][$id], PATHINFO_EXTENSION));
             if (in_array($ext, ['jpg', 'jpeg', 'png', 'webp'])) {
@@ -49,20 +47,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $url = "uploads/quiz_images/" . $newName;
             }
         }
-
-        // Case 2: Selected from Pixabay (starts with https://pixabay.com or cdn.pixabay.com)
-        elseif (filter_var($url, FILTER_VALIDATE_URL) && preg_match('#^https://(cdn\.)?pixabay\.com/#', $url)) {
-            $ext = pathinfo(parse_url($url, PHP_URL_PATH), PATHINFO_EXTENSION);
-            if (in_array($ext, ['jpg', 'jpeg', 'png', 'webp'])) {
-                $newName = "quiz_" . $id . "_" . uniqid() . "." . $ext;
-                $imgData = file_get_contents($url);
-                if ($imgData !== false) {
-                    file_put_contents($uploadDir . $newName, $imgData);
-                    $url = "uploads/quiz_images/" . $newName;
-                }
-            }
-        }
-
 
         // ✅ Set default if still empty
         if ($url === '' || $url === null) {
