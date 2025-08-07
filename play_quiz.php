@@ -157,8 +157,9 @@ include 'styling.php';
                 <?php foreach ($freepdTracks as $track): 
                     $trackUrl = $freepdUrl . $track; ?>
                     <option value="<?= htmlspecialchars($trackUrl) ?>" <?= $musicSrc === $trackUrl ? 'selected' : '' ?>>
-                        <?= htmlspecialchars($track) ?>
+                    <?= htmlspecialchars(urldecode($track)) ?>
                     </option>
+
                 <?php endforeach; ?>
             </select><br>
             <button type="button" onclick="previewFreepdTrack()">🎧 Preview Selected</button>
@@ -183,12 +184,14 @@ include 'styling.php';
 
         <div class="quiz-buttons">
             <button type="submit" name="start_new" id="startQuizBtn">▶️ Start Quiz</button>
-    </form>
+        </div>
+    </form> <!-- ✅ closes the whole start quiz form -->
 
     <form method="POST" style="display:block;">
+    <div class="quiz-buttons">
         <button type="submit" name="clean_slate">🧹 Clean Slate</button>
-        </div>
-    </form>
+    </div>
+</form>
 </div>
 
 <hr>
