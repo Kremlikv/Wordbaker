@@ -141,19 +141,19 @@ if (!empty($selectedFullTable) && $res !== false) {
     
     $audioFile = "cache/$selectedFullTable.mp3";
 
+    $buttonStyle = "style=\"border:2px solid black; background:none; color:black; padding:6px 12px; border-radius:4px; cursor:pointer;\"";
     if (file_exists($audioFile)) {
         echo "<audio controls src='$audioFile'></audio><br>";
-        echo "<a href='generate_mp3_google_ssml.php'><button>🎧 Create MP3</button></a> ";
-        echo "<a href='$audioFile' download class='button'>Download MP3</a> | ";
+        echo "<a href='generate_mp3_google_ssml.php'><button $buttonStyle>🎧 Create MP3</button></a> ";
+        echo "<a href='$audioFile' download><button $buttonStyle>⇩ Download MP3</button></a> | ";
         echo "<form method='POST' action='' style='display:inline;' onsubmit=\"return confirm('Really delete the audio file for this table?');\">";
         echo "<input type='hidden' name='delete_audio_file' value='" . htmlspecialchars($selectedFullTable) . "'>";
-        echo "<button type='submit' class='delete-button'>🗑️ Delete MP3</button>";
+        echo "<button type='submit' $buttonStyle>🗑️ Delete MP3</button>";
         echo "</form><br><br>";
     } else {
         echo "<em>No audio generated yet for this table.</em><br><br>";
-        echo "<a href='generate_mp3_google_ssml.php'><button>🎧 Create MP3</button></a> ";
+        echo "<a href='generate_mp3_google_ssml.php'><button $buttonStyle>🎧 Create MP3</button></a> ";
     }
-
 
 
     if (!$isSharedTable) {
