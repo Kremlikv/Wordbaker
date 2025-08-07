@@ -31,40 +31,51 @@ if (isset($_GET['set_default']) && $_GET['set_default'] == '1') {
 
 /* Save updates */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Map IDs to Czech words for naming
+    $czechMap = [];
+    $result = $conn->query("SELECT id, Czech FROM `$table`");
+    while ($row = $result->fetch_assoc()) {
+        $czechMap[$row['id']] = $row['Czech'];
+    }
+
     foreach ($_POST['image_url'] as $id => $url) {
         $id = intval($id);
         $url = trim($url);
+        $czechWord = isset($czechMap[$id]) ? preg_replace('/[^a-zA-Z0-9_]/u', '_', $czechMap[$id]) : 'term';
 
-        // Check if a file was uploaded
-       $uploadDir = __DIR__ . "/uploads/quiz_images/";
-        if (!is_dir($uploadDir)) mkdir($uploadDir, 0777, true);
+        $quizDirName = basename($table);
+        $uploadDir = __DIR__ . "/cache/quiz_images/$quizDirName/";
+        if (!is_dir($uploadDir)) {
+            mkdir($uploadDir, 0777, true);
+        }
 
         // Case 1: Uploaded from PC
         if (isset($_FILES['image_file']['name'][$id]) && $_FILES['image_file']['error'][$id] === UPLOAD_ERR_OK) {
             $tmpName = $_FILES['image_file']['tmp_name'][$id];
             $ext = strtolower(pathinfo($_FILES['image_file']['name'][$id], PATHINFO_EXTENSION));
             if (in_array($ext, ['jpg', 'jpeg', 'png', 'webp'])) {
-                $newName = "quiz_" . $id . "_" . uniqid() . "." . $ext;
-                move_uploaded_file($tmpName, $uploadDir . $newName);
-                $url = "uploads/quiz_images/" . $newName;
-            }
-        }
-
-        // Case 2: Selected from Pixabay (starts with https://pixabay.com or cdn.pixabay.com)
-        elseif (filter_var($url, FILTER_VALIDATE_URL) && preg_match('#^https://(cdn\.)?pixabay\.com/#', $url)) {
-            $ext = pathinfo(parse_url($url, PHP_URL_PATH), PATHINFO_EXTENSION);
-            if (in_array($ext, ['jpg', 'jpeg', 'png', 'webp'])) {
-                $newName = "quiz_" . $id . "_" . uniqid() . "." . $ext;
-                $imgData = file_get_contents($url);
-                if ($imgData !== false) {
-                    file_put_contents($uploadDir . $newName, $imgData);
-                    $url = "uploads/quiz_images/" . $newName;
+                $newName = $czechWord . "_" . uniqid() . "." . $ext;
+                if (move_uploaded_file($tmpName, $uploadDir . $newName)) {
+                    $url = "cache/quiz_images/$quizDirName/" . $newName;
                 }
             }
         }
 
+        // Case 2: Selected from Pixabay
+        elseif (filter_var($url, FILTER_VALIDATE_URL) && preg_match('#^https://(cdn\.)?pixabay\.com/#', $url)) {
+            $ext = pathinfo(parse_url($url, PHP_URL_PATH), PATHINFO_EXTENSION);
+            if (in_array($ext, ['jpg', 'jpeg', 'png', 'webp'])) {
+                $newName = $czechWord . "_" . uniqid() . "." . $ext;
+                $imgData = @file_get_contents($url);
+                if ($imgData !== false) {
+                    if (file_put_contents($uploadDir . $newName, $imgData)) {
+                        $url = "cache/quiz_images/$quizDirName/" . $newName;
+                    }
+                }
+            }
+        }
 
-        // ✅ Set default if still empty
+        // Set default image if no image was handled
         if ($url === '' || $url === null) {
             $url = 'quiz_logo.png';
         }
@@ -74,10 +85,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute();
         $stmt->close();
     }
+
     $msg = "✅ Images saved successfully!";
 }
 
-$res = $conn->query("SELECT id, question, image_url FROM `$table` ORDER BY id ASC");
+
+$res = $conn->query("SELECT id, question, Czech, image_url FROM `$table` ORDER BY id ASC");
+
 if (!$res) die("Table not found.");
 ?>
 <!DOCTYPE html>
