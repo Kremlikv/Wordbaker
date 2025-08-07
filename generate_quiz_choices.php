@@ -8,15 +8,10 @@ require_once 'session.php';
 include 'styling.php';
 
 
-$OPENROUTER_API_KEY = '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';
-$OPENROUTER_MODEL = 'deepseek/deepseek-chat-v3-0324:free';
+$OPENROUTER_API_KEY = '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';
+$OPENROUTER_MODEL = 'anthropic/claude-3-haiku';
 $OPENROUTER_REFERER = 'https://kremlik.byethost15.com';
 $APP_TITLE = 'KahootGenerator';
-
-// $OPENROUTER_API_KEY = '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';
-//$OPENROUTER_MODEL = 'anthropic/claude-3-haiku';
-// $OPENROUTER_REFERER = 'https://kremlik.byethost15.com';
-// $APP_TITLE = 'KahootGenerator';
 
 function quizTableExists($conn, $table) {
     $quizTable = (strpos($table, 'quiz_choices_') === 0) ? $table : "quiz_choices_" . $table;
