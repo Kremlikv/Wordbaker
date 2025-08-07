@@ -75,10 +75,6 @@ function getUserFoldersAndTables($conn, $username) {
 $username = strtolower($_SESSION['username'] ?? '');
 $conn->set_charset("utf8mb4");
 
-
-
-
-
 // Build folder structure
 $folders = getUserFoldersAndTables($conn, $username);
 $folders['Shared'][] = ['table_name' => 'difficult_words', 'display_name' => 'Difficult Words'];
@@ -132,6 +128,8 @@ echo "<h2> View and edit your tables </h2>";
 include 'file_explorer.php';
 
 echo "<br><br>";
+
+echo "<a href='generate_mp3_google_ssml.php'><button>🎧 Create MP3</button></a> ";
 
 // Table editing logic
 if (!empty($selectedFullTable) && $res !== false) {
@@ -196,8 +194,6 @@ if (!empty($selectedFullTable) && $res !== false) {
         echo "</table><br><em>This table is read-only.</em><br><br>";
     }
 }
-
-echo "<a href='generate_mp3_google_ssml.php'><button>🎧 Create MP3</button></a> ";
 
 echo "</div>";
 
