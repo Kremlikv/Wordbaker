@@ -402,11 +402,45 @@ document.addEventListener("DOMContentLoaded", function () {
         // Quiz already in progress, show and load question
         quizBox.style.display = "block";
         loadNextQuestion();
+
+        // ✅ Try to start background music after slight delay
+        setTimeout(() => {
+            const music = document.getElementById("bgMusic");
+            const source = document.getElementById("bgMusicSource");
+            if (music && source && source.src && !music.paused) {
+                // already playing
+                return;
+            }
+            if (music && source && source.src) {
+                music.volume = 0.3;
+                music.play().catch(err => {
+                    console.warn("Autoplay blocked:", err);
+                });
+            }
+        }, 500);
+
     <?php else: ?>
         // No active quiz, keep quiz box hidden
         quizBox.style.display = "none";
     <?php endif; ?>
 });
+
+/*
+
+document.addEventListener("DOMContentLoaded", function () {
+    const quizBox = document.getElementById("quizBox");
+
+    <?php if (!empty($_SESSION['questions'])): ?>
+        // Quiz already in progress, show and load question
+        quizBox.style.display = "block";
+        loadNextQuestion();
+    <?php else: ?>
+        // No active quiz, keep quiz box hidden
+        quizBox.style.display = "none";
+    <?php endif; ?>
+});
+
+*/
 
 window.addEventListener('beforeunload', function (e) {
     // Detect whether this is a reload (safe fallback for all browsers)
