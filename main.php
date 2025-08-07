@@ -141,7 +141,7 @@ if (!empty($selectedFullTable) && $res !== false) {
     
     $audioFile = "cache/$selectedFullTable.mp3";
 
-    $buttonStyle = "style=\"border:2px solid black; background:none; color:black; padding:6px 12px; border-radius:4px; cursor:pointer;\"";
+    $buttonStyle = "style=\"border:2px solid black; background:none; color:black; font-size: 0.8em; padding:8px 14px; border-radius:4px; cursor:pointer;\"";
     if (file_exists($audioFile)) {
         echo "<audio controls src='$audioFile'></audio><br>";
         echo "<a href='generate_mp3_google_ssml.php'><button $buttonStyle>🎧 Create MP3</button></a> ";
