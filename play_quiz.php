@@ -214,14 +214,16 @@ include 'styling.php';
 <div class="content">
     👤 Logged in as <?= htmlspecialchars($_SESSION['username']) ?> | <a href='logout.php'>Logout</a>
     <h1>🎯 Quiz</h1>
+</div>
 
     <audio id="bgMusic" loop>
         <source id="bgMusicSource" src="<?= htmlspecialchars($musicSrc) ?>" type="audio/mpeg">
         Your browser does not support audio.
     </audio>
 
-    <!-- Music selection, quiz dropdown, and buttons go here... -->
+<!-- Music selection, quiz dropdown, and buttons go here... -->
 
+<div class='content'>
 
 <form method="POST" style="display:inline-block;">
     <label>Select background music:</label><br><br>
@@ -268,6 +270,8 @@ include 'styling.php';
 let countdown = null;
 let timeLeft = 15;
 
+// MUSIC FUNCTIONS 
+
 function toggleCustomMusic(value) {
     document.getElementById("customMusicInput").style.display = (value === "custom") ? "block" : "none";
 }
@@ -299,6 +303,8 @@ function toggleMusic() {
         music.pause();
     }
 }
+
+// QUIZ FUNCTIONS 
 
 function revealAnswers() {
     const grid = document.querySelector(".answer-grid");
@@ -381,8 +387,6 @@ function submitAnswer(btn) {
 }
 
 
-
-
 function loadNextQuestion() {
     fetch("load_question.php")
         .then(res => res.text())
@@ -430,6 +434,7 @@ window.addEventListener('beforeunload', function (e) {
 </script>
 
 
+</div>
 </div>
 </div>
 
