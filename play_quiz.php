@@ -104,6 +104,7 @@ include 'styling.php';
 <style>
     
     #quizBox {
+        display: none;
         height: 100vh;
         overflow-y: auto;
         box-sizing: border-box;
@@ -370,7 +371,9 @@ function submitAnswer(btn) {
             fetch("load_question.php")
                 .then(res => res.text())
                 .then(html => {
-                    document.getElementById("quizBox").innerHTML = html;
+                    const quizBox = document.getElementById("quizBox");
+                    quizBox.style.display = "block";  // ✅ make it visible
+                    quizBox.innerHTML = html;
                     setTimeout(revealAnswers, 2000);
                 });
         }, 2000);
@@ -390,13 +393,23 @@ function loadNextQuestion() {
 }
 
 document.addEventListener("DOMContentLoaded", function () {
-    if (<?= json_encode(!empty($_SESSION['questions'])) ?>) {
+    const quizBox = document.getElementById("quizBox");
+
+    <?php if (!empty($_SESSION['questions'])): ?>
+        // Quiz already in progress, show and load question
+        quizBox.style.display = "block";
         loadNextQuestion();
-    }
+    <?php else: ?>
+        // No active quiz, keep quiz box hidden
+        quizBox.style.display = "none";
+    <?php endif; ?>
 });
+
+
 </script>
 
 </div>
 </div>
+
 </body>
 </html>
