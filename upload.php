@@ -48,6 +48,14 @@ echo <<<HTML
   </p>
 
   <button type="submit">📥 Upload</button>
+  <br><br>
+
+  <form method="get" action="download_sample_csv.php">
+    <button type="submit">Download a sample CSV file</button>
+</form>
+</form>
+
+
 </form>
 HTML;
 
