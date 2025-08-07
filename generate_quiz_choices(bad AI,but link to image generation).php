@@ -19,47 +19,56 @@ function quizTableExists($conn, $table) {
 }
 
 function callOpenRouter($apiKey, $model, $czechWord, $correctAnswer, $targetLang, $referer, $appTitle) {
+    $systemMessage = <<<SYS
+        You are a multilingual quiz generator. Your job is to simulate realistic mistakes language learners make when choosing translations. You output ONLY the mistaken alternatives—nothing else.
+        SYS;
 
-    $prompt = <<<EOT
-    Create three different usual mistakes (wrong1, wrong2, wrong3) that a human student may make when translating $czechWord into $targetLang: $correctAnswer. 
-    Vary the types of mistakes: article/gender confusion, false friends, near homophones, spelling errors, wrong diacritic marks, similar but incorrect verb form, wrong plural/singular, etc.
-    Sometimes the mistakes are confusion of two things that have something in common: have the same word-root (Aufgang, Ausgang), similar function (Car, Van), similar spelling (lie, lay).
-    Don't use nonsense strings, reversed words, randomly inserted letters, palindromes, unrelated words. 
-    Don't explain the mistakes.
-    Don't add any symbols like ()':"-/_ or numbering or bulletpoints.     
-    EOT;
+            $userMessage = <<<USR
+        Czech word: "$czechWord"
+        Correct $targetLang translation: "$correctAnswer"
 
+        Generate 3 plausible wrong answers that resemble common human mistakes:
+        - False friends
+        - Article errors (e.g., der/die/das)
+        - Spelling mistakes (e.g., adress instead of address)
+        - Confusing similar category words (e.g., cabinet vs wardrobe)
+        - Same root but incorrect form (e.g., Ausgang vs Eingang)
+        - Translation of another word in the same quiz
+
+        ⚠️ DO NOT reveal which one is correct.  
+        ⚠️ DO NOT include explanations, numbers, symbols, or extra punctuation.  
+        Output exactly 3 wrong options — each on a separate line.
+        USR;
 
     $data = [
         "model" => $model,
-        "messages" => [[
-            "role" => "user",
-            "content" => $prompt
-            ]] 
-        ];
-   
+        "messages" => [
+            [ "role" => "system", "content" => $systemMessage ],
+            [ "role" => "user", "content" => $userMessage ]
+        ]
+    ];
 
     $ch = curl_init("https://openrouter.ai/api/v1/chat/completions");
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, [
-        "Content-Type: application/json",
-        "Authorization: Bearer $apiKey",
-        "HTTP-Referer: $referer",
-        "X-Title: $appTitle"
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            "Content-Type: application/json",
+            "Authorization: Bearer $apiKey",
+            "HTTP-Referer: $referer",
+            "X-Title: $appTitle"
+        ],
+        CURLOPT_POSTFIELDS => json_encode($data)
     ]);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
     $response = curl_exec($ch);
     curl_close($ch);
-
     $decoded = json_decode($response, true);
     $output = $decoded['choices'][0]['message']['content'] ?? '';
-    preg_match_all('/\d+\.?\s*(.*?)\s*(?:\\n|$)/', $output, $matches);
-    return array_slice(array_map('trim', $matches[1]), 0, 3);
+
+    $lines = array_filter(array_map('trim', explode("\n", $output)));
+    $cleaned = cleanAIOutput($lines);
+    return array_slice($cleaned, 0, 3);
 }
 
-function naiveWrongAnswers($correct) {
-    return [$correct . 'x', strrev($correct), substr($correct, 1) . substr($correct, 0, 1)];
-}
 
 function cleanAIOutput($answers) {
     return array_values(array_filter(array_map(function($a) {
