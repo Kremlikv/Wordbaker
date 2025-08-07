@@ -64,6 +64,7 @@ if (isset($_POST['start_new']) && !empty($_POST['quiz_table'])) {
     }
     $musicSrc = $_SESSION['bg_music'];
 
+  
     // 📥 Load questions
     $selectedTable = $_POST['quiz_table'];
     $res = $conn->query("SELECT question, correct_answer, wrong1, wrong2, wrong3, image_url FROM `$selectedTable`");
@@ -255,6 +256,10 @@ include 'styling.php';
 
         <div id="customMusicInput" style="<?= filter_var($currentMusic, FILTER_VALIDATE_URL) ? 'display:block;' : 'display:none;' ?>">
             <input type="url" name="custom_music_url" placeholder="Paste full MP3 URL" style="width: 100%; max-width: 600px;" value="<?= htmlspecialchars($currentMusic) ?>">
+            <br><br>
+            <button type="button" onclick="window.open('browse_music.php', '_blank', 'width=800,height=600')">
+            🎵 Browse Pixabay Music
+            </button>
         </div>
 
         <div style='margin-bottom: 20px;'>
