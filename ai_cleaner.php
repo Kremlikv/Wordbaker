@@ -2,6 +2,7 @@
 ini_set('display_errors', 1);
 error_reporting(E_ALL);
 header('Content-Type: application/json');
+require_once __DIR__ . '/config.php';
 
 // 1. Read input text from JSON body
 $input = json_decode(file_get_contents('php://input'), true);

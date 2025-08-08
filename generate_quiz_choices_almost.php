@@ -7,8 +7,14 @@ require_once 'db.php';
 require_once 'session.php';
 include 'styling.php';
 
-$OPENROUTER_API_KEY = 'YOUR_API_KEY';
-$OPENROUTER_MODEL = 'anthropic/claude-3-haiku';
+// $OPENROUTER_API_KEY = 'YOUR_API_KEY';
+// $OPENROUTER_MODEL = 'anthropic/claude-3-haiku';
+// $OPENROUTER_REFERER = 'https://kremlik.byethost15.com';
+// $APP_TITLE = 'KahootGenerator';
+
+
+$OPENROUTER_API_KEY = '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';
+$OPENROUTER_MODEL = 'tngtech/deepseek-r1t2-chimera:free';
 $OPENROUTER_REFERER = 'https://kremlik.byethost15.com';
 $APP_TITLE = 'KahootGenerator';
 

@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once 'db.php';
+require_once __DIR__ . '/config.php';
 
 $apiKey = 'AIzaSyCTj5ksARALCyr7tXmQhgJBx8_tvgT76xU';  // Replace with your real key
 

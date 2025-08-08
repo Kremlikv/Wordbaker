@@ -6,6 +6,7 @@ error_reporting(E_ALL);
 require_once 'db.php';
 require_once 'session.php';
 include 'styling.php';
+require_once __DIR__ . '/config.php';
 
 
 $OPENROUTER_API_KEY = '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';

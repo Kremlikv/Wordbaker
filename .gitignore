@@ -14,3 +14,6 @@ Thumbs.db
 .vscode/
 *.log
 .env
+
+# Ignore config file wiht keys
+config.php
