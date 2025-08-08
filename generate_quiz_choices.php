@@ -6,11 +6,14 @@ error_reporting(E_ALL);
 require_once 'db.php';
 require_once 'session.php';
 include 'styling.php';
-require_once __DIR__ . '/config.php';
+// require_once __DIR__ . '/config.php';
 
+// POKUS S DEEPSEEKEM
+$OPENROUTER_API_KEY =  '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'; // Sign up at https://openrouter.ai
+$OPENROUTER_MODEL =  'tngtech/deepseek-r1t2-chimera:free';
 
 // $OPENROUTER_API_KEY = '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';
-$OPENROUTER_MODEL = 'anthropic/claude-3-haiku';
+// $OPENROUTER_MODEL = 'anthropic/claude-3-haiku';
 $OPENROUTER_REFERER = 'https://kremlik.byethost15.com';
 $APP_TITLE = 'KahootGenerator';
 
