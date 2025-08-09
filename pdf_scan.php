@@ -210,6 +210,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['pdf_file'])) {
       });
     }
 
+   function countCharacters() {
+      const textArea = document.getElementById("textArea");
+      const count = textArea.value.length;
+      document.getElementById("charCountDisplay").textContent = "Character count: " + count;
+    }
+
     function copyText() {
       const textArea = document.getElementById("textArea");
       textArea.select();
@@ -310,7 +316,11 @@ echo "👤 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Log
     
     <label> OpenRouter.ai has 50 free requests a day for text-cleaning </label><br>
     <p>One translation request max 500 characters.</p></label><br>
-    
+
+    <button type="button" onclick="countCharacters()">🔢 Character Count</button>
+    <div id="charCountDisplay" style="margin-top:5px; font-weight:bold;"></div>
+
+    <br>
     <button type="button" onclick="copyText()">📋 Copy Text</button>
     <button type="submit">🌍 Translate</button>
   </form>
