@@ -368,7 +368,7 @@ function startTimer() {
     const timerDisplay = document.getElementById('timer');
     countdown = setInterval(() => {
         timeLeft--;
-        if (timerDisplay) timerDisplay.textContent = `⏳ ${timeLeft}`;
+        if (timerDisplay) timerDisplay.textContent = `⏳ \${timeLeft}`;
         if (timeLeft <= 0) {
             clearInterval(countdown);
             document.querySelectorAll('.answer-btn').forEach(btn => btn.disabled = true);
