@@ -183,8 +183,7 @@ echo "👤 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Log
   <div id="tableWarning" data-valid="false" style="font-weight: bold; margin-bottom: 10px;"></div>
 
   <label>Paste or review lines:<br>
-  <br>
-  <p>One translation request max 500 characters.<p><br><br>
+  <p>One translation request max 500 characters.<p><br>
     <textarea name="text_lines" id="text_lines" rows="10"><?php echo htmlspecialchars($text_lines); ?></textarea>
   </label><br>
   <button type="button" onclick="breakSentences()">✂️ Break into Sentences</button><br><br>
@@ -244,6 +243,18 @@ echo "👤 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Log
     <button type="submit">💾 Save Table to Database</button>
   </form>
 <?php endif; ?>
+
+
+<script>
+function autoResize(textarea) {
+    textarea.style.height = 'auto';
+    textarea.style.overflow = 'hidden';
+    textarea.style.height = textarea.scrollHeight + 'px';
+}
+document.addEventListener("DOMContentLoaded", function () {
+    document.querySelectorAll("textarea").forEach(autoResize);
+});
+</script>
 
 </body>
 </html>
