@@ -166,6 +166,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['table_data'])) {
 
       return true;
     }
+
+function autoResize(textarea) {
+    textarea.style.height = 'auto';
+    textarea.style.overflow = 'hidden';
+    textarea.style.height = textarea.scrollHeight + 'px';
+}
+document.addEventListener("DOMContentLoaded", function () {
+    document.querySelectorAll("textarea").forEach(autoResize);
+});
+
   </script>
 </head>
 <body>
@@ -243,18 +253,6 @@ echo "👤 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Log
     <button type="submit">💾 Save Table to Database</button>
   </form>
 <?php endif; ?>
-
-
-<script>
-function autoResize(textarea) {
-    textarea.style.height = 'auto';
-    textarea.style.overflow = 'hidden';
-    textarea.style.height = textarea.scrollHeight + 'px';
-}
-document.addEventListener("DOMContentLoaded", function () {
-    document.querySelectorAll("textarea").forEach(autoResize);
-});
-</script>
 
 </body>
 </html>
