@@ -51,47 +51,55 @@ if ($freepdHtml !== false) {
     $freepdFetchError = 'FreePD is unreachable right now.';
 }
 
-// === File Explorer prep (mirrors main.php) ===
-function getUserFoldersAndTables($conn, $username) {
-    $allTables = [];
-    $result = $conn->query("SHOW TABLES");
-    while ($row = $result->fetch_array()) {
-        $table = $row[0];
-        if (stripos($table, $username . '_') === 0) {
-            $suffix = substr($table, strlen($username) + 1);
-            $suffix = preg_replace('/_+/', '_', $suffix);
-            $parts  = explode('_', $suffix, 2);
-            if (count($parts) === 2 && trim($parts[0]) !== '') {
-                $folder = $parts[0];
-                $file   = $parts[1];
-            } else {
-                $folder = 'Uncategorized';
-                $file   = $suffix;
+// === Quiz File Explorer prep (quiz_choices_username_foldername_filename) ===
+function getQuizFoldersAndFiles(mysqli $conn, string $username): array {
+    $folders = [];
+    $res = $conn->query("SHOW TABLES");
+    if ($res) {
+        while ($row = $res->fetch_array()) {
+            $table = $row[0];
+
+            // Only quiz tables
+            if (strpos($table, 'quiz_choices_') !== 0) continue;
+
+            // Parse quiz_choices_username_foldername_filename
+            // username and folder are single segments; filename can contain underscores
+            if (preg_match('/^quiz_choices_([^_]+)_([^_]+)_(.+)$/', $table, $m)) {
+                $tUser   = strtolower($m[1]);
+                $folder  = $m[2];
+                $file    = $m[3];
+
+                // Only current user's quiz sets
+                if ($tUser !== strtolower($username)) continue;
+
+                $folders[$folder][] = [
+                    'table_name'   => $table,
+                    'display_name' => $file
+                ];
             }
-            $allTables[$folder][] = [
-                'table_name'   => $table,
-                'display_name' => $file
-            ];
         }
     }
-    return $allTables;
+    // Sort folders and files nicely
+    ksort($folders, SORT_NATURAL | SORT_FLAG_CASE);
+    foreach ($folders as &$list) {
+        usort($list, fn($a,$b)=>strnatcasecmp($a['display_name'], $b['display_name']));
+    }
+    return $folders;
 }
 
 $username = strtolower($_SESSION['username'] ?? '');
 $conn->set_charset("utf8mb4");
 
-// Build folder structure
-$folders = getUserFoldersAndTables($conn, $username);
-$folders['Shared'][] = ['table_name' => 'difficult_words', 'display_name' => 'Difficult Words'];
-$folders['Shared'][] = ['table_name' => 'mastered_words',  'display_name' => 'Mastered Words'];
+// Build folder structure for quiz tables only
+$folders = getQuizFoldersAndFiles($conn, $username);
 
 // Prepare folder data for file_explorer.php
 $folderData = [];
 foreach ($folders as $folder => $tableList) {
     foreach ($tableList as $entry) {
         $folderData[$folder][] = [
-            'table'   => $entry['table_name'],
-            'display' => $entry['display_name']
+            'table'   => $entry['table_name'],   // full table name
+            'display' => $entry['display_name']  // filename part only
         ];
     }
 }
@@ -114,15 +122,11 @@ if (!empty($selectedFullTable)) {
         $_SESSION['table'] = $selectedFullTable;
         $_SESSION['col1']  = $column1;
         $_SESSION['col2']  = $column2;
-    }
-}
 
-// 📂 Get available quiz tables
-$quizTables = [];
-$result = $conn->query("SHOW TABLES");
-while ($row = $result->fetch_array()) {
-    if (strpos($row[0], 'quiz_choices_') === 0) {
-        $quizTables[] = $row[0];
+        // If it's a quiz set, also set it as the active quiz
+        if (strpos($selectedFullTable, 'quiz_choices_') === 0) {
+            $_SESSION['quiz_table'] = $selectedFullTable;
+        }
     }
 }
 
@@ -144,14 +148,20 @@ if (isset($_POST['clean_slate'])) {
     exit;
 }
 
-// 🚀 Start Quiz
-if (isset($_POST['start_new']) && !empty($_POST['quiz_table'])) {
-    $_SESSION['quiz_table'] = $_POST['quiz_table'];
+// 🚀 Start Quiz (now relies on explorer selection)
+if (isset($_POST['start_new'])) {
+    $chosen = $_POST['quiz_table'] ?? ($_SESSION['quiz_table'] ?? '');
+
+    if (!$chosen || strpos($chosen, 'quiz_choices_') !== 0) {
+        die("⚠️ Please select a quiz set from the explorer first.");
+    }
+
+    $_SESSION['quiz_table'] = $chosen;
     $_SESSION['score'] = 0;
     $_SESSION['question_index'] = 0;
     $_SESSION['mistakes'] = [];
 
-    // 🎵 Music choice (now supports FreePD dropdown)
+    // 🎵 Music choice (supports FreePD dropdown & custom URL)
     $musicChoice    = $_POST['bg_music_choice'] ?? '';
     $customURL      = trim($_POST['custom_music_url'] ?? '');
     $freepdURLSel   = trim($_POST['freepd_music_url'] ?? '');
@@ -167,7 +177,7 @@ if (isset($_POST['start_new']) && !empty($_POST['quiz_table'])) {
     }
 
     // 📥 Load questions
-    $selectedTable = $_POST['quiz_table'];
+    $selectedTable = $_SESSION['quiz_table'];
     $res = $conn->query("SELECT question, correct_answer, wrong1, wrong2, wrong3, image_url FROM `$selectedTable`");
     if (!$res) die("❌ Query failed: " . $conn->error);
 
@@ -225,12 +235,6 @@ echo "<style>
 
 echo "</head><body>";
 
-// ====== Explorer (same UX as main.php) ======
-echo "<div class='content'>";
-echo "<h2 style='margin-top:0;'>Choose a table for the quiz</h2>";
-include 'file_explorer.php'; // expects $folders, $folderData, $selectedFullTable, $column1, $column2
-echo "</div><br>";
-
 // ====== Quiz UI ======
 echo "
 <div id='quizBox'></div>
@@ -286,14 +290,27 @@ echo "      </select>
             <audio id='previewPlayer' controls style='display:none; margin-top: 10px;'></audio>
         </div>
 
-        <label>Select quiz set:</label><br><br>
-        <select name='quiz_table' required style='width:100%;max-width:600px;'>
-            <option value=''>-- Choose a quiz_choices_* table --</option>";
-            foreach ($quizTables as $table) {
-                $sel = ($selectedTable === $table) ? "selected" : "";
-                echo "<option value='".htmlspecialchars($table)."' $sel>".htmlspecialchars($table)."</option>";
+        <div style='margin:10px 0 20px;'>
+            <h2 style='margin:10px 0;'>Select quiz set</h2>";
+            // Show quiz-only explorer right here
+            $explorerTitle = 'Browse your quiz sets'; // optional if you use the var in file_explorer.php
+            include 'file_explorer.php';
+
+            // Show current selection
+            $currentQuiz = $_SESSION['quiz_table'] ?? '';
+            if ($currentQuiz) {
+                echo "<div style='margin-top:8px;font-size:0.95em;'>
+                        ✅ Selected: <code>".htmlspecialchars($currentQuiz)."</code>
+                      </div>";
+            } else {
+                echo "<div style='margin-top:8px;color:#a00;font-size:0.95em;'>
+                        ⚠️ Pick a quiz set from the list above.
+                      </div>";
             }
-echo "  </select>
+
+            // Hidden field to pass current selection with Start
+            echo "<input type='hidden' name='quiz_table' value='".htmlspecialchars($currentQuiz)."'>";
+echo "  </div>
 
         <div class='quiz-buttons'>
             <button type='submit' name='start_new' id='startQuizBtn'>▶️ Start Quiz</button>
