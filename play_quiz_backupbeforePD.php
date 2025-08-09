@@ -17,46 +17,6 @@ if (
 require_once 'db.php';
 require_once 'session.php';
 
-// 🎵 Build a dropdown of FreePD tracks (server-side fetch)
-$freepdTracks = [];
-$freepdFetchError = '';
-$freepdBase = 'https://freepd.com/music/';
-
-$ctx = stream_context_create([
-    'http' => [
-        'timeout' => 7,
-        'user_agent' => 'Mozilla/5.0 (QuizApp FreePD Fetch)'
-    ]
-]);
-
-$freepdHtml = @file_get_contents($freepdBase, false, $ctx);
-if ($freepdHtml !== false) {
-    // Find any <a href="...mp3">Title</a>
-    if (preg_match_all('#<a[^>]+href="([^"]+\.mp3)"[^>]*>(.*?)</a>#is', $freepdHtml, $m, PREG_SET_ORDER)) {
-        foreach ($m as $hit) {
-            $href = html_entity_decode($hit[1], ENT_QUOTES | ENT_HTML5);
-            // make absolute
-            if (stripos($href, 'http') !== 0) {
-                $href = rtrim($freepdBase, '/') . '/' . ltrim($href, '/');
-            }
-            $label = trim(strip_tags($hit[2]));
-            if ($label === '') {
-                // fall back to the filename if no label
-                $label = urldecode(basename(parse_url($href, PHP_URL_PATH)));
-            }
-            // Avoid duplicates
-            $freepdTracks[$label] = $href;
-        }
-        // Sort by title
-        ksort($freepdTracks, SORT_NATURAL | SORT_FLAG_CASE);
-    } else {
-        $freepdFetchError = 'Could not parse FreePD track list.';
-    }
-} else {
-    $freepdFetchError = 'FreePD is unreachable right now.';
-}
-
-
 
 // 📂 Get available quiz tables
 $quizTables = [];
@@ -92,20 +52,17 @@ if (isset($_POST['start_new']) && !empty($_POST['quiz_table'])) {
     $_SESSION['question_index'] = 0;
     $_SESSION['mistakes'] = [];
 
-    // 🎵 Music choice (now supports FreePD dropdown)
-    $musicChoice    = $_POST['bg_music_choice'] ?? '';
-    $customURL      = trim($_POST['custom_music_url'] ?? '');
-    $freepdURLSel   = trim($_POST['freepd_music_url'] ?? '');
-
-    if ($musicChoice === 'freepd' && filter_var($freepdURLSel, FILTER_VALIDATE_URL)) {
-        $_SESSION['bg_music'] = $freepdURLSel;
-    } elseif ($musicChoice === 'custom' && filter_var($customURL, FILTER_VALIDATE_URL)) {
+    // 🎵 Music choice
+    $musicChoice = $_POST['bg_music_choice'] ?? '';
+    $customURL   = $_POST['custom_music_url'] ?? '';
+    if ($musicChoice === 'custom' && filter_var($customURL, FILTER_VALIDATE_URL)) {
         $_SESSION['bg_music'] = $customURL;
-    } elseif ($musicChoice !== '') { // builtin tracks like track1.mp3
+    } elseif ($musicChoice !== '') {
         $_SESSION['bg_music'] = $musicChoice;
     } else {
         $_SESSION['bg_music'] = '';
     }
+    $musicSrc = $_SESSION['bg_music'];
 
   
     // 📥 Load questions
@@ -290,52 +247,18 @@ include 'styling.php';
         <label>Select background music:</label><br><br>
         <?php $currentMusic = $_SESSION['bg_music'] ?? ''; ?>
 
-        <?php
-        $currentMusic = $_SESSION['bg_music'] ?? '';
-        $isFreePDSelected = in_array($currentMusic, array_values($freepdTracks), true);
-        ?>
-
-        <select name="bg_music_choice" onchange="toggleMusicSources(this.value)">
-            <option value="" <?= $currentMusic === '' ? 'selected' : '' ?>>🔇 OFF</option>
+        <select name="bg_music_choice" onchange="toggleCustomMusic(this.value)">
+        <option value="" <?= $currentMusic === '' ? 'selected' : '' ?>>🔇 OFF</option>
             <option value="track1.mp3" <?= $currentMusic === 'track1.mp3' ? 'selected' : '' ?>>🎸 Track 1</option>
             <option value="track2.mp3" <?= $currentMusic === 'track2.mp3' ? 'selected' : '' ?>>🎹 Track 2</option>
             <option value="track3.mp3" <?= $currentMusic === 'track3.mp3' ? 'selected' : '' ?>>🥛 Track 3</option>
-            <option value="freepd" <?= $isFreePDSelected ? 'selected' : '' ?>>🎼 FreePD library</option>
-            <option value="custom" <?= (!$isFreePDSelected && filter_var($currentMusic, FILTER_VALIDATE_URL)) ? 'selected' : '' ?>>
-                🌐 Custom URL (e.g. <a href="https://freepd.com/">freepd.com</a>)
-            </option>
+            <option value="custom" <?= filter_var($currentMusic, FILTER_VALIDATE_URL) && !str_contains($currentMusic, 'soundhelix.com') ? 'selected' : '' ?>>🌐 Custom URL (e.g. <a href="https://freepd.com/">freepd.com</a>)</option>
         </select>
 
-        <div id="freepdSelectWrap" style="<?= $isFreePDSelected ? 'display:block;' : 'display:none;' ?>">
-            <?php if (!empty($freepdFetchError)): ?>
-                <div style="margin:8px 0;color:#a00;font-size:0.95em;">
-                    ⚠️ <?= htmlspecialchars($freepdFetchError) ?> You can also open
-                    <a href="https://freepd.com/music/" target="_blank" rel="noopener">freepd.com/music</a>
-                    and paste an MP3 link below.
-                </div>
-            <?php endif; ?>
 
-            <label for="freepdSelect" style="display:block;margin:8px 0 6px;">Choose a FreePD track:</label>
-            <select id="freepdSelect" name="freepd_music_url" style="width:100%;max-width:600px;">
-                <option value="">-- Select from FreePD --</option>
-                <?php foreach ($freepdTracks as $label => $url): ?>
-                    <option value="<?= htmlspecialchars($url) ?>" <?= ($currentMusic === $url) ? 'selected' : '' ?>>
-                        <?= htmlspecialchars($label) ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
-            <div style="margin-top:6px;font-size:0.9em;">
-                Tip: Preview below to make sure the track loads (some hosts need a moment).
-            </div>
+        <div id="customMusicInput" style="<?= filter_var($currentMusic, FILTER_VALIDATE_URL) ? 'display:block;' : 'display:none;' ?>">
+            <input type="url" name="custom_music_url" placeholder="Paste full MP3 URL" style="width: 100%; max-width: 600px;" value="<?= htmlspecialchars($currentMusic) ?>">          
         </div>
-
-
-        <div id="customMusicInput" style="<?= (!$isFreePDSelected && filter_var($currentMusic, FILTER_VALIDATE_URL)) ? 'display:block;' : 'display:none;' ?>">
-            <input type="url" name="custom_music_url" placeholder="Paste full MP3 URL"
-                style="width: 100%; max-width: 600px;"
-                value="<?= htmlspecialchars($currentMusic) ?>">
-        </div>
-
 
         <div style='margin-bottom: 20px;'>
             <button type="button" onclick="previewMusic()">🎧 Preview</button>
@@ -376,38 +299,18 @@ function toggleCustomMusic(value) {
     document.getElementById("customMusicInput").style.display = (value === "custom") ? "block" : "none";
 }
 
-
-function toggleMusicSources(value) {
-    document.getElementById("customMusicInput").style.display = (value === "custom") ? "block" : "none";
-    document.getElementById("freepdSelectWrap").style.display = (value === "freepd") ? "block" : "none";
-}
-
 function previewMusic() {
-    const sourceSel = document.querySelector('select[name="bg_music_choice"]');
-    const customInput = document.querySelector('input[name="custom_music_url"]');
-    const freepdSel  = document.getElementById('freepdSelect');
-    const player     = document.getElementById('previewPlayer');
+    const dropdown = document.querySelector('select[name="bg_music_choice"]');
+    const urlInput = document.querySelector('input[name="custom_music_url"]');
+    const player = document.getElementById('previewPlayer');
+    let src = (dropdown.value === "custom") ? urlInput.value.trim() : dropdown.value;
 
-    let src = '';
-    if (sourceSel.value === 'custom') {
-        src = (customInput?.value || '').trim();
-    } else if (sourceSel.value === 'freepd') {
-        src = (freepdSel?.value || '').trim();
-    } else {
-        // built-in choices (track1.mp3 etc.)
-        src = sourceSel.value;
+    if (src) {
+        player.src = src;
+        player.style.display = "block";
+        player.play();
     }
-
-    if (!src) {
-        alert("Please pick a track first.");
-        return;
-    }
-
-    player.src = src;
-    player.style.display = "block";
-    player.play().catch(err => console.warn("Preview blocked:", err));
 }
-
 
 function toggleMusic() {
     const music = document.getElementById("bgMusic");
@@ -517,8 +420,6 @@ function loadNextQuestion() {
 }
 
 document.addEventListener("DOMContentLoaded", function () {
-    const sel = document.querySelector('select[name="bg_music_choice"]');
-    if (sel) toggleMusicSources(sel.value);
     const quizBox = document.getElementById("quizBox");
 
     <?php if (!empty($_SESSION['questions'])): ?>
