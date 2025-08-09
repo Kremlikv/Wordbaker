@@ -183,6 +183,8 @@ echo "👤 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Log
   <div id="tableWarning" data-valid="false" style="font-weight: bold; margin-bottom: 10px;"></div>
 
   <label>Paste or review lines:<br>
+  <br>
+  <p>One translation request max 500 characters.<p><br><br>
     <textarea name="text_lines" id="text_lines" rows="10"><?php echo htmlspecialchars($text_lines); ?></textarea>
   </label><br>
   <button type="button" onclick="breakSentences()">✂️ Break into Sentences</button><br><br>
