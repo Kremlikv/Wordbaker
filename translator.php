@@ -101,7 +101,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['table_data'])) {
   <meta charset="UTF-8">
   <title>Translate and Import Table</title>
   <style>
-    textarea { width: 90%; font-size: 1em; margin-top: 10px; }
+    textarea { width: 90%; font-size: 1em; margin-top: 10px;overflow: hidden; resize: vertical; }
     table { margin-top: 20px; border-collapse: collapse; width: 90%; margin: auto; }
     th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
     form { text-align: center; margin-top: 30px; }
@@ -113,7 +113,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['table_data'])) {
       text = text.replace(/\s+\n\s+|\n+/g, ' ');
       text = text.replace(/([.!?:])\s+(?=[A-Z\xC0-\xFF])/g, "$1\n");
       textarea.value = text;
+      autoResize(textarea); // <-- resize after modifying content
     }
+
+    function autoResize(textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.overflow = 'hidden';
+      textarea.style.height = textarea.scrollHeight + 'px';
+    }
+
+    document.addEventListener("DOMContentLoaded", function () {
+      // initial sizing for any pre-filled textareas
+      document.querySelectorAll("textarea").forEach(autoResize);
+
+      // live resizing while typing/pasting
+      document.addEventListener("input", function (e) {
+        if (e.target && e.target.tagName === "TEXTAREA") {
+          autoResize(e.target);
+        }
+      });
+    });
 
     function checkTableName() {
       const tableInput = document.getElementById("new_table_name");
@@ -167,15 +186,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['table_data'])) {
       return true;
     }
 
-function autoResize(textarea) {
-    textarea.style.height = 'auto';
-    textarea.style.overflow = 'hidden';
-    textarea.style.height = textarea.scrollHeight + 'px';
-}
-document.addEventListener("DOMContentLoaded", function () {
-    document.querySelectorAll("textarea").forEach(autoResize);
-});
-
   </script>
 </head>
 <body>
@@ -193,7 +203,7 @@ echo "👤 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Log
   <div id="tableWarning" data-valid="false" style="font-weight: bold; margin-bottom: 10px;"></div>
 
   <label>Paste or review lines:<br>
-  <p>One translation request max 500 characters.<p><br>
+  <p>One translation request max 500 characters.</label>p><br>
     <textarea name="text_lines" id="text_lines" rows="10"><?php echo htmlspecialchars($text_lines); ?></textarea>
   </label><br>
   <button type="button" onclick="breakSentences()">✂️ Break into Sentences</button><br><br>
