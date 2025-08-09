@@ -129,3 +129,7 @@ The quiz detractors generation AI hits monthly usage limits and crates gibberish
 GPT5 suggested runing open-source AI model Ollama from my own server - virtual machine at Oracle.
 (Oracle: F1oor_, Zurych, name kremlik, kremlik@seznam.cz,credit card, always-free, mobilni app oveřeovací).
 
+FREEPD.COM/MUSIC
+Chatgpt5 dokázal na první pokus do play_quiz integrovat výběr hudby.
+Z freepd.cm/music 
+
