@@ -1,10 +1,10 @@
 <?php
 require_once 'db.php';
-require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/config.php'; // Ensure config.php is included for API keys
 session_start();
 
 // === CONFIG ===
-$apiKey = 'AIzaSyCTj5ksARALCyr7tXmQhgJBx8_tvgT76xU'; // Replace with your actual key
+$GOOGLE_API_KEY = 'AIzaSyCTj5ksARALCyr7tXmQhgJBx8_tvgT76xU'; // Replace with your actual key
 $logFile = __DIR__ . '/log_snippet_errors.txt';
 
 // === INPUT ===
@@ -63,7 +63,7 @@ $payload = json_encode([
     'audioConfig' => ['audioEncoding' => 'MP3']
 ]);
 
-$ch = curl_init("https://texttospeech.googleapis.com/v1/text:synthesize?key=$apiKey");
+$ch = curl_init("https://texttospeech.googleapis.com/v1/text:synthesize?key=$GOOGLE_API_KEY");
 curl_setopt_array($ch, [
     CURLOPT_RETURNTRANSFER => true,
     CURLOPT_POST => true,

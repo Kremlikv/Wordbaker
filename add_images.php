@@ -4,7 +4,7 @@ require_once 'session.php';
 include 'styling.php';
 require_once __DIR__ . '/config.php';
 
-$PIXABAY_API_KEY = '51629627-a41f1d96812d8b351d3f25867';
+// $PIXABAY_API_KEY = '51629627-a41f1d96812d8b351d3f25867';
 
 $table = $_GET['table'] ?? '';
 $msg = $_GET['msg'] ?? '';

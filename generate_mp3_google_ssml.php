@@ -3,7 +3,7 @@ session_start();
 require_once 'db.php';
 require_once __DIR__ . '/config.php';
 
-$apiKey = 'AIzaSyCTj5ksARALCyr7tXmQhgJBx8_tvgT76xU';  // Replace with your real key
+$GOOGLE_API_KEY = 'AIzaSyCTj5ksARALCyr7tXmQhgJBx8_tvgT76xU';  // Replace with your real key
 
 $table = $_SESSION['table'] ?? '';
 $col1 = $_SESSION['col1'] ?? '';
@@ -73,7 +73,7 @@ foreach ($chunks as $ssml) {
         'audioConfig' => ['audioEncoding' => 'MP3']
     ];
 
-    $ch = curl_init("https://texttospeech.googleapis.com/v1/text:synthesize?key=$apiKey");
+    $ch = curl_init("https://texttospeech.googleapis.com/v1/text:synthesize?key=$GOOGLE_API_KEY");
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_POST => true,
