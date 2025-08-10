@@ -232,22 +232,25 @@ if ($selectedTable) {
             $correct  = trim($row[$col2]);
             if ($question === '' || $correct === '') continue;
 
-            // Insert row first (empty wrongs), then update candidates
-            $stmt = $conn->prepare("INSERT INTO `$quizTable`
+           // Insert row first (empty wrongs), then update candidates
+           $stmt = $conn->prepare(
+                "INSERT INTO `$quizTable`
                 (question, correct_answer, wrong1, wrong2, wrong3, source_lang, target_lang)
-                VALUES (?, ?, '', '', '', ?, ?)");
-            $stmt->bind_param('ssssss', $question, $correct, $autoSourceLang, $autoTargetLang);
+                VALUES (?, ?, ?, ?, ?, ?, ?)"
+            );
+            $empty = '';
+            $stmt->bind_param(
+                'sssssss',
+                $question,        // ?
+                $correct,         // ?
+                $empty,           // wrong1
+                $empty,           // wrong2
+                $empty,           // wrong3
+                $autoSourceLang,  // ?
+                $autoTargetLang   // ?
+            );
             $stmt->execute();
-            $rowId = $stmt->insert_id; $stmt->close();
-
-            // Generate larger pool
-            $cands = genManyDistractors($OPENROUTER_API_KEY, $OPENROUTER_MODEL, $question, $correct, $autoTargetLang, $OPENROUTER_REFERER, $APP_TITLE, $CAND_COUNT);
-            $json = json_encode($cands, JSON_UNESCAPED_UNICODE);
-
-            $stmt2 = $conn->prepare("UPDATE `$quizTable` SET wrong_candidates=? WHERE id=?");
-            $stmt2->bind_param('si', $json, $rowId);
-            $stmt2->execute();
-            $stmt2->close();
+            $stmt->close();
 
             usleep($per_call_ms * 1000); // throttle
         }
