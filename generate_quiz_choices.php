@@ -1,7 +1,8 @@
 <?php
-// generate_quiz_choices.php — batched (20 items/call) + raw AI candidates preview
-// - Keeps usage banner, free-model guard, and throttling
-// - Stores full candidate list per row in ai_candidates (read-only preview)
+// generate_quiz_choices.php — batching (20 items/call) + raw AI candidates + daily free-request counter
+// - Shows only Model + Daily usage (used / left)
+// - Tracks daily usage per MODEL locally in MySQL (table api_daily_usage)
+// - Still respects OpenRouter short-window rate-limit for sleeps
 
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
@@ -27,41 +28,75 @@ function or_http_get($url, $apiKey) {
     return [$body, $err, $info];
 }
 
-// ====== Fetch key info & credits (for banner + guards) ======
-$key_info = $credits_info = null; $rate_requests = 10; $rate_interval_s = 10; $is_free_tier = true; $credits_left = 0.0; $total_usage = 0.0;
+// ====== Fetch key info (for rate limit window & tier). Credits are irrelevant to banner now. ======
+$key_info = null; $rate_requests = 10; $rate_interval_s = 10; $is_free_tier = true;
 try {
     list($body, $err, $info) = or_http_get('https://openrouter.ai/api/v1/key', $OPENROUTER_API_KEY);
     if (!$err && ($info['http_code'] ?? 0) === 200) {
         $key_info = json_decode($body, true)['data'] ?? null;
         if (!empty($key_info['rate_limit']['requests'])) $rate_requests = (int)$key_info['rate_limit']['requests'];
         if (!empty($key_info['rate_limit']['interval'])) {
-            // interval is like "10s"
-            $rate_interval_s = (int)preg_replace('/[^0-9]/', '', $key_info['rate_limit']['interval']);
+            $rate_interval_s = (int)preg_replace('/[^0-9]/', '', $key_info['rate_limit']['interval']); // e.g. "10s" -> 10
         }
         $is_free_tier = !!($key_info['is_free_tier'] ?? true);
     }
-
-    list($body2, $err2, $info2) = or_http_get('https://openrouter.ai/api/v1/credits', $OPENROUTER_API_KEY);
-    if (!$err2 && ($info2['http_code'] ?? 0) === 200) {
-        $credits_info = json_decode($body2, true)['data'] ?? null;
-        $total_credits = (float)($credits_info['total_credits'] ?? 0);
-        $total_usage   = (float)($credits_info['total_usage'] ?? 0);
-        $credits_left  = max(0.0, $total_credits - $total_usage);
-    }
-} catch (Throwable $e) {
-    // Non-fatal — we continue without banner
-}
+} catch (Throwable $e) { /* non-fatal */ }
 
 // ====== Rate-limit derived delay (ms). E.g., 10 req / 10 s -> ~1000 ms per call ======
 $per_call_ms = (int)ceil(($rate_interval_s * 1000) / max(1, $rate_requests));
-if ($per_call_ms < 900) $per_call_ms = 1000; // be conservative
+if ($per_call_ms < 900) $per_call_ms = 1000; // conservative default
 
-// ====== Guard: if no credits and model is not free, show warning (we still render UI) ======
-if ($credits_left <= 0 && strpos($OPENROUTER_MODEL, ':free') === false) {
-    echo "<div class='content' style='color:#b91c1c;background:#fee2e2;border:1px solid #fecaca;padding:10px;border-radius:8px;margin:10px 0;'>";
-    echo "⚠️ You have 0 credits and selected a paid model (<code>".htmlspecialchars($OPENROUTER_MODEL)."</code>). Choose a :free model or top up credits.";
-    echo "</div>";
+// ====== DAILY FREE COUNTER (local storage) ======
+// Create a small table to track API calls per day per model.
+$conn->query("CREATE TABLE IF NOT EXISTS api_daily_usage (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    usage_date DATE NOT NULL,
+    model VARCHAR(128) NOT NULL,
+    calls INT NOT NULL DEFAULT 0,
+    UNIQUE KEY uniq_date_model (usage_date, model)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+function daily_limit_for_model($key_info, $model) {
+    // Try to infer a daily limit from OpenRouter if it exposes a daily window; else fall back to 50.
+    // Note: The /key endpoint typically returns short-window limits (e.g., 10 per 10s). Daily caps are policy, not always exposed.
+    // So we provide a sane default and allow override via config: $DAILY_FREE_LIMIT
+    global $DAILY_FREE_LIMIT;
+    if (isset($DAILY_FREE_LIMIT) && is_numeric($DAILY_FREE_LIMIT) && $DAILY_FREE_LIMIT > 0) return (int)$DAILY_FREE_LIMIT;
+
+    // Heuristic: if key_info->rate_limit->interval contains 'd', use requests from there.
+    if (!empty($key_info['rate_limit']['interval']) && strpos($key_info['rate_limit']['interval'], 'd') !== false) {
+        $req = (int)($key_info['rate_limit']['requests'] ?? 50);
+        return max(1, $req);
+    }
+
+    // Default daily cap for free models
+    return 50;
 }
+
+function daily_used_for_model($conn, $model) {
+    $today = date('Y-m-d');
+    $stmt = $conn->prepare("SELECT calls FROM api_daily_usage WHERE usage_date=? AND model=?");
+    $stmt->bind_param('ss', $today, $model);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $row = $res ? $res->fetch_assoc() : null;
+    $stmt->close();
+    return $row ? (int)$row['calls'] : 0;
+}
+
+function daily_inc_for_model($conn, $model, $delta = 1) {
+    $today = date('Y-m-d');
+    $stmt = $conn->prepare("INSERT INTO api_daily_usage (usage_date, model, calls) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE calls = calls + VALUES(calls)");
+    $stmt->bind_param('ssi', $today, $model, $delta);
+    $stmt->execute();
+    $stmt->close();
+}
+
+// Convenience
+$MODEL = $OPENROUTER_MODEL;
+$DAILY_LIMIT = daily_limit_for_model($key_info, $MODEL);
+$DAILY_USED  = daily_used_for_model($conn, $MODEL);
+$DAILY_LEFT  = max(0, $DAILY_LIMIT - $DAILY_USED);
 
 // ====== Helpers ======
 function quizTableExists($conn, $table) {
@@ -83,7 +118,7 @@ function cleanAIOutput($answers) {
 
 function normalizeStr($s) {
     $s = trim(mb_strtolower($s, 'UTF-8'));
-    $s = preg_replace('/^[\-\d\.)\:\"\']+|[\s\"\']+$/u', '', $s); // strip bullets/quotes
+    $s = preg_replace('/^[\-\d\.)\:\"\']+|[\s\"\']+$/u', '', $s);
     $s = preg_replace('/\s+/u', ' ', $s);
     $s = str_replace(['–','—'], '-', $s);
     return $s;
@@ -104,9 +139,8 @@ function validateDistractors($czechWord, $correctAnswer, $cands) {
         $c = trim($c);
         if ($c === '') continue;
         if (mb_strlen($c, 'UTF-8') > 50) continue;
-        // basic charset guard (letters, digits, space, hyphen)
         if (preg_match('/[^a-zA-Zá-žÁ-Ž0-9\s\-]/u', $c)) continue;
-        if (isSameWord($c, $correctAnswer)) continue; // avoid identical or reversed
+        if (isSameWord($c, $correctAnswer)) continue;
         $n = normalizeStr($c);
         $dup = false; foreach ($out as $o) if (normalizeStr($o) === $n) { $dup = true; break; }
         if ($dup) continue;
@@ -132,7 +166,6 @@ function ensureAiCandidatesColumn($conn, $quizTable) {
 
 // ====== Batched OpenRouter call returning up to 12 candidates per item ======
 function callOpenRouterBatch($OPENROUTER_API_KEY, $OPENROUTER_MODEL, $items, $targetLang, $referer, $appTitle) {
-    // Return: index => ['candidates' => [...]]
     $systemMessage =
         "You are an expert language teacher preparing multiple-choice vocabulary quizzes. "
        ."Reply ONLY in strict JSON: {\"results\":[{\"index\":<int>,\"candidates\":[\"...\",...]}...]}. "
@@ -296,95 +329,106 @@ if ($selectedTable) {
                 ai_candidates TEXT
             )");
 
-            // Guard: if no credits and not a free model, stop early (before any work)
-            if ($credits_left <= 0 && strpos($OPENROUTER_MODEL, ':free') === false) {
-                // nothing inserted; fall through to preview
-            } else {
-                // Ensure column exists even if table pre-existed somehow
-                ensureAiCandidatesColumn($conn, $quizTable);
+            // Ensure column exists even if table pre-existed somehow
+            ensureAiCandidatesColumn($conn, $quizTable);
 
-                // Load all rows first (so we can batch easily)
-                $rows = [];
-                $res2 = $conn->query("SELECT `$col1` AS q, `$col2` AS c FROM `$selectedTable`");
-                while ($r = $res2->fetch_assoc()) {
-                    $q = trim($r['q']); $c = trim($r['c']);
-                    if ($q === '' || $c === '') continue;
-                    $rows[] = ['question' => $q, 'correct' => $c];
+            // Load all rows first (so we can batch easily)
+            $rows = [];
+            $res2 = $conn->query("SELECT `$col1` AS q, `$col2` AS c FROM `$selectedTable`");
+            while ($r = $res2->fetch_assoc()) {
+                $q = trim($r['q']); $c = trim($r['c']);
+                if ($q === '' || $c === '') continue;
+                $rows[] = ['question' => $q, 'correct' => $c];
+            }
+
+            // Process in chunks of up to 20 items
+            $batchSize = 20;
+            for ($offset = 0; $offset < count($rows); $offset += $batchSize) {
+                // Check daily remaining before each API call
+                $DAILY_USED  = daily_used_for_model($conn, $MODEL);
+                $DAILY_LEFT  = max(0, $DAILY_LIMIT - $DAILY_USED);
+                if ($DAILY_LEFT <= 0 && $is_free_tier) {
+                    // Out of free quota for today — stop generating further batches
+                    break;
                 }
 
-                // Process in chunks of up to 20 items
-                $batchSize = 20;
-                for ($offset = 0; $offset < count($rows); $offset += $batchSize) {
-                    $chunk = array_slice($rows, $offset, $batchSize);
+                $chunk = array_slice($rows, $offset, $batchSize);
 
-                    // Prepare items with stable 1..N indexes for this chunk
-                    $items = [];
-                    foreach ($chunk as $i => $r) {
-                        $items[] = [
-                            'index'   => $i + 1, // per-chunk index
-                            'czech'   => $r['question'],
-                            'correct' => $r['correct'],
-                        ];
-                    }
-
-                    // Single AI request for up to 20 word-pairs (returns up to 12 candidates each)
-                    $map = callOpenRouterBatch(
-                        $OPENROUTER_API_KEY,
-                        $OPENROUTER_MODEL,
-                        $items,
-                        $autoTargetLang,
-                        $OPENROUTER_REFERER,
-                        $APP_TITLE
-                    );
-
-                    // Insert rows (validate + fallbacks), also store raw candidates
-                    $stmt = $conn->prepare("INSERT INTO `$quizTable`
-                        (question, correct_answer, wrong1, wrong2, wrong3, source_lang, target_lang, ai_candidates)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-
-                    foreach ($items as $it) {
-                        $q  = $it['czech'];
-                        $co = $it['correct'];
-
-                        $cands = [];
-                        if (isset($map[$it['index']]['candidates']) && is_array($map[$it['index']]['candidates'])) {
-                            $cands = $map[$it['index']]['candidates'];
-                        }
-
-                        // Choose 3 validated distractors from candidates
-                        $chosen = validateDistractors($q, $co, $cands);
-                        if (count($chosen) < 3) {
-                            $fallbacks = cleanAIOutput([$co.'x', strrev($co), 'wrong']);
-                            foreach ($fallbacks as $f) {
-                                if (count($chosen) < 3 && !isSameWord($f, $co)) $chosen[] = $f;
-                            }
-                            while (count($chosen) < 3) $chosen[] = '';
-                        }
-                        [$w1, $w2, $w3] = array_slice($chosen, 0, 3);
-
-                        // Save the whole candidate list (pipe-separated) for display
-                        $aiNote = '';
-                        if (!empty($cands)) {
-                            $safeCands = [];
-                            foreach ($cands as $c) {
-                                $c = trim($c);
-                                if ($c === '') continue;
-                                if (mb_strlen($c, 'UTF-8') > 60) continue;
-                                if (preg_match('/[\r\n]/u', $c)) continue;
-                                $safeCands[] = $c;
-                            }
-                            $aiNote = implode(' | ', $safeCands);
-                        }
-
-                        $stmt->bind_param('ssssssss', $q, $co, $w1, $w2, $w3, $autoSourceLang, $autoTargetLang, $aiNote);
-                        $stmt->execute();
-                    }
-
-                    $stmt->close();
-
-                    // Pause between batches to respect rate-limit info
-                    usleep($per_call_ms * 1000);
+                // Prepare items with stable 1..N indexes for this chunk
+                $items = [];
+                foreach ($chunk as $i => $r) {
+                    $items[] = [
+                        'index'   => $i + 1, // per-chunk index
+                        'czech'   => $r['question'],
+                        'correct' => $r['correct'],
+                    ];
                 }
+
+                // Single AI request for up to 20 word-pairs (returns up to 12 candidates each)
+                $map = callOpenRouterBatch(
+                    $OPENROUTER_API_KEY,
+                    $OPENROUTER_MODEL,
+                    $items,
+                    $autoTargetLang,
+                    $OPENROUTER_REFERER,
+                    $APP_TITLE
+                );
+
+                // If we got anything back, count this as one API call against the daily quota
+                if (!empty($map)) {
+                    daily_inc_for_model($conn, $MODEL, 1);
+                } else {
+                    // Even if nothing came back, it was still a call; you can choose to count it as well:
+                    daily_inc_for_model($conn, $MODEL, 1);
+                }
+
+                // Insert rows (validate + fallbacks), also store raw candidates
+                $stmt = $conn->prepare("INSERT INTO `$quizTable`
+                    (question, correct_answer, wrong1, wrong2, wrong3, source_lang, target_lang, ai_candidates)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+
+                foreach ($items as $it) {
+                    $q  = $it['czech'];
+                    $co = $it['correct'];
+
+                    $cands = [];
+                    if (isset($map[$it['index']]['candidates']) && is_array($map[$it['index']]['candidates'])) {
+                        $cands = $map[$it['index']]['candidates'];
+                    }
+
+                    // Choose 3 validated distractors from candidates
+                    $chosen = validateDistractors($q, $co, $cands);
+                    if (count($chosen) < 3) {
+                        $fallbacks = cleanAIOutput([$co.'x', strrev($co), 'wrong']);
+                        foreach ($fallbacks as $f) {
+                            if (count($chosen) < 3 && !isSameWord($f, $co)) $chosen[] = $f;
+                        }
+                        while (count($chosen) < 3) $chosen[] = '';
+                    }
+                    [$w1, $w2, $w3] = array_slice($chosen, 0, 3);
+
+                    // Save the whole candidate list (pipe-separated) for display
+                    $aiNote = '';
+                    if (!empty($cands)) {
+                        $safeCands = [];
+                        foreach ($cands as $c) {
+                            $c = trim($c);
+                            if ($c === '') continue;
+                            if (mb_strlen($c, 'UTF-8') > 60) continue;
+                            if (preg_match('/[\r\n]/u', $c)) continue;
+                            $safeCands[] = $c;
+                        }
+                        $aiNote = implode(' | ', $safeCands);
+                    }
+
+                    $stmt->bind_param('ssssssss', $q, $co, $w1, $w2, $w3, $autoSourceLang, $autoTargetLang, $aiNote);
+                    $stmt->execute();
+                }
+
+                $stmt->close();
+
+                // Pause between batches to respect short-window rate-limit info
+                usleep($per_call_ms * 1000);
             }
         }
     }
@@ -397,18 +441,12 @@ echo "<h2 style='text-align:center;'>Generate AI Quiz Choices</h2>";
 echo "<p style='text-align:center;'>This AI is designed for vocabulary, not sentences!</p>";
 echo "<p style='text-align:center;'>Distractors suggested by AI require your manual review and editing. </p>";
 
-// ====== Banner ======
-
-echo "<div class='content'>";
+// ====== Minimal Banner: Model + Daily usage ======
 $banner_parts = [];
-$banner_parts[] = 'Model: <code>'.htmlspecialchars($OPENROUTER_MODEL).'</code>';
-$banner_parts[] = 'Tier: '.($is_free_tier ? 'Free' : 'Paid');
-$banner_parts[] = 'Rate limit: '.intval($rate_requests).' / '.intval($rate_interval_s).'s (~'.$per_call_ms.'ms/call)';
-if ($credits_info !== null) {
-    $banner_parts[] = 'Credits left: '.number_format($credits_left, 2).' (used: '.number_format($total_usage, 2).')';
-}
+$banner_parts[] = 'Model: <code>'.htmlspecialchars($MODEL).'</code>'; 
+$banner_parts[] = 'Daily: used '.intval($DAILY_USED).' / '.intval($DAILY_LIMIT).' (left '.intval(max(0,$DAILY_LIMIT-$DAILY_USED)).')';
+
 echo "<div class='content' style='background:#f1f5f9; text-align:center;border:1px solid #e2e8f0;padding:10px 12px;border-radius:8px;margin:10px 0;'>".implode(' · ', $banner_parts)."</div>";
-echo "</div>";
 
 include 'file_explorer.php';
 
