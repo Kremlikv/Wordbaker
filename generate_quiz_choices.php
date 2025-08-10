@@ -1,12 +1,8 @@
 <?php
 
 // ===============================
-// FILE: generate_quiz_questions.php
-// Purpose: Generate quiz rows AND store a larger pool of distractors per row (JSON)
-// Notes:
-//  - Adds/uses a JSON column `wrong_candidates` in the quiz table
-//  - Leaves wrong1..3 empty; you pick the final 3 in quiz_edit.php
-//  - Uses a free model by default and throttles requests to respect rate limits
+// FILE: generate_quiz_questions.php (BATCHED VERSION)
+// Purpose: Create quiz table and generate distractor POOLS in BATCHES (default 10 words per API call)
 // ===============================
 
 ini_set('display_errors', 1);
@@ -18,314 +14,217 @@ require_once 'session.php';
 include 'styling.php';
 require_once __DIR__ . '/config.php';
 
-// ====== CONFIG (override here if not set in config.php) ======
-// $OPENROUTER_MODEL   = $OPENROUTER_MODEL   ?? 'deepseek/deepseek-chat-v3-0324:free'; // JSON-friendlier than R1
-// $OPENROUTER_REFERER = $OPENROUTER_REFERER ?? (isset($_SERVER['HTTP_HOST']) ? ('https://' . $_SERVER['HTTP_HOST']) : '');
-// $APP_TITLE          = $APP_TITLE          ?? 'KahootGenerator';
-// $CAND_COUNT         = 18;  // how many candidates to request per row
+// ====== CONFIG ======
+$OPENROUTER_REFERER = $OPENROUTER_REFERER ?? (isset($_SERVER['HTTP_HOST']) ? ('https://' . $_SERVER['HTTP_HOST']) : '');
+$APP_TITLE          = $APP_TITLE          ?? 'KahootGenerator';
+$BATCH_SIZE         = 20;   // <- how many source rows per API call
+$CAND_COUNT         = 18;   // how many candidates per word
+// Prefer JSON-obedient free models; add fallbacks (will try in order)
+$MODEL_PREFERENCES  = [
+  $OPENROUTER_MODEL ??  'qwen/qwen-2-7b-instruct:free',
+  'mistralai/mistral-7b-instruct-v0.3:free',
+];
 
-// ====== Small HTTP helper ======
+// ====== Simple GET to read key info for rate-limit banner ======
 function or_http_get($url, $apiKey) {
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => ["Authorization: Bearer $apiKey"],
-        CURLOPT_TIMEOUT => 15,
-    ]);
-    $body = curl_exec($ch);
-    $err  = curl_error($ch);
-    $info = curl_getinfo($ch);
-    curl_close($ch);
-    return [$body, $err, $info];
+  $ch = curl_init($url);
+  curl_setopt_array($ch, [
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HTTPHEADER => ["Authorization: Bearer $apiKey"],
+    CURLOPT_TIMEOUT => 15,
+  ]);
+  $body = curl_exec($ch); $err = curl_error($ch); $info = curl_getinfo($ch); curl_close($ch);
+  return [$body, $err, $info];
 }
 
-// ====== Fetch key info & credits (for banner + throttle) ======
-$key_info = $credits_info = null; $rate_requests = 10; $rate_interval_s = 10; $is_free_tier = true; $credits_left = 0.0; $total_usage = 0.0;
+$key_info=$credits_info=null; $rate_requests=10; $rate_interval_s=10; $is_free_tier=true; $credits_left=0.0; $total_usage=0.0;
 try {
-    list($body, $err, $info) = or_http_get('https://openrouter.ai/api/v1/key', $OPENROUTER_API_KEY);
-    if (!$err && ($info['http_code'] ?? 0) === 200) {
-        $key_info = json_decode($body, true)['data'] ?? null;
-        if (!empty($key_info['rate_limit']['requests'])) $rate_requests = (int)$key_info['rate_limit']['requests'];
-        if (!empty($key_info['rate_limit']['interval'])) $rate_interval_s = (int)preg_replace('/[^0-9]/', '', $key_info['rate_limit']['interval']);
-        $is_free_tier = !!($key_info['is_free_tier'] ?? true);
-    }
-    list($body2, $err2, $info2) = or_http_get('https://openrouter.ai/api/v1/credits', $OPENROUTER_API_KEY);
-    if (!$err2 && ($info2['http_code'] ?? 0) === 200) {
-        $credits_info = json_decode($body2, true)['data'] ?? null;
-        $total_credits = (float)($credits_info['total_credits'] ?? 0);
-        $total_usage   = (float)($credits_info['total_usage'] ?? 0);
-        $credits_left  = max(0.0, $total_credits - $total_usage);
-    }
-} catch (Throwable $e) { /* non-fatal */ }
-
-$per_call_ms = (int)ceil(($rate_interval_s * 1000) / max(1, $rate_requests));
-if ($per_call_ms < 900) $per_call_ms = 1000; // conservative 1 rps
+  list($b1,$e1,$i1)=or_http_get('https://openrouter.ai/api/v1/key',$OPENROUTER_API_KEY);
+  if(!$e1 && ($i1['http_code']??0)==200){
+    $d=json_decode($b1,true)['data']??null; $key_info=$d;
+    $rate_requests=(int)($d['rate_limit']['requests']??10);
+    $rate_interval_s=(int)preg_replace('/[^0-9]/','',$d['rate_limit']['interval']??'10');
+    $is_free_tier = !!($d['is_free_tier']??true);
+  }
+  list($b2,$e2,$i2)=or_http_get('https://openrouter.ai/api/v1/credits',$OPENROUTER_API_KEY);
+  if(!$e2 && ($i2['http_code']??0)==200){
+    $c=json_decode($b2,true)['data']??null; $credits_info=$c;
+    $total_usage=(float)($c['total_usage']??0); $tot=(float)($c['total_credits']??0); $credits_left=max(0.0,$tot-$total_usage);
+  }
+}catch(Throwable $e){/* ignore */}
+$per_call_ms = (int)ceil(($rate_interval_s*1000)/max(1,$rate_requests)); if($per_call_ms<900)$per_call_ms=1000;
 
 // ====== DB helpers ======
 $conn->set_charset('utf8mb4');
-function quizTableExists($conn, $table) {
-    $quizTable = (strpos($table, 'quiz_choices_') === 0) ? $table : "quiz_choices_" . $table;
-    $res = $conn->query("SHOW TABLES LIKE '" . $conn->real_escape_string($quizTable) . "'");
-    return $res && $res->num_rows > 0;
-}
+function quizTableExists($conn, $table){ $qt=(strpos($table,'quiz_choices_')===0)?$table:("quiz_choices_".$table); $r=$conn->query("SHOW TABLES LIKE '".$conn->real_escape_string($qt)."'"); return $r&&$r->num_rows>0; }
+function ensureWrongCandidatesColumn($conn,$qt){ $r=$conn->query("SHOW COLUMNS FROM `$qt` LIKE 'wrong_candidates'"); if(!$r||$r->num_rows===0){ $ok=$conn->query("ALTER TABLE `$qt` ADD COLUMN wrong_candidates JSON NULL AFTER image_url"); if(!$ok){ $conn->query("ALTER TABLE `$qt` ADD COLUMN wrong_candidates TEXT NULL AFTER image_url"); } } }
 
-function ensureWrongCandidatesColumn($conn, $quizTable) {
-    $res = $conn->query("SHOW COLUMNS FROM `$quizTable` LIKE 'wrong_candidates'");
-    if (!$res || $res->num_rows === 0) {
-        // Try JSON, fallback to TEXT if JSON not supported
-        $ok = $conn->query("ALTER TABLE `$quizTable` ADD COLUMN wrong_candidates JSON NULL AFTER image_url");
-        if (!$ok) {
-            $conn->query("ALTER TABLE `$quizTable` ADD COLUMN wrong_candidates TEXT NULL AFTER image_url");
-        }
-    }
-}
+// ====== Cleaning helpers ======
+function norm($s){ $s=trim(mb_strtolower($s,'UTF-8')); $s=preg_replace('/^[\-\d\.)\:\"\']+|[\s\"\']+$/u','',$s); $s=preg_replace('/\s+/u',' ',$s); return $s; }
+function stripDia($s){ $tr=['á'=>'a','č'=>'c','ď'=>'d','é'=>'e','ě'=>'e','í'=>'i','ň'=>'n','ó'=>'o','ř'=>'r','š'=>'s','ť'=>'t','ú'=>'u','ů'=>'u','ý'=>'y','ž'=>'z','Á'=>'A','Č'=>'C','Ď'=>'D','É'=>'E','Ě'=>'E','Í'=>'I','Ň'=>'N','Ó'=>'O','Ř'=>'R','Š'=>'S','Ť'=>'T','Ú'=>'U','Ů'=>'U','Ý'=>'Y','Ž'=>'Z']; return strtr($s,$tr);} 
+function sameWord($a,$b){ $na=stripDia(norm($a)); $nb=stripDia(norm($b)); return $na===$nb || $na===strrev($nb); }
 
-// ====== Content filters ======
-function normalizeStr($s) {
-    $s = trim(mb_strtolower($s, 'UTF-8'));
-    $s = preg_replace('/^[\-\d\.)\:\"\']+|[\s\"\']+$/u', '', $s);
-    $s = preg_replace('/\s+/u', ' ', $s);
-    return $s;
-}
-function stripDiacritics($s) {
-    $trans = [ 'á'=>'a','č'=>'c','ď'=>'d','é'=>'e','ě'=>'e','í'=>'i','ň'=>'n','ó'=>'o','ř'=>'r','š'=>'s','ť'=>'t','ú'=>'u','ů'=>'u','ý'=>'y','ž'=>'z',
-               'Á'=>'A','Č'=>'C','Ď'=>'D','É'=>'E','Ě'=>'E','Í'=>'I','Ň'=>'N','Ó'=>'O','Ř'=>'R','Š'=>'S','Ť'=>'T','Ú'=>'U','Ů'=>'U','Ý'=>'Y','Ž'=>'Z' ];
-    return strtr($s, $trans);
-}
-function isSameWord($a, $b) {
-    $na = stripDiacritics(normalizeStr($a));
-    $nb = stripDiacritics(normalizeStr($b));
-    return $na === $nb || $na === strrev($nb);
-}
+// ====== BATCH CALL ======
+function genBatchDistractors($apiKey, $models, $items, $targetLang, $referer, $appTitle, $candCount){
+  // Build prompt for multiple items
+  // items: array of [id, question, correct]
+  $list=[]; foreach($items as $it){ $list[]=[ 'id'=>$it['id'], 'czech'=>$it['q'], 'correct'=>$it['c'] ]; }
+  $sys = 'Return JSON ONLY with this shape: {"results":[{"id":<int>,"distractors":["...","...",...]}, ...]}. No explanations.';
+  $user = "For each item, create $candCount plausible WRONG answers for the target language ($targetLang)."
+        . "\nAvoid the correct answer, trivial plural-only variants, nonsense, or symbols. Prefer: article/gender confusion, false friends, similar spelling/sound, same category, diacritic confusion."
+        . "\nItems: " . json_encode($list, JSON_UNESCAPED_UNICODE);
 
-// ====== AI: get MANY distractors in JSON ======
-function genManyDistractors($apiKey, $model, $czech, $correct, $targetLang, $referer, $appTitle, $n = 18) {
-    $sys = 'Reply ONLY as {"distractors":["...","..."]} (JSON). No explanations.';
-    $user = "Czech word: \"$czech\"\nCorrect $targetLang translation: \"$correct\"\n\n"
-          . "Return $n plausible wrong answers (no bullets, no numbering). Avoid the correct answer, trivial plural-only variants, "
-          . "nonsense, and symbols. Prefer article/gender confusion, false friends, similar spelling/sound, same category, diacritic confusion.";
+  $payload = [
+    'response_format'=>['type'=>'json_object'],
+    'messages'=>[
+      ['role'=>'system','content'=>$sys],
+      ['role'=>'user','content'=>$user],
+    ],
+    'max_tokens'=> max(300, $candCount*items_count($items??[])*10),
+    'temperature'=>0.4,
+  ];
 
-    $payload = [
-        'model' => $model,
-        'response_format' => ['type' => 'json_object'],
-        'messages' => [
-            ['role' => 'system', 'content' => $sys],
-            ['role' => 'user',   'content' => $user],
-        ],
-        'max_tokens' => 300,
-        'temperature' => 0.4,
-    ];
-
-    $ch = curl_init('https://openrouter.ai/api/v1/chat/completions');
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => [
-            'Content-Type: application/json',
-            "Authorization: Bearer $apiKey",
-            "HTTP-Referer: $referer",
-            "X-Title: $appTitle",
-        ],
-        CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_UNICODE),
-        CURLOPT_TIMEOUT => 25,
+  foreach($models as $model){
+    $payload['model']=$model;
+    $ch=curl_init('https://openrouter.ai/api/v1/chat/completions');
+    curl_setopt_array($ch,[
+      CURLOPT_RETURNTRANSFER=>true,
+      CURLOPT_HTTPHEADER=>[
+        'Content-Type: application/json',
+        "Authorization: Bearer $apiKey",
+        "HTTP-Referer: $referer",
+        "X-Title: $appTitle",
+      ],
+      CURLOPT_POSTFIELDS=>json_encode($payload, JSON_UNESCAPED_UNICODE),
+      CURLOPT_TIMEOUT=>30,
     ]);
-    $res = curl_exec($ch);
-    $info = curl_getinfo($ch);
-    $errno = curl_errno($ch);
-    $err   = curl_error($ch);
-    curl_close($ch);
-
-    // If failure, log and bail
-    if ($errno || ($info['http_code'] ?? 0) !== 200) {
-        error_log("[OR] genManyDistractors HTTP=" . ($info['http_code'] ?? 'n/a') . " curl=$errno $err res=" . substr((string)$res, 0, 800));
-        return [];
+    $res=curl_exec($ch); $info=curl_getinfo($ch); $err=curl_error($ch); curl_close($ch);
+    $code=(int)($info['http_code']??0);
+    if($err){ error_log("[OR] cURL error: $err"); continue; }
+    if($code==429){ error_log("[OR] 429 on model $model — trying fallback if available"); continue; }
+    if($code>=400){ error_log("[OR] HTTP $code on model $model: ".substr((string)$res,0,400)); continue; }
+    $outer=json_decode($res,true); $content=$outer['choices'][0]['message']['content']??''; $obj=json_decode($content,true);
+    if(!is_array($obj)||!isset($obj['results'])||!is_array($obj['results'])){ error_log('[OR] Bad JSON body: '.substr($content,0,400)); continue; }
+    // Build mapping id => cleaned candidates
+    $map=[]; foreach($obj['results'] as $r){
+      $rid=$r['id']??null; $arr=is_array($r['distractors']??null)?$r['distractors']:[];
+      if($rid===null) continue;
+      $seen=[]; $out=[];
+      // find corresponding correct for filtering
+      $correct_by_id=''; foreach($items as $it){ if($it['id']==$rid){ $correct_by_id=$it['c']; break; } }
+      foreach($arr as $s){
+        $s=trim((string)$s);
+        if($s===''||mb_strlen($s,'UTF-8')>50) continue;
+        if(preg_match('/[^a-zA-Zá-žÁ-Ž0-9\s\-]/u',$s)) continue;
+        if(sameWord($s,$correct_by_id)) continue;
+        $k=norm($s); if(isset($seen[$k])) continue; $seen[$k]=true; $out[]=$s;
+      }
+      $map[$rid]=$out;
     }
-
-    $outer   = json_decode($res, true);
-    $content = $outer['choices'][0]['message']['content'] ?? '';
-    $obj     = json_decode($content, true);
-
-    if (!is_array($obj) || !isset($obj['distractors']) || !is_array($obj['distractors'])) {
-        // Log raw content so we can see what the model actually returned
-        error_log("[OR] Bad JSON content: " . substr($content, 0, 800));
-        return [];
-    }
-
-    // Clean, dedupe, filter
-    $seen = [];
-    $out  = [];
-    foreach ($obj['distractors'] as $s) {
-        $s = trim($s);
-        if ($s === '' || mb_strlen($s,'UTF-8') > 50) continue;
-        if (preg_match('/[^a-zA-Zá-žÁ-Ž0-9\s\-]/u', $s)) continue;
-        // avoid equal/reversed of correct
-        $na = mb_strtolower($s, 'UTF-8');
-        $nb = mb_strtolower($correct, 'UTF-8');
-        if ($na === $nb || $na === mb_strtolower(strrev($correct), 'UTF-8')) continue;
-
-        $k = mb_strtolower($s, 'UTF-8');
-        if (isset($seen[$k])) continue;
-        $seen[$k] = true;
-
-        $out[] = $s;
-    }
-
-    if (empty($out)) {
-        // log the successful-but-empty case
-        error_log("[OR] Empty candidate list after cleaning. Raw: " . substr($content, 0, 800));
-    }
-
-    return $out;
+    return $map; // success with this model
+  }
+  return []; // all models failed
 }
 
+// helper to count items (avoid undefined function on some hosts)
+function items_count($a){ return is_array($a)?count($a):0; }
 
-// ====== PRE-EXPLORER LOGIC (mostly unchanged) ======
+// ====== UI: Folder explorer unchanged-ish ======
 $username = strtolower($_SESSION['username'] ?? '');
+function getUserFoldersAndTables($conn,$username){ $all=[]; $res=$conn->query('SHOW TABLES'); while($row=$res->fetch_array()){ $t=$row[0]; if(strpos($t,'quiz_choices_')===0) continue; if(stripos($t,$username.'_')===0){ $s=substr($t,strlen($username)+1); $s=preg_replace('/_+/','_',$s); $p=explode('_',$s,2); if(count($p)===2&&trim($p[0])!==''){ $folder=$p[0]; $file=$p[1]; } else { $folder='Uncategorized'; $file=$s; } $all[$folder][]=['table_name'=>$t,'display_name'=>$file]; } } return $all; }
 
-function getUserFoldersAndTables($conn, $username) {
-    $allTables = [];
-    $result = $conn->query('SHOW TABLES');
-    while ($row = $result->fetch_array()) {
-        $table = $row[0];
-        if (strpos($table, 'quiz_choices_') === 0) continue; // skip quiz tables
-        if (stripos($table, $username . '_') === 0) {
-            $suffix = substr($table, strlen($username) + 1);
-            $suffix = preg_replace('/_+/', '_', $suffix);
-            $parts = explode('_', $suffix, 2);
-            if (count($parts) === 2 && trim($parts[0]) !== '') { $folder = $parts[0]; $file = $parts[1]; }
-            else { $folder = 'Uncategorized'; $file = $suffix; }
-            $allTables[$folder][] = [ 'table_name' => $table, 'display_name' => $file ];
-        }
-    }
-    return $allTables;
-}
-
-$folders = getUserFoldersAndTables($conn, $username);
-$folders['Shared'][] = ['table_name' => 'difficult_words', 'display_name' => 'Difficult Words'];
-$folders['Shared'][] = ['table_name' => 'mastered_words', 'display_name' => 'Mastered Words'];
-
-$folderData = [];
-foreach ($folders as $folder => $tableList) {
-    foreach ($tableList as $entry) {
-        $folderData[$folder][] = [ 'table' => $entry['table_name'], 'display' => $entry['display_name'] ];
-    }
-}
+$folders=getUserFoldersAndTables($conn,$username);
+$folders['Shared'][]=['table_name'=>'difficult_words','display_name'=>'Difficult Words'];
+$folders['Shared'][]=['table_name'=>'mastered_words','display_name'=>'Mastered Words'];
 
 $selectedTable = $_POST['table'] ?? $_GET['table'] ?? '';
-$autoSourceLang = '';
-$autoTargetLang = '';
-if ($selectedTable) {
-    $columnsRes = $conn->query("SHOW COLUMNS FROM `$selectedTable`");
-    if ($columnsRes && $columnsRes->num_rows >= 2) {
-        $cols = $columnsRes->fetch_all(MYSQLI_ASSOC);
-        $autoSourceLang = ucfirst($cols[0]['Field']);
-        $autoTargetLang = ucfirst($cols[1]['Field']);
+$autoSourceLang=''; $autoTargetLang='';
+if($selectedTable){ $cr=$conn->query("SHOW COLUMNS FROM `$selectedTable`"); if($cr&&$cr->num_rows>=2){ $cols=$cr->fetch_all(MYSQLI_ASSOC); $autoSourceLang=ucfirst($cols[0]['Field']); $autoTargetLang=ucfirst($cols[1]['Field']); } }
+
+$generatedTable='';
+if($selectedTable){
+  $quizTable='quiz_choices_'.$selectedTable;
+  if(!quizTableExists($conn,$selectedTable)){
+    $rs=$conn->query("SELECT * FROM `$selectedTable`");
+    if($rs&&$rs->num_rows>0){
+      $c1=$rs->fetch_fields()[0]->name; $c2=$rs->fetch_fields()[1]->name;
+      $conn->query("CREATE TABLE `$quizTable` (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        question TEXT,
+        correct_answer TEXT,
+        wrong1 TEXT,
+        wrong2 TEXT,
+        wrong3 TEXT,
+        source_lang VARCHAR(50),
+        target_lang VARCHAR(50),
+        image_url TEXT
+      )");
     }
-}
+  }
+  ensureWrongCandidatesColumn($conn,$quizTable);
 
-$generatedTable = '';
-if ($selectedTable) {
-    $quizTable = 'quiz_choices_' . $selectedTable;
-    if (!quizTableExists($conn, $selectedTable)) {
-        $res = $conn->query("SELECT * FROM `$selectedTable`");
-        if ($res && $res->num_rows > 0) {
-            $col1 = $res->fetch_fields()[0]->name;
-            $col2 = $res->fetch_fields()[1]->name;
-            $conn->query("CREATE TABLE `$quizTable` (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                question TEXT,
-                correct_answer TEXT,
-                wrong1 TEXT,
-                wrong2 TEXT,
-                wrong3 TEXT,
-                source_lang VARCHAR(50),
-                target_lang VARCHAR(50),
-                image_url TEXT
-            )");
-        }
+  // === Insert all rows (if table newly created) OR append missing ===
+  // For simplicity, check if table is empty; if so, insert all
+  $countRes=$conn->query("SELECT COUNT(*) AS n FROM `$quizTable`"); $nRow=$countRes?($countRes->fetch_assoc()['n']??0):0;
+  if((int)$nRow===0){
+    $rs=$conn->query("SELECT * FROM `$selectedTable`");
+    if($rs&&$rs->num_rows>0){
+      $c1=$rs->fetch_fields()[0]->name; $c2=$rs->fetch_fields()[1]->name;
+      while($row=$rs->fetch_assoc()){
+        $question=trim($row[$c1]); $correct=trim($row[$c2]); if($question===''||$correct==='') continue;
+        $stmt=$conn->prepare("INSERT INTO `$quizTable` (question, correct_answer, wrong1, wrong2, wrong3, source_lang, target_lang) VALUES (?,?,?,?,?,?,?)");
+        $empty=''; $stmt->bind_param('sssssss',$question,$correct,$empty,$empty,$empty,$autoSourceLang,$autoTargetLang); $stmt->execute(); $stmt->close();
+      }
     }
-    // Ensure wrong_candidates column exists
-    ensureWrongCandidatesColumn($conn, $quizTable);
+  }
 
-    // Fill rows (or append if already exists but empty)
-    $res2 = $conn->query("SELECT * FROM `$selectedTable`");
-    if ($res2 && $res2->num_rows > 0) {
-        $col1 = $res2->fetch_fields()[0]->name;
-        $col2 = $res2->fetch_fields()[1]->name;
+  // === Fetch all rows and process in batches ===
+  $all=$conn->query("SELECT id,question,correct_answer FROM `$quizTable` ORDER BY id ASC");
+  $batch=[]; $i=0;
+  while($r=$all->fetch_assoc()){
+    $id=(int)$r['id']; $q=$r['question']; $c=$r['correct_answer'];
+    // Skip if pool already exists and looks non-empty
+    $chk=$conn->prepare("SELECT wrong_candidates FROM `$quizTable` WHERE id=?");
+    $chk->bind_param('i',$id); $chk->execute(); $chk->bind_result($wc); $chk->fetch(); $chk->close();
+    $existing = json_decode($wc?:'[]', true); if(is_array($existing) && count($existing)>0) continue;
 
-        while ($row = $res2->fetch_assoc()) {
-            $question = trim($row[$col1]);
-            $correct  = trim($row[$col2]);
-            if ($question === '' || $correct === '') continue;
-
-           // Insert row first (empty wrongs), then update candidates
-           $stmt = $conn->prepare(
-                "INSERT INTO `$quizTable`
-                (question, correct_answer, wrong1, wrong2, wrong3, source_lang, target_lang)
-                VALUES (?, ?, ?, ?, ?, ?, ?)"
-            );
-            $empty = '';
-            $stmt->bind_param(
-                'sssssss',
-                $question,        // ?
-                $correct,         // ?
-                $empty,           // wrong1
-                $empty,           // wrong2
-                $empty,           // wrong3
-                $autoSourceLang,  // ?
-                $autoTargetLang   // ?
-            );
-            $stmt->execute();
-            $stmt->close();
-
-            usleep($per_call_ms * 1000); // throttle
-        }
+    $batch[]=['id'=>$id,'q'=>$q,'c'=>$c]; $i++;
+    if($i==$BATCH_SIZE){
+      $map=genBatchDistractors($OPENROUTER_API_KEY,$MODEL_PREFERENCES,$batch,$autoTargetLang,$OPENROUTER_REFERER,$APP_TITLE,$CAND_COUNT);
+      foreach($batch as $it){ $rid=$it['id']; $cands=$map[$rid]??[]; $json=json_encode($cands, JSON_UNESCAPED_UNICODE); $up=$conn->prepare("UPDATE `$quizTable` SET wrong_candidates=? WHERE id=?"); $up->bind_param('si',$json,$rid); if(!$up->execute()){ error_log('[DB] UPDATE failed id='.$rid.' err='.$conn->error); } $up->close(); }
+      $batch=[]; $i=0; usleep($per_call_ms*1000);
     }
-    $generatedTable = $quizTable ?? '';
+  }
+  // tail batch
+  if($i>0){
+    $map=genBatchDistractors($OPENROUTER_API_KEY,$MODEL_PREFERENCES,$batch,$autoTargetLang,$OPENROUTER_REFERER,$APP_TITLE,$CAND_COUNT);
+    foreach($batch as $it){ $rid=$it['id']; $cands=$map[$rid]??[]; $json=json_encode($cands, JSON_UNESCAPED_UNICODE); $up=$conn->prepare("UPDATE `$quizTable` SET wrong_candidates=? WHERE id=?"); $up->bind_param('si',$json,$rid); if(!$up->execute()){ error_log('[DB] UPDATE failed id='.$rid.' err='.$conn->error); } $up->close(); }
+    $batch=[]; usleep($per_call_ms*1000);
+  }
+
+  $generatedTable=$quizTable;
 }
-
-
-// Add this after update candidates
-$stmt2 = $conn->prepare("UPDATE `$quizTable` SET wrong_candidates=? WHERE id=?");
-$stmt2->bind_param('si', $json, $rowId);
-if (!$stmt2->execute()) {
-    error_log("[DB] UPDATE wrong_candidates failed for id=$rowId: " . $conn->error);
-}
-$stmt2->close();
-
-
-//
 
 echo "<div class='content'>👤 Logged in as ".htmlspecialchars($_SESSION['username'] ?? '')." | <a href='logout.php'>Logout</a></div>";
-echo "<h2 style='text-align:center;'>Generate AI Quiz Choices</h2>";
-echo "<p style='text-align:center;'>Generates a candidate pool per row. Final wrong answers are chosen in the editor.</p>";
+echo "<h2 style='text-align:center;'>Generate AI Quiz Choices (Batched)</h2>";
+echo "<p style='text-align:center;'>Processes <b>$BATCH_SIZE</b> words per API call and stores <b>$CAND_COUNT</b> candidates per row.</p>";
 
-// Banner
-$banner_parts = [];
-$banner_parts[] = 'Model: <code>'.htmlspecialchars($OPENROUTER_MODEL).'</code>';
-$banner_parts[] = 'Tier: '.($is_free_tier ? 'Free' : 'Paid');
-$banner_parts[] = 'Rate limit: '.intval($rate_requests).' / '.intval($rate_interval_s).'s (~'.$per_call_ms.'ms/call)';
-if ($credits_info !== null) { $banner_parts[] = 'Credits left: '.number_format($credits_left, 2).' (used: '.number_format($total_usage, 2).')'; }
-echo "<div class='content' style='background:#f1f5f9;border:1px solid #e2e8f0;padding:10px 12px;border-radius:8px;margin:10px 0;'>".implode(' · ', $banner_parts)."</div>";
+$banner=[]; $banner[]='Rate limit: '.intval($rate_requests).' / '.intval($rate_interval_s).'s (~'.$per_call_ms.'ms/call)'; $banner[]='Tier: '.($is_free_tier?'Free':'Paid'); if($credits_info!==null){ $banner[]='Credits left: '.number_format($credits_left,2).' (used: '.number_format($total_usage,2).')'; }
+echo "<div class='content' style='background:#f1f5f9;border:1px solid #e2e8f0;padding:10px 12px;border-radius:8px;margin:10px 0;'>".implode(' · ',$banner)."</div>";
 
 include 'file_explorer.php';
 
-if (!empty($generatedTable)) {
-    echo "<h3 style='text-align:center;'>Preview (first 20): <code>".htmlspecialchars($generatedTable)."</code></h3>";
-    echo "<div style='overflow-x:auto;'><table border='1' style='width:100%; max-width:100%; border-collapse:collapse;'>
-            <tr><th>Czech</th><th>Correct</th><th>Pool size</th></tr>";
-    $res = $conn->query("SELECT id,question,correct_answer,wrong_candidates FROM `$generatedTable` LIMIT 20");
-    while ($row = $res->fetch_assoc()) {
-        $pool = json_decode($row['wrong_candidates'] ?? '[]', true);
-        $count = is_array($pool) ? count($pool) : 0;
-        echo "<tr>
-                <td>".htmlspecialchars($row['question'])."</td>
-                <td>".htmlspecialchars($row['correct_answer'])."</td>
-                <td>".intval($count)."</td>
-              </tr>";
-    }
-    echo "</table></div><br>";
-    echo "<div style='text-align:center;'>
-            <a href='quiz_edit.php?table=".urlencode($generatedTable)."' style='padding:10px; background:#4CAF50; color:#fff; text-decoration:none;'>✏ Edit & Pick Distractors</a>
-          </div>";
+if(!empty($generatedTable)){
+  echo "<h3 style='text-align:center;'>Preview: <code>".htmlspecialchars($generatedTable)."</code></h3>";
+  echo "<div style='overflow-x:auto;'><table border='1' style='width:100%; max-width:100%; border-collapse:collapse;'>
+          <tr><th>ID</th><th>Czech</th><th>Correct</th><th>Pool size</th></tr>";
+  $res=$conn->query("SELECT id,question,correct_answer,wrong_candidates FROM `$generatedTable` LIMIT 50");
+  while($row=$res->fetch_assoc()){
+    $pool=json_decode($row['wrong_candidates']??'[]',true); $count=is_array($pool)?count($pool):0;
+    echo "<tr><td>".(int)$row['id']."</td><td>".htmlspecialchars($row['question'])."</td><td>".htmlspecialchars($row['correct_answer'])."</td><td>".intval($count)."</td></tr>";
+  }
+  echo "</table></div><br>";
+  echo "<div style='text-align:center;'><a href='quiz_edit.php?table=".urlencode($generatedTable)."' style='padding:10px; background:#4CAF50; color:#fff; text-decoration:none;'>✏ Edit & Pick Distractors</a></div>";
 }
 ?>
+
