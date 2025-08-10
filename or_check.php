@@ -7,10 +7,10 @@ error_reporting(E_ALL);
 
 echo "Start\n";
 
-// --- Load config with your $OPENROUTER_API_KEY ---
+// DEEPSEEK R1
 
-$OPENROUTER_API_KEY = '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';
-$OPENROUTER_MODEL = 'anthropic/claude-3-haiku';
+$OPENROUTER_API_KEY = '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';
+$OPENROUTER_MODEL = 'deepseek/deepseek-r1:free';
 $OPENROUTER_REFERER = 'https://kremlik.byethost15.com';
 $APP_TITLE = 'KahootGenerator';
 
