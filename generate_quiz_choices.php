@@ -137,7 +137,12 @@ $folders=getUserFoldersAndTables($conn,$username);
 $folders['Shared'][]=['table_name'=>'difficult_words','display_name'=>'Difficult Words'];
 $folders['Shared'][]=['table_name'=>'mastered_words','display_name'=>'Mastered Words'];
 
-$selectedTable = $_POST['table'] ?? $_GET['table'] ?? '';
+$selectedTable = $_POST['table']
+    ?? $_POST['selected_table']
+    ?? $_GET['table']
+    ?? $_GET['selected_table']
+    ?? '';
+
 $autoSourceLang=''; $autoTargetLang='';
 if($selectedTable){ $cr=$conn->query("SHOW COLUMNS FROM `$selectedTable`"); if($cr&&$cr->num_rows>=2){ $cols=$cr->fetch_all(MYSQLI_ASSOC); $autoSourceLang=ucfirst($cols[0]['Field']); $autoTargetLang=ucfirst($cols[1]['Field']); } }
 
@@ -211,6 +216,23 @@ echo "<p style='text-align:center;'>Processes <b>$BATCH_SIZE</b> words per API c
 
 $banner=[]; $banner[]='Rate limit: '.intval($rate_requests).' / '.intval($rate_interval_s).'s (~'.$per_call_ms.'ms/call)'; $banner[]='Tier: '.($is_free_tier?'Free':'Paid'); if($credits_info!==null){ $banner[]='Credits left: '.number_format($credits_left,2).' (used: '.number_format($total_usage,2).')'; }
 echo "<div class='content' style='background:#f1f5f9;border:1px solid #e2e8f0;padding:10px 12px;border-radius:8px;margin:10px 0;'>".implode(' · ',$banner)."</div>";
+
+// --- Simple fallback table picker ---
+    echo "<form method='post' style='margin:10px 0; padding:8px; border:1px solid #e2e8f0; border-radius:8px;'>";
+    echo "<label for='fallbackTable'><b>Select table (fallback):</b> </label>";
+    echo "<select id='fallbackTable' name='table' required>";
+    // Build options from the same $folders array you already computed
+    foreach ($folders as $folder => $list) {
+        foreach ($list as $entry) {
+            $t = htmlspecialchars($entry['table_name']);
+            $d = htmlspecialchars($entry['display_name']);
+            echo "<option value='$t'".($selectedTable===$t?" selected":"").">[$folder] $d</option>";
+        }
+    }
+    echo "</select> ";
+    echo "<button type='submit'>Load</button>";
+    echo "</form>";
+// --- End fallback picker ---
 
 include 'file_explorer.php';
 
