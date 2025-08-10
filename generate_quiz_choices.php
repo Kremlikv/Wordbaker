@@ -316,7 +316,8 @@ echo "<p style='text-align:center;'>This AI is designed for vocabulary, not sent
 echo "<p style='text-align:center;'>Distractors suggested by AI require your manual review and editing. </p>";
 
 // ====== Banner ======
-  
+
+echo "<div class='content'>";
 $banner_parts = [];
 $banner_parts[] = 'Model: <code>'.htmlspecialchars($OPENROUTER_MODEL).'</code>';
 $banner_parts[] = 'Tier: '.($is_free_tier ? 'Free' : 'Paid');
@@ -325,7 +326,7 @@ if ($credits_info !== null) {
     $banner_parts[] = 'Credits left: '.number_format($credits_left, 2).' (used: '.number_format($total_usage, 2).')';
 }
 echo "<div class='content' style='background:#f1f5f9; text-align:center;border:1px solid #e2e8f0;padding:10px 12px;border-radius:8px;margin:10px 0;'>".implode(' · ', $banner_parts)."</div>";
-
+echo "</div>";
 
 include 'file_explorer.php';
 
