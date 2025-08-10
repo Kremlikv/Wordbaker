@@ -100,8 +100,10 @@ function isSameWord($a, $b) {
 
 // ====== AI: get MANY distractors in JSON ======
 function genManyDistractors($apiKey, $model, $czech, $correct, $targetLang, $referer, $appTitle, $n = 18) {
-    $sys = 'Reply ONLY as {"distractors":["...","...",...]} (JSON). No explanations.';
-    $user = "Czech word: \"$czech\"\nCorrect $targetLang translation: \"$correct\"\n\nReturn $n plausible wrong answers (no bullets, no numbering). Avoid the correct answer, trivial plural-only variants, nonsense, and symbols. Prefer article/gender confusion, false friends, similar spelling/sound, same category, diacritic confusion.";
+    $sys = 'Reply ONLY as {"distractors":["...","..."]} (JSON). No explanations.';
+    $user = "Czech word: \"$czech\"\nCorrect $targetLang translation: \"$correct\"\n\n"
+          . "Return $n plausible wrong answers (no bullets, no numbering). Avoid the correct answer, trivial plural-only variants, "
+          . "nonsense, and symbols. Prefer article/gender confusion, false friends, similar spelling/sound, same category, diacritic confusion.";
 
     $payload = [
         'model' => $model,
@@ -128,30 +130,53 @@ function genManyDistractors($apiKey, $model, $czech, $correct, $targetLang, $ref
     ]);
     $res = curl_exec($ch);
     $info = curl_getinfo($ch);
+    $errno = curl_errno($ch);
+    $err   = curl_error($ch);
     curl_close($ch);
 
-    if (($info['http_code'] ?? 0) !== 200) return [];
+    // If failure, log and bail
+    if ($errno || ($info['http_code'] ?? 0) !== 200) {
+        error_log("[OR] genManyDistractors HTTP=" . ($info['http_code'] ?? 'n/a') . " curl=$errno $err res=" . substr((string)$res, 0, 800));
+        return [];
+    }
 
-    $outer = json_decode($res, true);
+    $outer   = json_decode($res, true);
     $content = $outer['choices'][0]['message']['content'] ?? '';
-    $obj = json_decode($content, true);
-    $arr = is_array($obj['distractors'] ?? null) ? $obj['distractors'] : [];
+    $obj     = json_decode($content, true);
 
-    // Clean, dedupe, filter out correct
+    if (!is_array($obj) || !isset($obj['distractors']) || !is_array($obj['distractors'])) {
+        // Log raw content so we can see what the model actually returned
+        error_log("[OR] Bad JSON content: " . substr($content, 0, 800));
+        return [];
+    }
+
+    // Clean, dedupe, filter
     $seen = [];
-    $out = [];
-    foreach ($arr as $s) {
+    $out  = [];
+    foreach ($obj['distractors'] as $s) {
         $s = trim($s);
         if ($s === '' || mb_strlen($s,'UTF-8') > 50) continue;
         if (preg_match('/[^a-zA-Zá-žÁ-Ž0-9\s\-]/u', $s)) continue;
-        if (isSameWord($s, $correct)) continue;
-        $k = normalizeStr($s);
+        // avoid equal/reversed of correct
+        $na = mb_strtolower($s, 'UTF-8');
+        $nb = mb_strtolower($correct, 'UTF-8');
+        if ($na === $nb || $na === mb_strtolower(strrev($correct), 'UTF-8')) continue;
+
+        $k = mb_strtolower($s, 'UTF-8');
         if (isset($seen[$k])) continue;
         $seen[$k] = true;
+
         $out[] = $s;
     }
-    return $out; // may be < n if model misbehaves
+
+    if (empty($out)) {
+        // log the successful-but-empty case
+        error_log("[OR] Empty candidate list after cleaning. Raw: " . substr($content, 0, 800));
+    }
+
+    return $out;
 }
+
 
 // ====== PRE-EXPLORER LOGIC (mostly unchanged) ======
 $username = strtolower($_SESSION['username'] ?? '');
@@ -257,6 +282,18 @@ if ($selectedTable) {
     }
     $generatedTable = $quizTable ?? '';
 }
+
+
+// Add this after update candidates
+$stmt2 = $conn->prepare("UPDATE `$quizTable` SET wrong_candidates=? WHERE id=?");
+$stmt2->bind_param('si', $json, $rowId);
+if (!$stmt2->execute()) {
+    error_log("[DB] UPDATE wrong_candidates failed for id=$rowId: " . $conn->error);
+}
+$stmt2->close();
+
+
+//
 
 echo "<div class='content'>👤 Logged in as ".htmlspecialchars($_SESSION['username'] ?? '')." | <a href='logout.php'>Logout</a></div>";
 echo "<h2 style='text-align:center;'>Generate AI Quiz Choices</h2>";
