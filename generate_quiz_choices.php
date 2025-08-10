@@ -1,5 +1,7 @@
 <?php
-// generate_quiz_questions.php — patched version with usage banner, free-model guard, and throttling
+// generate_quiz_choices.php — batched (20 items/call) + raw AI candidates preview
+// - Keeps usage banner, free-model guard, and throttling
+// - Stores full candidate list per row in ai_candidates (read-only preview)
 
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
@@ -9,11 +11,6 @@ require_once 'db.php';
 require_once 'session.php';
 include 'styling.php';
 require_once __DIR__ . '/config.php';
-
-// ====== CONFIG (override here if not set in config.php) ======
-// $OPENROUTER_MODEL   = $OPENROUTER_MODEL   ?? 'deepseek/deepseek-r1:free';
-// $OPENROUTER_REFERER = $OPENROUTER_REFERER ?? (isset($_SERVER['HTTP_HOST']) ? ('https://' . $_SERVER['HTTP_HOST']) : '');
-// $APP_TITLE          = $APP_TITLE          ?? 'KahootGenerator';
 
 // ====== SIMPLE HTTP GET helper for JSON endpoints ======
 function or_http_get($url, $apiKey) {
@@ -59,15 +56,14 @@ try {
 $per_call_ms = (int)ceil(($rate_interval_s * 1000) / max(1, $rate_requests));
 if ($per_call_ms < 900) $per_call_ms = 1000; // be conservative
 
-// ====== Guard: if no credits and model is not free, stop ======
+// ====== Guard: if no credits and model is not free, show warning (we still render UI) ======
 if ($credits_left <= 0 && strpos($OPENROUTER_MODEL, ':free') === false) {
     echo "<div class='content' style='color:#b91c1c;background:#fee2e2;border:1px solid #fecaca;padding:10px;border-radius:8px;margin:10px 0;'>";
     echo "⚠️ You have 0 credits and selected a paid model (<code>".htmlspecialchars($OPENROUTER_MODEL)."</code>). Choose a :free model or top up credits.";
     echo "</div>";
 }
 
-
-// ====== Your existing helpers ======
+// ====== Helpers ======
 function quizTableExists($conn, $table) {
     $quizTable = (strpos($table, 'quiz_choices_') === 0) ? $table : "quiz_choices_" . $table;
     $res = $conn->query("SHOW TABLES LIKE '" . $conn->real_escape_string($quizTable) . "'");
@@ -85,8 +81,6 @@ function cleanAIOutput($answers) {
     }, $answers)));
 }
 
-
-// ---- normalization + validation helpers ----
 function normalizeStr($s) {
     $s = trim(mb_strtolower($s, 'UTF-8'));
     $s = preg_replace('/^[\-\d\.)\:\"\']+|[\s\"\']+$/u', '', $s); // strip bullets/quotes
@@ -122,52 +116,57 @@ function validateDistractors($czechWord, $correctAnswer, $cands) {
     return $out;
 }
 
-//  
+function ensureAiCandidatesColumn($conn, $quizTable) {
+    $quizTableEsc = $conn->real_escape_string($quizTable);
+    $dbNameRes = $conn->query('SELECT DATABASE() AS db');
+    $dbNameRow = $dbNameRes ? $dbNameRes->fetch_assoc() : null;
+    $dbName = $dbNameRow ? $dbNameRow['db'] : '';
 
-function callOpenRouter($OPENROUTER_API_KEY, $OPENROUTER_MODEL, $czechWord, $correctAnswer, $targetLang, $referer, $appTitle) {
-    // Ask for STRICT JSON so we can reliably parse/validate
-    $systemMessage = "You are an expert language teacher preparing multiple-choice vocabulary quizzes. You must reply ONLY in JSON with the shape: {\"distractors\":[\"...\",\"...\",\"...\"]}. No explanations, no extra keys.";
+    $sql = "SELECT COUNT(*) AS cnt FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='".$conn->real_escape_string($dbName)."' AND TABLE_NAME='".$quizTableEsc."' AND COLUMN_NAME='ai_candidates'";
+    $chk = $conn->query($sql);
+    $has = false; if ($chk && ($row = $chk->fetch_assoc())) { $has = ((int)$row['cnt'] > 0); }
+    if (!$has) {
+        $conn->query("ALTER TABLE `".$quizTableEsc."` ADD COLUMN ai_candidates TEXT");
+    }
+}
 
-    // one tiny few-shot to bias the format/content
-    $fewShot = [
-        [
-            'role' => 'user',
-            'content' => "Czech: 'stůl' → Correct German: 'Tisch' — give 3 plausible wrong answers (JSON as specified)."
-        ],
-        [
-            'role' => 'assistant',
-            'content' => json_encode(['distractors' => ['Stuhl','Tasche','Tische']], JSON_UNESCAPED_UNICODE)
-        ]
-    ];
+// ====== Batched OpenRouter call returning up to 12 candidates per item ======
+function callOpenRouterBatch($OPENROUTER_API_KEY, $OPENROUTER_MODEL, $items, $targetLang, $referer, $appTitle) {
+    // Return: index => ['candidates' => [...]]
+    $systemMessage =
+        "You are an expert language teacher preparing multiple-choice vocabulary quizzes. "
+       ."Reply ONLY in strict JSON: {\"results\":[{\"index\":<int>,\"candidates\":[\"...\",...]}...]}. "
+       ."Provide 8–12 PLAUSIBLE WRONG ANSWERS per item in priority order under \"candidates\". "
+       ."Do NOT include the correct answer or trivial variants. No extra keys or text.";
 
-    $userMessage = <<<USR
-Czech word: "$czechWord"
-Correct $targetLang translation: "$correctAnswer"
+    $listLines = [];
+    foreach ($items as $it) {
+        $i  = (int)$it['index'];
+        $cz = $it['czech'];
+        $co = $it['correct'];
+        $listLines[] = "$i) Czech: \"$cz\" → Correct $targetLang: \"$co\"";
+    }
 
-Rules:
-- Only JSON: {"distractors":["...","...","..."]}
-- No numbering or bullets
-- Do NOT include the correct answer or trivial variants (plural-only)
-- Prefer realistic student mistakes: article/gender mixups, false friends, similar spelling/sound, same category, diacritic confusion
-USR;
+    $userMessage = implode("\n", $listLines)."\n\nRules:\n"
+       ."- Only JSON with key \"results\".\n"
+       ."- For each item, return {\"index\":N, \"candidates\":[\"...\",...]} with 8–12 plausible distractors.\n"
+       ."- Avoid including the correct answer or trivial inflections-only variants.\n"
+       ."- Prefer realistic mistakes: article/gender mixups, false friends, similar spelling/sound, same category, diacritic confusion.";
 
     $payload = [
-        'model' => $OPENROUTER_MODEL,              // e.g. deepseek/deepseek-r1:free
+        'model' => $OPENROUTER_MODEL,
         'response_format' => ['type' => 'json_object'],
-        'messages' => array_merge(
-            [['role' => 'system', 'content' => $systemMessage]],
-            $fewShot,
-            [['role' => 'user', 'content' => $userMessage]]
-        ),
-        'max_tokens' => 120,
+        'messages' => [
+            ['role' => 'system', 'content' => $systemMessage],
+            ['role' => 'user',   'content' => $userMessage],
+        ],
+        'max_tokens'  => 2200,
         'temperature' => 0.4,
     ];
 
     $url = 'https://openrouter.ai/api/v1/chat/completions';
 
-    $attempts = 0;
-    while ($attempts < 3) {
-        $attempts++;
+    for ($attempt = 0; $attempt < 3; $attempt++) {
         $ch = curl_init($url);
         curl_setopt_array($ch, [
             CURLOPT_RETURNTRANSFER => true,
@@ -178,41 +177,57 @@ USR;
                 "X-Title: $appTitle",
             ],
             CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_UNICODE),
-            CURLOPT_TIMEOUT => 20,
+            CURLOPT_TIMEOUT => 35,
         ]);
         $response = curl_exec($ch);
         $errno = curl_errno($ch); $err  = curl_error($ch); $info = curl_getinfo($ch);
         curl_close($ch);
 
-        if ($errno) { error_log("[OpenRouter] cURL error $errno: $err"); break; }
+        if ($errno) { error_log("[OpenRouterBatch] cURL error $errno: $err"); break; }
         $code = (int)($info['http_code'] ?? 0);
-        if ($code === 429) { usleep(700000); continue; }
-        if ($code >= 400) { error_log("[OpenRouter] HTTP $code: $response"); break; }
+        if ($code === 429) { usleep(800000); $payload['temperature'] = 0.2; continue; }
+        if ($code >= 400) { error_log("[OpenRouterBatch] HTTP $code: $response"); break; }
 
         $decoded = json_decode($response, true);
         $content = $decoded['choices'][0]['message']['content'] ?? '';
-
-        // Expect strict JSON
         $obj = json_decode($content, true);
-        if (is_array($obj) && isset($obj['distractors']) && is_array($obj['distractors'])) {
-            $valid = validateDistractors($czechWord, $correctAnswer, $obj['distractors']);
-            if (count($valid) === 3) return $valid;
+
+        $out = [];
+        if (is_array($obj) && isset($obj['results']) && is_array($obj['results'])) {
+            foreach ($obj['results'] as $entry) {
+                if (!isset($entry['index']) || !isset($entry['candidates']) || !is_array($entry['candidates'])) continue;
+                $idx = (int)$entry['index'];
+                $out[$idx] = [
+                    'candidates' => array_values(array_filter(array_map('trim', $entry['candidates'])))
+                ];
+            }
         }
 
-        // If model disobeyed JSON, try to salvage lines
-        $lines = array_filter(array_map('trim', explode("\n", $content)));
-        $salvaged = validateDistractors($czechWord, $correctAnswer, $lines);
-        if (count($salvaged) === 3) return $salvaged;
+        if (!empty($out)) return $out;
 
-        // tighten prompt on retry
+        // Minimal salvage attempt if JSON fails completely
+        $lines = array_filter(array_map('trim', explode("\n", $content)));
+        if (!empty($lines)) {
+            $maybe = [];
+            foreach ($lines as $ln) {
+                if (preg_match('/^\s*(\d+)\)\s*(.+)$/u', $ln, $m)) {
+                    $idx = (int)$m[1];
+                    $parts = preg_split('/[;,|]/u', $m[2]);
+                    if ($parts && count($parts) >= 3) {
+                        $maybe[$idx] = ['candidates' => array_map('trim', $parts)];
+                    }
+                }
+            }
+            if (!empty($maybe)) return $maybe;
+        }
+
         $payload['temperature'] = 0.2;
     }
 
     return [];
 }
 
-
-// ====== PRE-EXPLORER LOGIC (unchanged) ======
+// ====== PRE-EXPLORER LOGIC ======
 $username = strtolower($_SESSION['username'] ?? '');
 $conn->set_charset('utf8mb4');
 
@@ -263,8 +278,11 @@ if ($selectedTable) {
     if (!quizTableExists($conn, $selectedTable)) {
         $res = $conn->query("SELECT * FROM `$selectedTable`");
         if ($res && $res->num_rows > 0) {
-            $col1 = $res->fetch_fields()[0]->name;
-            $col2 = $res->fetch_fields()[1]->name;
+            $fields = $res->fetch_fields();
+            $col1 = $fields[0]->name; // question (Czech)
+            $col2 = $fields[1]->name; // correct answer (target)
+
+            // Create with ai_candidates column
             $conn->query("CREATE TABLE `$quizTable` (
                 id INT AUTO_INCREMENT PRIMARY KEY,
                 question TEXT,
@@ -274,42 +292,106 @@ if ($selectedTable) {
                 wrong3 TEXT,
                 source_lang VARCHAR(50),
                 target_lang VARCHAR(50),
-                image_url TEXT
+                image_url TEXT,
+                ai_candidates TEXT
             )");
-            while ($row = $res->fetch_assoc()) {
-                $question = trim($row[$col1]);
-                $correct  = trim($row[$col2]);
-                if ($question === '' || $correct === '') continue;
 
-                // Guard: if no credits and not a free model, stop early
-                if ($credits_left <= 0 && strpos($OPENROUTER_MODEL, ':free') === false) {
-                    break;
+            // Guard: if no credits and not a free model, stop early (before any work)
+            if ($credits_left <= 0 && strpos($OPENROUTER_MODEL, ':free') === false) {
+                // nothing inserted; fall through to preview
+            } else {
+                // Ensure column exists even if table pre-existed somehow
+                ensureAiCandidatesColumn($conn, $quizTable);
+
+                // Load all rows first (so we can batch easily)
+                $rows = [];
+                $res2 = $conn->query("SELECT `$col1` AS q, `$col2` AS c FROM `$selectedTable`");
+                while ($r = $res2->fetch_assoc()) {
+                    $q = trim($r['q']); $c = trim($r['c']);
+                    if ($q === '' || $c === '') continue;
+                    $rows[] = ['question' => $q, 'correct' => $c];
                 }
 
-                $wrongAnswers = callOpenRouter($OPENROUTER_API_KEY, $OPENROUTER_MODEL, $question, $correct, $autoTargetLang, $OPENROUTER_REFERER, $APP_TITLE);
-                if (!$wrongAnswers || count($wrongAnswers) < 3) {
-                    // Fallbacks (very conservative)
-                    $wrongAnswers = array_values(array_filter(cleanAIOutput([
-                        $correct.'x',
-                        strrev($correct),
-                        'wrong'
-                    ])));
+                // Process in chunks of up to 20 items
+                $batchSize = 20;
+                for ($offset = 0; $offset < count($rows); $offset += $batchSize) {
+                    $chunk = array_slice($rows, $offset, $batchSize);
+
+                    // Prepare items with stable 1..N indexes for this chunk
+                    $items = [];
+                    foreach ($chunk as $i => $r) {
+                        $items[] = [
+                            'index'   => $i + 1, // per-chunk index
+                            'czech'   => $r['question'],
+                            'correct' => $r['correct'],
+                        ];
+                    }
+
+                    // Single AI request for up to 20 word-pairs (returns up to 12 candidates each)
+                    $map = callOpenRouterBatch(
+                        $OPENROUTER_API_KEY,
+                        $OPENROUTER_MODEL,
+                        $items,
+                        $autoTargetLang,
+                        $OPENROUTER_REFERER,
+                        $APP_TITLE
+                    );
+
+                    // Insert rows (validate + fallbacks), also store raw candidates
+                    $stmt = $conn->prepare("INSERT INTO `$quizTable`
+                        (question, correct_answer, wrong1, wrong2, wrong3, source_lang, target_lang, ai_candidates)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+
+                    foreach ($items as $it) {
+                        $q  = $it['czech'];
+                        $co = $it['correct'];
+
+                        $cands = [];
+                        if (isset($map[$it['index']]['candidates']) && is_array($map[$it['index']]['candidates'])) {
+                            $cands = $map[$it['index']]['candidates'];
+                        }
+
+                        // Choose 3 validated distractors from candidates
+                        $chosen = validateDistractors($q, $co, $cands);
+                        if (count($chosen) < 3) {
+                            $fallbacks = cleanAIOutput([$co.'x', strrev($co), 'wrong']);
+                            foreach ($fallbacks as $f) {
+                                if (count($chosen) < 3 && !isSameWord($f, $co)) $chosen[] = $f;
+                            }
+                            while (count($chosen) < 3) $chosen[] = '';
+                        }
+                        [$w1, $w2, $w3] = array_slice($chosen, 0, 3);
+
+                        // Save the whole candidate list (pipe-separated) for display
+                        $aiNote = '';
+                        if (!empty($cands)) {
+                            $safeCands = [];
+                            foreach ($cands as $c) {
+                                $c = trim($c);
+                                if ($c === '') continue;
+                                if (mb_strlen($c, 'UTF-8') > 60) continue;
+                                if (preg_match('/[\r\n]/u', $c)) continue;
+                                $safeCands[] = $c;
+                            }
+                            $aiNote = implode(' | ', $safeCands);
+                        }
+
+                        $stmt->bind_param('ssssssss', $q, $co, $w1, $w2, $w3, $autoSourceLang, $autoTargetLang, $aiNote);
+                        $stmt->execute();
+                    }
+
+                    $stmt->close();
+
+                    // Pause between batches to respect rate-limit info
+                    usleep($per_call_ms * 1000);
                 }
-                [$w1, $w2, $w3] = array_pad($wrongAnswers, 3, '');
-
-                $stmt = $conn->prepare("INSERT INTO `$quizTable` (question, correct_answer, wrong1, wrong2, wrong3, source_lang, target_lang) VALUES (?, ?, ?, ?, ?, ?, ?)");
-                $stmt->bind_param('sssssss', $question, $correct, $w1, $w2, $w3, $autoSourceLang, $autoTargetLang);
-                $stmt->execute();
-                $stmt->close();
-
-                // Throttle to respect rate-limit
-                usleep($per_call_ms * 1000); // convert ms -> µs
             }
         }
     }
     $generatedTable = $quizTable ?? '';
 }
 
+// ====== UI ======
 echo "<div class='content'>👤 Logged in as ".htmlspecialchars($_SESSION['username'] ?? '')." | <a href='logout.php'>Logout</a></div>";
 echo "<h2 style='text-align:center;'>Generate AI Quiz Choices</h2>";
 echo "<p style='text-align:center;'>This AI is designed for vocabulary, not sentences!</p>";
@@ -333,7 +415,7 @@ include 'file_explorer.php';
 if (!empty($generatedTable)) {
     echo "<h3 style='text-align:center;'>Preview: <code>".htmlspecialchars($generatedTable)."</code></h3>";
     echo "<div style='overflow-x:auto;'><table border='1' style='width:100%; max-width:100%; border-collapse:collapse;'>
-            <tr><th>Czech</th><th>Correct</th><th>Wrong 1</th><th>Wrong 2</th><th>Wrong 3</th></tr>";
+            <tr><th>Czech</th><th>Correct</th><th>Wrong 1</th><th>Wrong 2</th><th>Wrong 3</th><th>AI candidates (raw)</th></tr>";
     $res = $conn->query("SELECT * FROM `$generatedTable` LIMIT 20");
     while ($row = $res->fetch_assoc()) {
         echo "<tr>
@@ -342,6 +424,7 @@ if (!empty($generatedTable)) {
                 <td>".htmlspecialchars($row['wrong1'])."</td>
                 <td>".htmlspecialchars($row['wrong2'])."</td>
                 <td>".htmlspecialchars($row['wrong3'])."</td>
+                <td style='max-width:520px; white-space:normal;'>".htmlspecialchars($row['ai_candidates'] ?? '')."</td>
               </tr>";
     }
     echo "</table></div><br>";
