@@ -94,33 +94,80 @@ function cleanAIOutput($answers) {
     }, $answers)));
 }
 
+
+// ---- normalization + validation helpers ----
+function normalizeStr($s) {
+    $s = trim(mb_strtolower($s, 'UTF-8'));
+    $s = preg_replace('/^[\-\d\.)\:\"\']+|[\s\"\']+$/u', '', $s); // strip bullets/quotes
+    $s = preg_replace('/\s+/u', ' ', $s);
+    $s = str_replace(['–','—'], '-', $s);
+    return $s;
+}
+function stripDiacritics($s) {
+    $trans = [ 'á'=>'a','č'=>'c','ď'=>'d','é'=>'e','ě'=>'e','í'=>'i','ň'=>'n','ó'=>'o','ř'=>'r','š'=>'s','ť'=>'t','ú'=>'u','ů'=>'u','ý'=>'y','ž'=>'z',
+               'Á'=>'A','Č'=>'C','Ď'=>'D','É'=>'E','Ě'=>'E','Í'=>'I','Ň'=>'N','Ó'=>'O','Ř'=>'R','Š'=>'S','Ť'=>'T','Ú'=>'U','Ů'=>'U','Ý'=>'Y','Ž'=>'Z' ];
+    return strtr($s, $trans);
+}
+function isSameWord($a, $b) {
+    $na = stripDiacritics(normalizeStr($a));
+    $nb = stripDiacritics(normalizeStr($b));
+    return $na === $nb || $na === strrev($nb);
+}
+function validateDistractors($czechWord, $correctAnswer, $cands) {
+    $out = [];
+    foreach ($cands as $c) {
+        $c = trim($c);
+        if ($c === '') continue;
+        if (mb_strlen($c, 'UTF-8') > 50) continue;
+        // basic charset guard (letters, digits, space, hyphen)
+        if (preg_match('/[^a-zA-Zá-žÁ-Ž0-9\s\-]/u', $c)) continue;
+        if (isSameWord($c, $correctAnswer)) continue; // avoid identical or reversed
+        $n = normalizeStr($c);
+        $dup = false; foreach ($out as $o) if (normalizeStr($o) === $n) { $dup = true; break; }
+        if ($dup) continue;
+        $out[] = $c;
+        if (count($out) === 3) break;
+    }
+    return $out;
+}
+
+//  
+
 function callOpenRouter($OPENROUTER_API_KEY, $OPENROUTER_MODEL, $czechWord, $correctAnswer, $targetLang, $referer, $appTitle) {
-    $systemMessage = "You are an expert language teacher preparing multiple-choice quizzes. For each Czech word and its correct translation, output ONLY 3 plausible wrong answers (no bullets, no numbering, no explanations).";
+    // Ask for STRICT JSON so we can reliably parse/validate
+    $systemMessage = "You are an expert language teacher preparing multiple-choice vocabulary quizzes. You must reply ONLY in JSON with the shape: {\"distractors\":[\"...\",\"...\",\"...\"]}. No explanations, no extra keys.";
+
+    // one tiny few-shot to bias the format/content
+    $fewShot = [
+        [
+            'role' => 'user',
+            'content' => "Czech: 'stůl' → Correct German: 'Tisch' — give 3 plausible wrong answers (JSON as specified)."
+        ],
+        [
+            'role' => 'assistant',
+            'content' => json_encode(['distractors' => ['Stuhl','Tasche','Tische']], JSON_UNESCAPED_UNICODE)
+        ]
+    ];
 
     $userMessage = <<<USR
 Czech word: "$czechWord"
 Correct $targetLang translation: "$correctAnswer"
 
-Simulate 3 wrong answers a student might mistakenly choose. Reflect real mistakes:
-- article/gender confusion
-- false friends
-- similar spelling/sound
-- same category
-- plural vs singular
-- diacritic confusion
-
-STRICT:
-- do NOT explain
-- do NOT include the correct answer
-- exactly 3 lines, one per wrong answer
+Rules:
+- Only JSON: {"distractors":["...","...","..."]}
+- No numbering or bullets
+- Do NOT include the correct answer or trivial variants (plural-only)
+- Prefer realistic student mistakes: article/gender mixups, false friends, similar spelling/sound, same category, diacritic confusion
 USR;
 
     $payload = [
-        'model' => $OPENROUTER_MODEL, // e.g. 'deepseek/deepseek-r1:free'
-        'messages' => [
-            ['role' => 'system', 'content' => $systemMessage],
-            ['role' => 'user',   'content' => $userMessage],
-        ],
+        'model' => $OPENROUTER_MODEL,              // e.g. deepseek/deepseek-r1:free
+        'response_format' => ['type' => 'json_object'],
+        'messages' => array_merge(
+            [['role' => 'system', 'content' => $systemMessage]],
+            $fewShot,
+            [['role' => 'user', 'content' => $userMessage]]
+        ),
         'max_tokens' => 120,
         'temperature' => 0.4,
     ];
@@ -139,32 +186,40 @@ USR;
                 "HTTP-Referer: $referer",
                 "X-Title: $appTitle",
             ],
-            CURLOPT_POSTFIELDS => json_encode($payload),
+            CURLOPT_POSTFIELDS => json_encode($payload, JSON_UNESCAPED_UNICODE),
             CURLOPT_TIMEOUT => 20,
         ]);
         $response = curl_exec($ch);
-        $errno = curl_errno($ch);
-        $err  = curl_error($ch);
-        $info = curl_getinfo($ch);
+        $errno = curl_errno($ch); $err  = curl_error($ch); $info = curl_getinfo($ch);
         curl_close($ch);
 
-        if ($errno) {
-            error_log("[OpenRouter] cURL error $errno: $err");
-            break;
-        }
-
+        if ($errno) { error_log("[OpenRouter] cURL error $errno: $err"); break; }
         $code = (int)($info['http_code'] ?? 0);
-        if ($code === 429) { usleep(700000); continue; } // small backoff
+        if ($code === 429) { usleep(700000); continue; }
         if ($code >= 400) { error_log("[OpenRouter] HTTP $code: $response"); break; }
 
         $decoded = json_decode($response, true);
         $content = $decoded['choices'][0]['message']['content'] ?? '';
+
+        // Expect strict JSON
+        $obj = json_decode($content, true);
+        if (is_array($obj) && isset($obj['distractors']) && is_array($obj['distractors'])) {
+            $valid = validateDistractors($czechWord, $correctAnswer, $obj['distractors']);
+            if (count($valid) === 3) return $valid;
+        }
+
+        // If model disobeyed JSON, try to salvage lines
         $lines = array_filter(array_map('trim', explode("\n", $content)));
-        return cleanAIOutput($lines);
+        $salvaged = validateDistractors($czechWord, $correctAnswer, $lines);
+        if (count($salvaged) === 3) return $salvaged;
+
+        // tighten prompt on retry
+        $payload['temperature'] = 0.2;
     }
 
     return [];
 }
+
 
 // ====== PRE-EXPLORER LOGIC (unchanged) ======
 $username = strtolower($_SESSION['username'] ?? '');
