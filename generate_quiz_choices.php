@@ -66,19 +66,6 @@ if ($credits_left <= 0 && strpos($OPENROUTER_MODEL, ':free') === false) {
     echo "</div>";
 }
 
-// ====== Banner ======
-
-echo "<div class='content' style='color:#b91c1c;background:#fee2e2;border:1px solid #fecaca;padding:10px;border-radius:8px;margin:10px 0;'>";  
-$banner_parts = [];
-$banner_parts[] = 'Model: <code>'.htmlspecialchars($OPENROUTER_MODEL).'</code>';
-$banner_parts[] = 'Tier: '.($is_free_tier ? 'Free' : 'Paid');
-$banner_parts[] = 'Rate limit: '.intval($rate_requests).' / '.intval($rate_interval_s).'s (~'.$per_call_ms.'ms/call)';
-if ($credits_info !== null) {
-    $banner_parts[] = 'Credits left: '.number_format($credits_left, 2).' (used: '.number_format($total_usage, 2).')';
-}
-echo "</div>";
-
-echo "<div class='content' style='background:#f1f5f9;border:1px solid #e2e8f0;padding:10px 12px;border-radius:8px;margin:10px 0;'>".implode(' · ', $banner_parts)."</div>";
 
 // ====== Your existing helpers ======
 function quizTableExists($conn, $table) {
@@ -327,6 +314,18 @@ echo "<div class='content'>👤 Logged in as ".htmlspecialchars($_SESSION['usern
 echo "<h2 style='text-align:center;'>Generate AI Quiz Choices</h2>";
 echo "<p style='text-align:center;'>This AI is designed for vocabulary, not sentences!</p>";
 echo "<p style='text-align:center;'>Distractors suggested by AI require your manual review and editing. </p>";
+
+// ====== Banner ======
+  
+$banner_parts = [];
+$banner_parts[] = 'Model: <code>'.htmlspecialchars($OPENROUTER_MODEL).'</code>';
+$banner_parts[] = 'Tier: '.($is_free_tier ? 'Free' : 'Paid');
+$banner_parts[] = 'Rate limit: '.intval($rate_requests).' / '.intval($rate_interval_s).'s (~'.$per_call_ms.'ms/call)';
+if ($credits_info !== null) {
+    $banner_parts[] = 'Credits left: '.number_format($credits_left, 2).' (used: '.number_format($total_usage, 2).')';
+}
+echo "<div class='content' style='background:#f1f5f9; text-align:center;border:1px solid #e2e8f0;padding:10px 12px;border-radius:8px;margin:10px 0;'>".implode(' · ', $banner_parts)."</div>";
+
 
 include 'file_explorer.php';
 
