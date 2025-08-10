@@ -1,87 +1,92 @@
 <?php
-// Debug
+// generate_quiz_questions.php — patched version with usage banner, free-model guard, and throttling
+
 ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
 require_once 'db.php';
 require_once 'session.php';
 include 'styling.php';
-require_once __DIR__ . '/config.php'; // KEY, MODEL, REFERER, APP NAME
+require_once __DIR__ . '/config.php';
 
+// ====== CONFIG (override here if not set in config.php) ======
+// $OPENROUTER_MODEL   = $OPENROUTER_MODEL   ?? 'deepseek/deepseek-r1:free';
+// $OPENROUTER_REFERER = $OPENROUTER_REFERER ?? (isset($_SERVER['HTTP_HOST']) ? ('https://' . $_SERVER['HTTP_HOST']) : '');
+// $APP_TITLE          = $APP_TITLE          ?? 'KahootGenerator';
 
+// ====== SIMPLE HTTP GET helper for JSON endpoints ======
+function or_http_get($url, $apiKey) {
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => ["Authorization: Bearer $apiKey"],
+        CURLOPT_TIMEOUT => 15,
+    ]);
+    $body = curl_exec($ch);
+    $err  = curl_error($ch);
+    $info = curl_getinfo($ch);
+    curl_close($ch);
+    return [$body, $err, $info];
+}
+
+// ====== Fetch key info & credits (for banner + guards) ======
+$key_info = $credits_info = null; $rate_requests = 10; $rate_interval_s = 10; $is_free_tier = true; $credits_left = 0.0; $total_usage = 0.0;
+try {
+    list($body, $err, $info) = or_http_get('https://openrouter.ai/api/v1/key', $OPENROUTER_API_KEY);
+    if (!$err && ($info['http_code'] ?? 0) === 200) {
+        $key_info = json_decode($body, true)['data'] ?? null;
+        if (!empty($key_info['rate_limit']['requests'])) $rate_requests = (int)$key_info['rate_limit']['requests'];
+        if (!empty($key_info['rate_limit']['interval'])) {
+            // interval is like "10s"
+            $rate_interval_s = (int)preg_replace('/[^0-9]/', '', $key_info['rate_limit']['interval']);
+        }
+        $is_free_tier = !!($key_info['is_free_tier'] ?? true);
+    }
+
+    list($body2, $err2, $info2) = or_http_get('https://openrouter.ai/api/v1/credits', $OPENROUTER_API_KEY);
+    if (!$err2 && ($info2['http_code'] ?? 0) === 200) {
+        $credits_info = json_decode($body2, true)['data'] ?? null;
+        $total_credits = (float)($credits_info['total_credits'] ?? 0);
+        $total_usage   = (float)($credits_info['total_usage'] ?? 0);
+        $credits_left  = max(0.0, $total_credits - $total_usage);
+    }
+} catch (Throwable $e) {
+    // Non-fatal — we continue without banner
+}
+
+// ====== Rate-limit derived delay (ms). E.g., 10 req / 10 s -> ~1000 ms per call ======
+$per_call_ms = (int)ceil(($rate_interval_s * 1000) / max(1, $rate_requests));
+if ($per_call_ms < 900) $per_call_ms = 1000; // be conservative
+
+// ====== Guard: if no credits and model is not free, stop ======
+if ($credits_left <= 0 && strpos($OPENROUTER_MODEL, ':free') === false) {
+    echo "<div class='content' style='color:#b91c1c;background:#fee2e2;border:1px solid #fecaca;padding:10px;border-radius:8px;margin:10px 0;'>";
+    echo "⚠️ You have 0 credits and selected a paid model (<code>".htmlspecialchars($OPENROUTER_MODEL)."</code>). Choose a :free model or top up credits.";
+    echo "</div>";
+}
+
+// ====== Banner ======
+$banner_parts = [];
+$banner_parts[] = 'Model: <code>'.htmlspecialchars($OPENROUTER_MODEL).'</code>';
+$banner_parts[] = 'Tier: '.($is_free_tier ? 'Free' : 'Paid');
+$banner_parts[] = 'Rate limit: '.intval($rate_requests).' / '.intval($rate_interval_s).'s (~'.$per_call_ms.'ms/call)';
+if ($credits_info !== null) {
+    $banner_parts[] = 'Credits left: '.number_format($credits_left, 2).' (used: '.number_format($total_usage, 2).')';
+}
+echo "<div class='content' style='background:#f1f5f9;border:1px solid #e2e8f0;padding:10px 12px;border-radius:8px;margin:10px 0;'>".implode(' · ', $banner_parts)."</div>";
+
+// ====== Your existing helpers ======
 function quizTableExists($conn, $table) {
     $quizTable = (strpos($table, 'quiz_choices_') === 0) ? $table : "quiz_choices_" . $table;
     $res = $conn->query("SHOW TABLES LIKE '" . $conn->real_escape_string($quizTable) . "'");
     return $res && $res->num_rows > 0;
 }
 
-function callOpenRouter($OPENROUTER_API_KEY, $OPENROUTER_MODEL, $czechWord, $correctAnswer, $targetLang, $referer, $appTitle) {
-    $systemMessage = <<<SYS
-You are an expert language teacher preparing multiple-choice quizzes.
-For each Czech word and its correct translation, simulate 3 plausible wrong answers that students often choose.
-Do NOT explain anything. Do NOT output the correct answer. Output only the 3 distractors.
-SYS;
-
-    $userMessage = <<<USR
-Czech word: "$czechWord"
-Correct $targetLang translation: "$correctAnswer"
-
-Simulate 3 wrong answers a student might mistakenly choose. They should reflect real human mistakes like:
-
-- Article/gender confusion (der Tisch → das Tisch)
-- False friends (Czech "stůl" → German "Stuhl")
-- Similar spelling or sound (lie, lay)
-- Shared root (Ausgang, Aufgang)
-- Same category (trousers, skirt)
-- Spelling error (adress instead of address)
-- Different form (ride vs rode)
-- Plural vs singular
-- Diacritic confusion (věž → vez)
-
-⚠️ STRICT RULES:
-- Do NOT explain
-- Do NOT include the correct answer
-- Do NOT number or bullet the lines
-- Do NOT use nonsense or reversed words
-- Output only 3 wrong answers, each on its own line
-USR;
-
-    $data = [
-        "model" => $OPENROUTER_MODEL,
-        "messages" => [
-            ["role" => "system", "content" => $systemMessage],
-            ["role" => "user", "content" => $userMessage]
-        ],
-        "max_tokens" => 300 // 🧠 This is the key line that fixes your quota error
-    ];
-
-    $ch = curl_init("https://openrouter.ai/api/v1/chat/completions");
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => [
-            "Content-Type: application/json",
-            "Authorization: Bearer $OPENROUTER_API_KEY",
-            "HTTP-Referer: $referer",
-            "X-Title: $appTitle"
-        ],
-        CURLOPT_POSTFIELDS => json_encode($data)
-    ]);
-    $response = curl_exec($ch);
-    curl_close($ch);
-
-    $decoded = json_decode($response, true);
-    $output = $decoded['choices'][0]['message']['content'] ?? '';
-    $lines = array_filter(array_map('trim', explode("\n", $output)));
-
-    return cleanAIOutput($lines);
-}
-
-
-
 function cleanAIOutput($answers) {
     return array_values(array_filter(array_map(function($a) {
         $clean = trim($a);
-        $clean = preg_replace('/^[-\d\.\)\:\"\']+/', '', $clean);
+        $clean = preg_replace('/^[-\d\.)\:\"\']+/', '', $clean);
         if (strlen($clean) > 50 || preg_match('/[^a-zA-Zá-žÁ-Ž0-9\s\-]/u', $clean)) {
             return '';
         }
@@ -89,15 +94,85 @@ function cleanAIOutput($answers) {
     }, $answers)));
 }
 
+function callOpenRouter($OPENROUTER_API_KEY, $OPENROUTER_MODEL, $czechWord, $correctAnswer, $targetLang, $referer, $appTitle) {
+    $systemMessage = "You are an expert language teacher preparing multiple-choice quizzes. For each Czech word and its correct translation, output ONLY 3 plausible wrong answers (no bullets, no numbering, no explanations).";
 
+    $userMessage = <<<USR
+Czech word: "$czechWord"
+Correct $targetLang translation: "$correctAnswer"
 
-// ===== SAME PRE-EXPLORER LOGIC AS main.php =====
+Simulate 3 wrong answers a student might mistakenly choose. Reflect real mistakes:
+- article/gender confusion
+- false friends
+- similar spelling/sound
+- same category
+- plural vs singular
+- diacritic confusion
+
+STRICT:
+- do NOT explain
+- do NOT include the correct answer
+- exactly 3 lines, one per wrong answer
+USR;
+
+    $payload = [
+        'model' => $OPENROUTER_MODEL, // e.g. 'deepseek/deepseek-r1:free'
+        'messages' => [
+            ['role' => 'system', 'content' => $systemMessage],
+            ['role' => 'user',   'content' => $userMessage],
+        ],
+        'max_tokens' => 120,
+        'temperature' => 0.4,
+    ];
+
+    $url = 'https://openrouter.ai/api/v1/chat/completions';
+
+    $attempts = 0;
+    while ($attempts < 3) {
+        $attempts++;
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPHEADER => [
+                'Content-Type: application/json',
+                "Authorization: Bearer $OPENROUTER_API_KEY",
+                "HTTP-Referer: $referer",
+                "X-Title: $appTitle",
+            ],
+            CURLOPT_POSTFIELDS => json_encode($payload),
+            CURLOPT_TIMEOUT => 20,
+        ]);
+        $response = curl_exec($ch);
+        $errno = curl_errno($ch);
+        $err  = curl_error($ch);
+        $info = curl_getinfo($ch);
+        curl_close($ch);
+
+        if ($errno) {
+            error_log("[OpenRouter] cURL error $errno: $err");
+            break;
+        }
+
+        $code = (int)($info['http_code'] ?? 0);
+        if ($code === 429) { usleep(700000); continue; } // small backoff
+        if ($code >= 400) { error_log("[OpenRouter] HTTP $code: $response"); break; }
+
+        $decoded = json_decode($response, true);
+        $content = $decoded['choices'][0]['message']['content'] ?? '';
+        $lines = array_filter(array_map('trim', explode("\n", $content)));
+        return cleanAIOutput($lines);
+    }
+
+    return [];
+}
+
+// ====== PRE-EXPLORER LOGIC (unchanged) ======
 $username = strtolower($_SESSION['username'] ?? '');
-$conn->set_charset("utf8mb4");
+$conn->set_charset('utf8mb4');
 
 function getUserFoldersAndTables($conn, $username) {
     $allTables = [];
-    $result = $conn->query("SHOW TABLES");
+    $result = $conn->query('SHOW TABLES');
     while ($row = $result->fetch_array()) {
         $table = $row[0];
         if (strpos($table, 'quiz_choices_') === 0) continue; // skip quiz tables
@@ -105,17 +180,9 @@ function getUserFoldersAndTables($conn, $username) {
             $suffix = substr($table, strlen($username) + 1);
             $suffix = preg_replace('/_+/', '_', $suffix);
             $parts = explode('_', $suffix, 2);
-            if (count($parts) === 2 && trim($parts[0]) !== '') {
-                $folder = $parts[0];
-                $file = $parts[1];
-            } else {
-                $folder = 'Uncategorized';
-                $file = $suffix;
-            }
-            $allTables[$folder][] = [
-                'table_name' => $table,
-                'display_name' => $file
-            ];
+            if (count($parts) === 2 && trim($parts[0]) !== '') { $folder = $parts[0]; $file = $parts[1]; }
+            else { $folder = 'Uncategorized'; $file = $suffix; }
+            $allTables[$folder][] = [ 'table_name' => $table, 'display_name' => $file ];
         }
     }
     return $allTables;
@@ -128,13 +195,9 @@ $folders['Shared'][] = ['table_name' => 'mastered_words', 'display_name' => 'Mas
 $folderData = [];
 foreach ($folders as $folder => $tableList) {
     foreach ($tableList as $entry) {
-        $folderData[$folder][] = [
-            'table' => $entry['table_name'],
-            'display' => $entry['display_name']
-        ];
+        $folderData[$folder][] = [ 'table' => $entry['table_name'], 'display' => $entry['display_name'] ];
     }
 }
-// ===== END PRE-EXPLORER LOGIC =====
 
 $selectedTable = $_POST['table'] ?? $_GET['table'] ?? '';
 $autoSourceLang = '';
@@ -150,7 +213,7 @@ if ($selectedTable) {
 
 $generatedTable = '';
 if ($selectedTable) {
-    $quizTable = "quiz_choices_" . $selectedTable;
+    $quizTable = 'quiz_choices_' . $selectedTable;
     if (!quizTableExists($conn, $selectedTable)) {
         $res = $conn->query("SELECT * FROM `$selectedTable`");
         if ($res && $res->num_rows > 0) {
@@ -169,29 +232,46 @@ if ($selectedTable) {
             )");
             while ($row = $res->fetch_assoc()) {
                 $question = trim($row[$col1]);
-                $correct = trim($row[$col2]);
+                $correct  = trim($row[$col2]);
                 if ($question === '' || $correct === '') continue;
-                $wrongAnswers = callOpenRouter($OPENROUTER_API_KEY, $OPENROUTER_MODEL, $question, $correct, $autoTargetLang, $OPENROUTER_REFERER, $APP_TITLE) ?: [$correct.'x', strrev($correct), 'wrong'];
-                $wrongAnswers = cleanAIOutput($wrongAnswers);
+
+                // Guard: if no credits and not a free model, stop early
+                if ($credits_left <= 0 && strpos($OPENROUTER_MODEL, ':free') === false) {
+                    break;
+                }
+
+                $wrongAnswers = callOpenRouter($OPENROUTER_API_KEY, $OPENROUTER_MODEL, $question, $correct, $autoTargetLang, $OPENROUTER_REFERER, $APP_TITLE);
+                if (!$wrongAnswers || count($wrongAnswers) < 3) {
+                    // Fallbacks (very conservative)
+                    $wrongAnswers = array_values(array_filter(cleanAIOutput([
+                        $correct.'x',
+                        strrev($correct),
+                        'wrong'
+                    ])));
+                }
                 [$w1, $w2, $w3] = array_pad($wrongAnswers, 3, '');
+
                 $stmt = $conn->prepare("INSERT INTO `$quizTable` (question, correct_answer, wrong1, wrong2, wrong3, source_lang, target_lang) VALUES (?, ?, ?, ?, ?, ?, ?)");
-                $stmt->bind_param("sssssss", $question, $correct, $w1, $w2, $w3, $autoSourceLang, $autoTargetLang);
+                $stmt->bind_param('sssssss', $question, $correct, $w1, $w2, $w3, $autoSourceLang, $autoTargetLang);
                 $stmt->execute();
                 $stmt->close();
+
+                // Throttle to respect rate-limit
+                usleep($per_call_ms * 1000); // convert ms -> µs
             }
         }
     }
-    $generatedTable = $quizTable;
+    $generatedTable = $quizTable ?? '';
 }
 
-echo "<div class='content'>👤 Logged in as ".$_SESSION['username']." | <a href='logout.php'>Logout</a></div>";
+echo "<div class='content'>👤 Logged in as ".htmlspecialchars($_SESSION['username'] ?? '')." | <a href='logout.php'>Logout</a></div>";
 echo "<h2 style='text-align:center;'>Generate AI Quiz Choices</h2>";
-echo "<p style='text-align:center;'> This AI is designed for vocabulary, not sentences</p>";
+echo "<p style='text-align:center;'>This AI is designed for vocabulary, not sentences</p>";
 
 include 'file_explorer.php';
 
-if ($generatedTable) {
-    echo "<h3 style='text-align:center;'>Preview: <code>$generatedTable</code></h3>";
+if (!empty($generatedTable)) {
+    echo "<h3 style='text-align:center;'>Preview: <code>".htmlspecialchars($generatedTable)."</code></h3>";
     echo "<div style='overflow-x:auto;'><table border='1' style='width:100%; max-width:100%; border-collapse:collapse;'>
             <tr><th>Czech</th><th>Correct</th><th>Wrong 1</th><th>Wrong 2</th><th>Wrong 3</th></tr>";
     $res = $conn->query("SELECT * FROM `$generatedTable` LIMIT 20");
