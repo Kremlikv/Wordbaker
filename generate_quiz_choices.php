@@ -6,16 +6,16 @@ error_reporting(E_ALL);
 require_once 'db.php';
 require_once 'session.php';
 include 'styling.php';
-// require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/config.php';
 
 // POKUS S DEEPSEEKEM
-$OPENROUTER_API_KEY =  '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'; // Sign up at https://openrouter.ai
-$OPENROUTER_MODEL =  'tngtech/deepseek-r1t2-chimera:free';
+// $OPENROUTER_API_KEY =  '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'; // Sign up at https://openrouter.ai
+// $OPENROUTER_MODEL =  'tngtech/deepseek-r1t2-chimera:free';
 
 // $OPENROUTER_API_KEY = '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';
 // $OPENROUTER_MODEL = 'anthropic/claude-3-haiku';
-$OPENROUTER_REFERER = 'https://kremlik.byethost15.com';
-$APP_TITLE = 'KahootGenerator';
+// $OPENROUTER_REFERER = 'https://kremlik.byethost15.com';
+// $APP_TITLE = 'KahootGenerator';
 
 function quizTableExists($conn, $table) {
     $quizTable = (strpos($table, 'quiz_choices_') === 0) ? $table : "quiz_choices_" . $table;
@@ -23,7 +23,7 @@ function quizTableExists($conn, $table) {
     return $res && $res->num_rows > 0;
 }
 
-function callOpenRouter($apiKey, $model, $czechWord, $correctAnswer, $targetLang, $referer, $appTitle) {
+function callOpenRouter($OPENROUTER_API_KEY, $OPENROUTER_MODEL, $czechWord, $correctAnswer, $targetLang, $referer, $appTitle) {
     $systemMessage = <<<SYS
 You are an expert language teacher preparing multiple-choice quizzes.
 For each Czech word and its correct translation, simulate 3 plausible wrong answers that students often choose.
@@ -55,7 +55,7 @@ Simulate 3 wrong answers a student might mistakenly choose. They should reflect 
 USR;
 
     $data = [
-        "model" => $model,
+        "model" => $OPENROUTER_MODEL,
         "messages" => [
             ["role" => "system", "content" => $systemMessage],
             ["role" => "user", "content" => $userMessage]
@@ -68,7 +68,7 @@ USR;
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_HTTPHEADER => [
             "Content-Type: application/json",
-            "Authorization: Bearer $apiKey",
+            "Authorization: Bearer $OPENROUTER_API_KEY",
             "HTTP-Referer: $referer",
             "X-Title: $appTitle"
         ],
