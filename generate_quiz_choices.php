@@ -345,50 +345,21 @@ if ($selectedTable !== '') {
     $stage = $_POST['stage'] ?? 'edit';
 
     if ($stage === 'generate' && !empty($_POST['items']) && is_array($_POST['items'])) {
-        
-                
-      
-    // --- Build the list of edited rows ---
-    $editedRows = [];
-    $enforceWordOnly = isset($_POST['enforce_word_only']) && $_POST['enforce_word_only'] === '1';
-
-    foreach ($_POST['items'] as $idx => $item) {
-        $q   = trim($item['q'] ?? '');
-        $c   = trim($item['c'] ?? '');
-        $del = isset($item['del']) && $item['del'] === '1';
-        if ($del || $q === '' || $c === '') continue;
-
-        // Optional: only enforce "word/short phrase" if checkbox ticked
-        if ($enforceWordOnly) {
-            $looksSentence = (
-                mb_strlen($q, 'UTF-8') > 40 ||
-                mb_strlen($c, 'UTF-8') > 40 ||
-                preg_match('/[.!?]/u', $q) ||
-                preg_match('/[.!?]/u', $c)
-            );
-            if ($looksSentence) continue;
-        }
-
-        $editedRows[] = ['question' => $q, 'correct' => $c];
-    }
-
-    // Diagnostics
-    echo "<div style='text-align:center;color:#64748b;margin:6px 0;'>Posted items: "
-    . count($_POST['items']) . " · Kept after filters: " . count($editedRows) . "</div>";
-
-    // Never-get-stuck fallback: if user submitted but filter removed everything, proceed unfiltered
-    if (empty($editedRows) && !empty($_POST['items'])) {
-        foreach ($_POST['items'] as $item) {
-            $q = trim($item['q'] ?? ''); $c = trim($item['c'] ?? '');
+        // --- Build the list of edited rows ---
+        $editedRows = [];
+        foreach ($_POST['items'] as $idx => $item) {
+            $q   = trim($item['q'] ?? '');
+            $c   = trim($item['c'] ?? '');
             $del = isset($item['del']) && $item['del'] === '1';
             if ($del || $q === '' || $c === '') continue;
+
+            // Optional: lightweight guard against likely sentences (you can relax/tighten)
+            $looksSentence = (mb_strlen($q, 'UTF-8') > 40 || mb_strlen($c, 'UTF-8') > 40
+                              || preg_match('/[.!?]/u', $q) || preg_match('/[.!?]/u', $c));
+            if ($looksSentence) continue;
+
             $editedRows[] = ['question' => $q, 'correct' => $c];
         }
-    }
-
-
-
-
 
         if (empty($editedRows)) {
             echo "<div class='content' style='color:#b91c1c;background:#fee2e2;border:1px solid #fecaca;padding:10px;border-radius:8px;margin:10px 0;'>
@@ -398,8 +369,6 @@ if ($selectedTable !== '') {
         } else {
             // --- Proceed with generation using the edited rows only ---
             $quizTable = 'quiz_choices_' . $selectedTable;
-
-
 
             if (!quizTableExists($conn, $selectedTable)) {
                 // Create target table if missing
@@ -529,18 +498,6 @@ if ($selectedTable !== '') {
         echo "<form method='post' style='margin:10px 0;'>";
         echo "<input type='hidden' name='table' value='".htmlspecialchars($selectedTable, ENT_QUOTES)."'>";
         echo "<input type='hidden' name='stage' value='generate'>";
-
-        // Checkbox
-        
-        echo "<div class='content' style='display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:center;margin-bottom:8px;'>
-                <label style='display:flex;align-items:center;gap:6px;'>
-                    <input type='checkbox' name='enforce_word_only' value='1'>
-                    Skip long / sentence‑like rows
-                </label>
-                <button type='button' id='markSentences' style='padding:6px 10px;'>Mark suspected sentences</button>
-                <button type='button' id='deleteMarked'  style='padding:6px 10px;'>Delete marked</button>
-            </div>";
-
 
         // small helper controls
         echo "<div class='content' style='display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:center;margin-bottom:8px;'>
