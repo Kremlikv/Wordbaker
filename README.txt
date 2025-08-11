@@ -139,6 +139,6 @@ Aniž by přestaly kvízy fungovat. A aniž by přestala fungovat PD hudba.
 
 FILE EXPLORER IN MAIN 
 Now able to show subfolders. Able to share-unshared, rename, edit, copy.
-main.php and file_explorer.php
+main.php and file_explorer.php Even flashcards work with the new folders.
 
 
