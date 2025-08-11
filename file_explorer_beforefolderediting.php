@@ -29,13 +29,11 @@
     color: #fff;
     text-align: left;
     background: #444;
-    user-select: none;
 }
 .folder-item:hover,
 .folder-item.active {
     background: #555;
 }
-.folder-item.shared { opacity: 0.8; cursor: default; }
 .file-panel {
     flex: 1;
     background: #ddd;
@@ -84,19 +82,6 @@
 .select-file-btn:hover {
     background: #777;
 }
-
-/* Right-click menu */
-.folder-context-menu {
-    position: absolute; display: none; z-index: 9999;
-    background: #fff; border: 1px solid #e2e8f0; border-radius: 8px;
-    box-shadow: 0 10px 20px rgba(0,0,0,0.08);
-    min-width: 190px; padding: 6px;
-}
-.folder-context-menu button {
-    width: 100%; border: 0; background: transparent; text-align: left;
-    padding: 8px 10px; cursor: pointer; border-radius: 6px; font-size: 14px;
-}
-.folder-context-menu button:hover { background: #f1f5f9; }
 </style>
 
 <div style="text-align:center;">
@@ -108,7 +93,7 @@
     <input type='hidden' name='col1' value='<?php echo htmlspecialchars($column1 ?? ''); ?>'>
     <input type='hidden' name='col2' value='<?php echo htmlspecialchars($column2 ?? ''); ?>'>
 
-    <div style="display:flex;justify-content:center; position: relative;">
+    <div style="display:flex;justify-content:center;">
         <div id="fileExplorer" class='two-column'>
             <div class='folder-panel' id='folderPanel'>
                 <?php
@@ -116,10 +101,8 @@
                 $isFirst = true;
                 foreach ($folders as $folder => $tableList):
                     if ($isFirst) { $firstFolderName = $folder; }
-                    $isShared = ($folder === 'Shared');
                 ?>
-                    <div class='folder-item<?php echo $isFirst ? " active" : ""; ?><?php echo $isShared ? " shared" : ""; ?>'
-                         data-folder="<?php echo htmlspecialchars($folder); ?>"
+                    <div class='folder-item<?php echo $isFirst ? " active" : ""; ?>'
                          onclick="showFiles('<?php echo htmlspecialchars($folder); ?>', this)">
                         <?php echo htmlspecialchars(ucfirst($folder)); ?>
                     </div>
@@ -133,19 +116,6 @@
             </div>
         </div>
     </div>
-</form>
-
-<!-- Right-click menu + hidden form for folder actions -->
-<div id="folderMenu" class="folder-context-menu">
-  <button type="button" id="renameFolderBtn">✏️ Rename folder…</button>
-  <button type="button" id="deleteFolderBtn" style="color:#b91c1c;">🗑️ Delete folder…</button>
-</div>
-
-<form id="folderActionForm" method="post" action="main.php" style="display:none;">
-  <input type="hidden" name="folder_action" value="">
-  <input type="hidden" name="folder_old" value="">
-  <input type="hidden" name="folder_new" value="">
-  <input type="hidden" name="confirm_text" value="">
 </form>
 
 <div id="fileSelectedMsg" style="display:none;text-align:center;margin-top:10px;font-weight:bold;color:green;"></div>
@@ -194,63 +164,4 @@ function selectTable(fullTableName, displayName) {
     document.getElementById("selectedTableInput").value = fullTableName;
     document.getElementById("tableActionForm").submit();
 }
-
-// ---- Right-click (context menu) on folders ----
-(function () {
-  const menu = document.getElementById('folderMenu');
-  const actionForm = document.getElementById('folderActionForm');
-  let targetFolder = null;
-
-  // Open menu if right-clicking a folder (except "Shared")
-  document.addEventListener('contextmenu', function (e) {
-    const item = e.target.closest('.folder-item');
-    if (!item) return;
-
-    const folder = item.getAttribute('data-folder');
-    if (!folder || folder === 'Shared') return;
-
-    e.preventDefault();
-    targetFolder = folder;
-
-    // Position menu near cursor
-    menu.style.display = 'block';
-    const x = e.pageX, y = e.pageY;
-    // prevent menu from going off-screen
-    const maxX = window.scrollX + document.documentElement.clientWidth - menu.offsetWidth - 8;
-    const maxY = window.scrollY + document.documentElement.clientHeight - menu.offsetHeight - 8;
-    menu.style.left = Math.min(x, maxX) + 'px';
-    menu.style.top  = Math.min(y, maxY) + 'px';
-  });
-
-  // Hide menu on click elsewhere or Escape
-  document.addEventListener('click', () => { menu.style.display = 'none'; });
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') menu.style.display = 'none'; });
-
-  // Rename folder
-  document.getElementById('renameFolderBtn').addEventListener('click', function () {
-    if (!targetFolder) return;
-    const newName = prompt('Rename folder "' + targetFolder + '" to:', targetFolder);
-    if (!newName || newName === targetFolder) return;
-    if (!/^[a-z0-9_]+$/i.test(newName)) { alert('Use letters, numbers, and underscores only.'); return; }
-
-    actionForm.folder_action.value = 'rename_folder';
-    actionForm.folder_old.value    = targetFolder;
-    actionForm.folder_new.value    = newName;
-    actionForm.submit();
-  });
-
-  // Delete folder
-  document.getElementById('deleteFolderBtn').addEventListener('click', function () {
-    if (!targetFolder) return;
-    const confirmText = prompt(
-      'Delete ALL tables in folder "' + targetFolder + '"?\n\nType the folder name to confirm:'
-    );
-    if (confirmText !== targetFolder) return;
-
-    actionForm.folder_action.value = 'delete_folder';
-    actionForm.folder_old.value    = targetFolder;
-    actionForm.confirm_text.value  = confirmText;
-    actionForm.submit();
-  });
-})();
 </script>
