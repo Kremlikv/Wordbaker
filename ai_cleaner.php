@@ -5,6 +5,27 @@ header('Content-Type: application/json');
 
 require_once __DIR__ . '/config.php'; // expects $CLEANER_API_KEY
 
+
+// --- after: require_once __DIR__ . '/config.php';
+// Trim & basic validation of key to catch empty/rotated keys early
+$CLEANER_API_KEY = isset($CLEANER_API_KEY) ? trim($CLEANER_API_KEY) : '';
+if ($CLEANER_API_KEY === '' || !preg_match('/^sk-or-.*$/', $CLEANER_API_KEY)) {
+    $request_id = $request_id ?? bin2hex(random_bytes(6));
+    $err = [
+        'error' => 'OpenRouter API key missing or malformed',
+        'hint'  => 'Check config.php for $CLEANER_API_KEY (should start with "sk-or-").',
+        'request_id' => $request_id,
+    ];
+    log_ai_cleaner([
+        'request_id' => $request_id,
+        'stage' => 'preflight_api_key',
+        'result' => $err,
+    ]);
+    echo json_encode($err);
+    exit;
+}
+
+
 // -------------------------------
 // Logging helpers
 // -------------------------------
@@ -73,13 +94,15 @@ $data = [
     'temperature' => 0.3,
 ];
 
+
 $headers = [
     "Authorization: Bearer {$CLEANER_API_KEY}",
     "Content-Type: application/json",
-    // Optional but helpful to providers:
-    "HTTP-Referer: " . ($_SERVER['HTTP_HOST'] ?? 'localhost'),
+    "Referer: " . ($_SERVER['HTTP_HOST'] ?? 'localhost'),
     "X-Title: ai_cleaner.php",
 ];
+
+
 
 // -------------------------------
 // cURL call (with header capture)
@@ -162,37 +185,36 @@ $providerError = is_array($decoded) && isset($decoded['error']) ? $decoded['erro
 // -------------------------------
 // Make error reason friendly
 // -------------------------------
+
 function friendly_reason(int $httpCode, ?array $rate_limit, $providerError): string {
-    // Specific: 429 + remaining=0 or provider message → Daily quota used up
-    if ($httpCode === 429) {
-        $remainingStr = is_array($rate_limit['remaining'] ?? null) ? ($rate_limit['remaining'][0] ?? null) : ($rate_limit['remaining'] ?? null);
-        $remaining = is_numeric($remainingStr) ? (int)$remainingStr : null;
+    if ($httpCode === 401 || $httpCode === 403) {
+        $pm = '';
+        if (is_array($providerError)) $pm = $providerError['message'] ?? '';
+        elseif (is_string($providerError)) $pm = $providerError;
 
-        $providerMsg = '';
-        if (is_array($providerError)) {
-            // OpenRouter often returns { error: { message: "..."} }
-            $providerMsg = $providerError['message'] ?? '';
-        } elseif (is_string($providerError)) {
-            $providerMsg = $providerError;
+        if (stripos($pm, 'user not found') !== false || stripos($pm, 'invalid') !== false) {
+            return 'OpenRouter API key invalid or not recognized';
         }
-
-        if ($remaining === 0 || stripos($providerMsg, 'quota') !== false || stripos($providerMsg, 'rate limit') !== false) {
+        return 'Authentication/authorization failed';
+    }
+    if ($httpCode === 429) {
+        $remaining = $rate_limit['remaining'] ?? null;
+        $remaining = is_array($remaining) ? ($remaining[0] ?? null) : $remaining;
+        $pm = is_array($providerError) ? ($providerError['message'] ?? '') : (is_string($providerError) ? $providerError : '');
+        if ((string)$remaining === '0' || stripos($pm, 'quota') !== false || stripos($pm, 'rate limit') !== false) {
             return 'Daily quota used up';
         }
         return 'Too many requests';
     }
-
-    // Other common HTTPs
     if ($httpCode >= 500) return 'Upstream service temporarily unavailable';
     if ($httpCode === 400) return 'Bad request to provider';
-    if ($httpCode === 401 || $httpCode === 403) return 'Authentication/authorization failed';
     if ($httpCode === 408) return 'Upstream timeout';
     if ($httpCode === 413) return 'Input too large';
     if ($httpCode === 415) return 'Unsupported media type';
     if ($httpCode === 422) return 'Unprocessable input';
-
     return 'AI cleaner request failed';
 }
+
 
 // -------------------------------
 // Non-2xx or JSON error → report verbosely
