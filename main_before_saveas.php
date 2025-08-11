@@ -31,6 +31,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_table'])) {
     exit;
 }
 
+
 // Handle audio file deletion BEFORE any output
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_audio_file'])) {
     $tableForAudio = preg_replace('/[^a-zA-Z0-9_]/', '', $_POST['delete_audio_file']); // sanitize
@@ -44,95 +45,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_audio_file']))
     exit;
 }
 
-// ---- Save As helpers ----
-function safeTablePart(string $s): string {
-    $s = mb_strtolower($s, 'UTF-8');
-    $s = preg_replace('/[^a-z0-9_]+/u', '_', $s);
-    $s = preg_replace('/_+/', '_', $s);
-    return trim($s, '_');
-}
-function tableExists(mysqli $conn, string $table): bool {
-    $res = $conn->query("SHOW TABLES LIKE '".$conn->real_escape_string($table)."'");
-    return $res && $res->num_rows > 0;
-}
-function cloneTableLike(mysqli $conn, string $src, string $dst, bool $overwrite): bool {
-    $srcEsc = $conn->real_escape_string($src);
-    $dstEsc = $conn->real_escape_string($dst);
-    if ($overwrite && tableExists($conn, $dst)) {
-        if (!$conn->query("DROP TABLE `{$dstEsc}`")) {
-            echo "<div class='content' style='color:#b91c1c;background:#fee2e2;border:1px solid #fecaca;padding:10px;border-radius:8px;margin:10px 0;'>".
-                 "Drop failed for <code>".htmlspecialchars($dst)."</code>: ".htmlspecialchars($conn->error)."</div>";
-            return false;
-        }
-    }
-    if (tableExists($conn, $dst)) {
-        echo "<div class='content' style='color:#92400e;background:#fef3c7;border:1px solid #fde68a;padding:10px;border-radius:8px;margin:10px 0;'>".
-             "Table <code>".htmlspecialchars($dst)."</code> already exists. Enable <b>Overwrite</b> to replace it.</div>";
-        return false;
-    }
-    if (!$conn->query("CREATE TABLE `{$dstEsc}` LIKE `{$srcEsc}`")) {
-        echo "<div class='content' style='color:#b91c1c;background:#fee2e2;border:1px solid #fecaca;padding:10px;border-radius:8px;margin:10px 0;'>".
-             "Create LIKE failed: ".htmlspecialchars($conn->error)."</div>";
-        return false;
-    }
-    return true;
-}
 
-// ---- SAVE AS (runs before any HTML output) ----
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_as') {
-    $conn->set_charset("utf8mb4");
-
-    $username = strtolower($_SESSION['username'] ?? 'user');
-    $srcTable = $_POST['table'] ?? '';
-    $col1     = $_POST['col1'] ?? '';
-    $col2     = $_POST['col2'] ?? '';
-    $folder   = safeTablePart($_POST['saveas_folder'] ?? '');
-    $name     = safeTablePart($_POST['saveas_name'] ?? '');
-    $overwrite = !empty($_POST['saveas_overwrite']);
-
-    if ($srcTable === '' || $col1 === '' || $col2 === '') {
-        echo "<div class='content' style='color:#b91c1c;background:#fee2e2;border:1px solid #fecaca;padding:10px;border-radius:8px;margin:10px 0;'>".
-             "Missing table/column info.</div>";
-    } elseif ($folder === '' || $name === '') {
-        echo "<div class='content' style='color:#b91c1c;background:#fee2e2;border:1px solid #fecaca;padding:10px;border-radius:8px;margin:10px 0;'>".
-             "Please enter both Folder and New name.</div>";
-    } else {
-        $newTable = "{$username}_{$folder}_{$name}";
-        if (cloneTableLike($conn, $srcTable, $newTable, $overwrite)) {
-            // Insert current edited rows into the first two columns
-            $rows = $_POST['rows'] ?? [];
-            $sql = "INSERT INTO `".$conn->real_escape_string($newTable)."`
-                    (`".$conn->real_escape_string($col1)."`, `".$conn->real_escape_string($col2)."`) VALUES (?, ?)";
-            $stmt = $conn->prepare($sql);
-            if (!$stmt) {
-                echo "<div class='content' style='color:#b91c1c;background:#fee2e2;border:1px solid #fecaca;padding:10px;border-radius:8px;margin:10px 0;'>".
-                     "Prepare failed: ".htmlspecialchars($conn->error)."</div>";
-            } else {
-                foreach ($rows as $r) {
-                    if (!empty($r['delete'])) continue;
-                    $v1 = trim($r['col1'] ?? '');
-                    $v2 = trim($r['col2'] ?? '');
-                    if ($v1 === '' || $v2 === '') continue;
-                    $stmt->bind_param('ss', $v1, $v2);
-                    $stmt->execute();
-                }
-                // also include the "new row" if provided
-                if (!empty($_POST['new_row']['col1']) || !empty($_POST['new_row']['col2'])) {
-                    $nv1 = trim($_POST['new_row']['col1'] ?? '');
-                    $nv2 = trim($_POST['new_row']['col2'] ?? '');
-                    if ($nv1 !== '' && $nv2 !== '') {
-                        $stmt->bind_param('ss', $nv1, $nv2);
-                        $stmt->execute();
-                    }
-                }
-                $stmt->close();
-
-                header("Location: " . $_SERVER['PHP_SELF'] . "?table=" . urlencode($newTable));
-                exit;
-            }
-        }
-    }
-}
 
 function getUserFoldersAndTables($conn, $username) {
     $allTables = [];
@@ -161,6 +74,10 @@ function getUserFoldersAndTables($conn, $username) {
 
 $username = strtolower($_SESSION['username'] ?? '');
 $conn->set_charset("utf8mb4");
+
+
+
+
 
 // Build folder structure
 $folders = getUserFoldersAndTables($conn, $username);
@@ -221,6 +138,7 @@ if (!empty($selectedFullTable) && $res !== false) {
     echo "<h3>Selected Table: " . htmlspecialchars($selectedFullTable) . "</h3>";
     $isSharedTable = in_array($selectedFullTable, ['difficult_words', 'mastered_words']);
     
+    
     $audioFile = "cache/$selectedFullTable.mp3";
 
     $buttonStyle = "style=\"border:2px solid black; background:none; color:black; font-size: 0.8em; padding:8px 14px; border-radius:4px; cursor:pointer;\"";
@@ -236,6 +154,7 @@ if (!empty($selectedFullTable) && $res !== false) {
         echo "<em>No audio generated yet for this table.</em><br><br>";
         echo "<a href='generate_mp3_google_ssml.php'><button $buttonStyle>🎧 Create MP3</button></a> ";
     }
+
 
     if (!$isSharedTable) {
         echo "<form method='POST' action='update_table.php'>";
@@ -258,26 +177,7 @@ if (!empty($selectedFullTable) && $res !== false) {
         }
         echo "<tr><td><textarea name='new_row[col1]' placeholder='New " . htmlspecialchars($heading1) . "' oninput='autoResize(this)'></textarea></td>";
         echo "<td><textarea name='new_row[col2]' placeholder='New " . htmlspecialchars($heading2) . "' oninput='autoResize(this)'></textarea></td><td></td></tr>";
-        echo "</table><br>";
-        echo "<button type='submit'>💾 Save Changes</button>";
-
-        // --- Save As UI (same form; posts back to main.php) ---
-        echo "<div style='margin-top:12px; padding:10px; border:1px solid #e2e8f0; border-radius:8px;'>";
-        echo "<strong>Save As…</strong>";
-        echo "<div style='display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:6px;'>";
-        echo "  <label>Folder: <input type='text' name='saveas_folder' placeholder='e.g., animals' style='padding:6px;'></label>";
-        echo "  <label>New name: <input type='text' name='saveas_name' placeholder='e.g., de_en_small' style='padding:6px;'></label>";
-        echo "  <label title='If checked and table exists, it will be replaced'><input type='checkbox' name='saveas_overwrite' value='1'> Overwrite if exists</label>";
-        echo "  <button type='submit' name='action' value='save_as' formaction='main.php' formmethod='post' ".
-             "style='padding:8px 12px; background:#2563eb; color:#fff; border:none; border-radius:6px;'>Save As</button>";
-        echo "</div>";
-        echo "<div style='font-size:12px; color:#475569; margin-top:6px;'>";
-        echo "  Will create <code>".htmlspecialchars(strtolower($_SESSION['username'] ?? 'user'))."_FOLDER_NAME_FILE_NAME</code>";
-        echo "</div>";
-        echo "</div>";
-
-        echo "</form><br>";
-
+        echo "</table><br><button type='submit'>💾 Save Changes</button></form><br>";
         if (!in_array($selectedFullTable, ['difficult_words', 'mastered_words', 'users'])) {
             echo "<form method='POST' action='' onsubmit=\"return confirm('Really delete the table: $selectedFullTable?');\">";
             echo "<input type='hidden' name='delete_table' value='" . htmlspecialchars($selectedFullTable) . "'>";
