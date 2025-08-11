@@ -3,8 +3,8 @@
  * file_explorer.php
  *
  * Requires:
- *   - $folders
- *   - $folderData  // values like [{ table: 'user_folder_sub1_sub2_file', display: 'sub1_sub2_file' }]
+ *   - $folders           // array: left pane folders => tables
+ *   - $folderData        // array: folder => [{ table:"user_folder_sub_file", display:"sub_file" }, ...]
  *   - $selectedFullTable, $column1, $column2
  */
 ?>
@@ -15,14 +15,15 @@
 .folder-item { padding:8px 10px; cursor:pointer; border:1px solid #fff; color:#fff; text-align:left; background:#444; user-select:none; }
 .folder-item:hover, .folder-item.active { background:#555; }
 .folder-item.shared { opacity:.8; cursor:default; }
-.file-panel { flex:1; background:#ddd; padding:6px 0; max-height:66vh; text-align:left; overflow-y:auto; }
+
+.file-panel { flex:1; background:#ddd; padding:6px 0; max-height:66vh; overflow-y:auto; text-align:left; }
 
 /* Tree in right pane */
 .tree { padding:4px 8px; text-align:left; }
-.tree-folder, .tree-file { padding:6px 8px; cursor:pointer; text-align:left; border-radius:6px; margin-left: 0; user-select:none; }
+.tree-folder, .tree-file { padding:6px 8px; cursor:pointer; border-radius:6px; margin-left:0; user-select:none; text-align:left; }
 .tree-folder:hover, .tree-file:hover { background:#ccc; }
-.tree-children { margin-left: 18px; }
-.tree-toggle { display:inline-block; width:1em; text-align:left ; margin-right:6px; }
+.tree-children { margin-left:18px; }
+.tree-toggle { display:inline-block; width:1em; text-align:center; margin-right:6px; }
 .tree-folder > .tree-label { font-weight:600; }
 .tree-file { background:#eee; }
 .tree-file:hover { background:#e0e0e0; }
@@ -38,14 +39,15 @@
 .select-file-btn:hover{ background:#777; }
 
 /* Left-pane folder context menu */
-.folder-context-menu{ position:absolute; display:none; z-index:9999; background:#fff; border:1px solid #e2e8f0; border-radius:8px; box-shadow:0 10px 20px rgba(0,0,0,.08); min-width:200px; padding:6px;}
+.folder-context-menu{ position:absolute; display:none; z-index:9999; background:#fff; border:1px solid #e2e8f0; border-radius:8px; box-shadow:0 10px 20px rgba(0,0,0,.08); min-width:210px; padding:6px;}
 .folder-context-menu button{ width:100%; border:0; background:transparent; text-align:left; padding:8px 10px; cursor:pointer; border-radius:6px; font-size:14px;}
 .folder-context-menu button:hover{ background:#f1f5f9; }
 
 /* Right-pane subfolder context menu */
-.subfolder-context-menu{ position:absolute; display:none; z-index:9999; background:#fff; border:1px solid #e2e8f0; border-radius:8px; box-shadow:0 10px 20px rgba(0,0,0,.08); min-width:220px; padding:6px;}
+.subfolder-context-menu{ position:absolute; display:none; z-index:9999; background:#fff; border:1px solid #e2e8f0; border-radius:8px; box-shadow:0 10px 20px rgba(0,0,0,.08); min-width:230px; padding:6px;}
 .subfolder-context-menu button{ width:100%; border:0; background:transparent; text-align:left; padding:8px 10px; cursor:pointer; border-radius:6px; font-size:14px;}
 .subfolder-context-menu button:hover{ background:#f1f5f9; }
+.subfolder-context-menu button[disabled]{ opacity:.5; cursor:not-allowed; }
 </style>
 
 <div style="text-align:center;">
@@ -88,6 +90,7 @@
 <!-- Left-pane menu -->
 <div id="folderMenu" class="folder-context-menu">
   <button type="button" id="shareFolderBtn">🔗 Share folder…</button>
+  <button type="button" id="unshareFolderBtn">🚫 Unshare folder</button>
   <button type="button" id="copyFolderLocalBtn">📄 Copy folder…</button>
   <button type="button" id="renameFolderBtn">✏️ Rename folder…</button>
   <button type="button" id="deleteFolderBtn" style="color:#b91c1c;">🗑️ Delete folder…</button>
@@ -105,6 +108,7 @@
 <div id="subfolderMenu" class="subfolder-context-menu">
   <div style="padding:4px 8px; font-size:12px; color:#64748b;" id="subPathHint"></div>
   <button type="button" id="shareSubBtn">🔗 Share this subfolder…</button>
+  <button type="button" id="unshareSubBtn">🚫 Unshare this subfolder</button>
   <button type="button" id="copySubBtn">📄 Copy this subfolder…</button>
   <button type="button" id="renameSubBtn">✏️ Rename this subfolder…</button>
   <button type="button" id="deleteSubBtn" style="color:#b91c1c;">🗑️ Delete this subfolder…</button>
@@ -136,19 +140,19 @@ function showFileExplorer() {
   }
 }
 
-// Build nested tree from a folder’s file list
+// Build nested tree from a folder’s file list (display uses underscores as subfolder separators)
 function buildTree(files) {
-  const root = { type: 'folder', name: '', children: {}, files: [] };
-  files.forEach(f => {
+  const root = { type:'folder', name:'', children:{}, files:[] };
+  (files || []).forEach(f => {
     const parts = (f.display || '').split('_').filter(Boolean);
-    if (parts.length === 0) return;
-    const fileName = parts.pop(); // last is filename
+    if (!parts.length) return;
+    const fileName = parts.pop(); // last segment = file
     let node = root;
     parts.forEach(seg => {
-      if (!node.children[seg]) node.children[seg] = { type:'folder', name: seg, children:{}, files:[] };
+      if (!node.children[seg]) node.children[seg] = { type:'folder', name:seg, children:{}, files:[] };
       node = node.children[seg];
     });
-    node.files.push({ name: fileName, table: f.table });
+    node.files.push({ name:fileName, table:f.table });
   });
   return root;
 }
@@ -158,27 +162,18 @@ function renderTree(node, container, pathSoFar=[]) {
   folders.forEach(child => {
     const folderEl = document.createElement('div');
     folderEl.className = 'tree-folder';
-    const label = document.createElement('span');
-    label.className = 'tree-label';
-    const toggle = document.createElement('span');
-    toggle.className = 'tree-toggle';
-    toggle.textContent = '▾';
-    label.textContent = child.name;
+    const label = document.createElement('span'); label.className = 'tree-label'; label.textContent = child.name;
+    const toggle = document.createElement('span'); toggle.className = 'tree-toggle'; toggle.textContent = '▾';
 
-    // annotate with root + subpath for backend
     const subpath = [...pathSoFar, child.name].join('_');
     folderEl.dataset.root = currentRootFolder || '';
     folderEl.dataset.subpath = subpath;
 
-    const childrenWrap = document.createElement('div');
-    childrenWrap.className = 'tree-children';
+    const childrenWrap = document.createElement('div'); childrenWrap.className = 'tree-children';
 
-    folderEl.appendChild(toggle);
-    folderEl.appendChild(label);
-    container.appendChild(folderEl);
-    container.appendChild(childrenWrap);
+    folderEl.appendChild(toggle); folderEl.appendChild(label);
+    container.appendChild(folderEl); container.appendChild(childrenWrap);
 
-    // toggle expand/collapse
     folderEl.addEventListener('click', (e) => {
       if (e.target === toggle || e.target === label || e.currentTarget === folderEl) {
         const collapsed = childrenWrap.style.display === 'none';
@@ -189,27 +184,6 @@ function renderTree(node, container, pathSoFar=[]) {
     });
 
     renderTree(child, childrenWrap, [...pathSoFar, child.name]);
-
-    // right-click on subfolder
-    folderEl.addEventListener('contextmenu', (e) => {
-      e.preventDefault();
-      // disable actions under left "Shared"
-      if (folderEl.dataset.root === 'Shared') return;
-
-      const menu = document.getElementById('subfolderMenu');
-      const hint = document.getElementById('subPathHint');
-      hint.textContent = (folderEl.dataset.root || '') + ' / ' + subpath;
-      menu.style.display = 'block';
-      const x = e.pageX, y = e.pageY;
-      const maxX = window.scrollX + document.documentElement.clientWidth - menu.offsetWidth - 8;
-      const maxY = window.scrollY + document.documentElement.clientHeight - menu.offsetHeight - 8;
-      menu.style.left = Math.min(x, maxX) + 'px';
-      menu.style.top  = Math.min(y, maxY) + 'px';
-
-      // store current target
-      menu.dataset.root = folderEl.dataset.root;
-      menu.dataset.subpath = subpath;
-    });
   });
 
   const files = (node.files || []).sort((a,b)=>a.name.localeCompare(b.name));
@@ -249,7 +223,7 @@ function selectTable(fullTableName, displayName) {
   document.getElementById("tableActionForm").submit();
 }
 
-/* ----- Left pane folder menu (unchanged) ----- */
+/* ----- Left pane folder menu (context) ----- */
 (function(){
   const menu = document.getElementById('folderMenu');
   const actionForm = document.getElementById('folderActionForm');
@@ -259,7 +233,7 @@ function selectTable(fullTableName, displayName) {
     const item = e.target.closest('.folder-item');
     if (!item) return;
     const folder = item.getAttribute('data-folder');
-    if (!folder || folder === 'Shared') return; // protect Shared
+    if (!folder || folder === 'Shared') return; // no actions on Shared root
     e.preventDefault();
     targetFolder = folder;
     menu.style.display = 'block';
@@ -269,30 +243,29 @@ function selectTable(fullTableName, displayName) {
     menu.style.left = Math.min(x, maxX) + 'px';
     menu.style.top  = Math.min(y, maxY) + 'px';
   });
-  document.addEventListener('click', ()=> {
-    document.getElementById('folderMenu').style.display='none';
-    document.getElementById('subfolderMenu').style.display='none';
-  });
-  document.addEventListener('keydown', (e)=>{ if(e.key==='Escape'){
-    document.getElementById('folderMenu').style.display='none';
-    document.getElementById('subfolderMenu').style.display='none';
-  }});
 
   document.getElementById('shareFolderBtn').addEventListener('click', function(){
     if (!targetFolder) return;
-    const overwrite = confirm('Share folder "'+targetFolder+'"?\nThis creates copies as shared_'+targetFolder+'_* for ALL users.\nOverwrite if existing?');
+    if (!confirm('Share all tables in "'+targetFolder+'"? (virtually visible to everyone under Shared)')) return;
     actionForm.folder_action.value = 'share_folder';
     actionForm.folder_old.value    = targetFolder;
-    actionForm.overwrite.value     = overwrite ? '1' : '';
+    actionForm.submit();
+  });
+
+  document.getElementById('unshareFolderBtn').addEventListener('click', function(){
+    if (!targetFolder) return;
+    if (!confirm('Stop sharing all tables in "'+targetFolder+'"?')) return;
+    actionForm.folder_action.value = 'unshare_folder';
+    actionForm.folder_old.value    = targetFolder;
     actionForm.submit();
   });
 
   document.getElementById('copyFolderLocalBtn').addEventListener('click', function(){
     if (!targetFolder) return;
-    const dest = prompt('Copy folder "'+targetFolder+'" to which DESTINATION folder (same user)?', targetFolder + '_copy');
+    const dest = prompt('Copy folder "'+targetFolder+'" under which DESTINATION folder (same user)?', targetFolder + '_copy');
     if (!dest) return;
     if (!/^[a-z0-9_]+$/i.test(dest)) { alert('Use letters, numbers, underscores.'); return; }
-    const overwrite = confirm('Overwrite destination tables if already exist?');
+    const overwrite = confirm('Overwrite destination tables if they already exist?');
     actionForm.folder_action.value = 'copy_folder_local';
     actionForm.folder_old.value    = targetFolder;
     actionForm.dest_folder.value   = dest;
@@ -322,66 +295,116 @@ function selectTable(fullTableName, displayName) {
   });
 })();
 
-/* ----- Right pane SUBFOLDER menu ----- */
-(function(){
-  const menu = document.getElementById('subfolderMenu');
-  const form = document.getElementById('subfolderActionForm');
+/* ----- Hide menus on click elsewhere / ESC ----- */
+document.addEventListener('click', ()=> {
+  document.getElementById('folderMenu').style.display='none';
+  document.getElementById('subfolderMenu').style.display='none';
+});
+document.addEventListener('keydown', (e)=>{ if(e.key==='Escape'){
+  document.getElementById('folderMenu').style.display='none';
+  document.getElementById('subfolderMenu').style.display='none';
+}});
 
-  document.getElementById('shareSubBtn').addEventListener('click', function(){
-    const root = menu.dataset.root || '';
-    const sub  = menu.dataset.subpath || '';
+/* ----- Right pane SUBFOLDER menu (delegated) ----- */
+(function () {
+  const subMenu = document.getElementById('subfolderMenu');
+  const subForm = document.getElementById('subfolderActionForm');
+
+  // open on right-click of any .tree-folder (delegated)
+  document.addEventListener('contextmenu', function (e) {
+    const node = e.target.closest('.tree-folder');
+    if (!node) return;
+    e.preventDefault();
+
+    const root = (node.dataset.root || '').trim();
+    const sub  = (node.dataset.subpath || '').trim();
     if (!root || !sub) return;
-    const overwrite = confirm('Share subfolder "'+root+' / '+sub+'"?\nThis creates copies as shared_'+root+'_'+sub+'_* for ALL users.\nOverwrite if existing?');
-    form.sub_action.value = 'share_subfolder';
-    form.root_folder.value = root;
-    form.subpath.value = sub;
-    form.overwrite.value = overwrite ? '1' : '';
-    form.submit();
+
+    // show path hint
+    document.getElementById('subPathHint').textContent = root + ' / ' + sub;
+
+    // store state for actions
+    subMenu.dataset.root = root;
+    subMenu.dataset.subpath = sub;
+
+    // under Shared root: disable share/rename/delete (copy allowed; unshare allowed backend will enforce owner)
+    const isSharedRoot = (root === 'Shared');
+    document.getElementById('shareSubBtn').disabled   = isSharedRoot;
+    document.getElementById('renameSubBtn').disabled  = isSharedRoot;
+    document.getElementById('deleteSubBtn').disabled  = isSharedRoot;
+    // leave Unshare enabled; server will check ownership
+
+    // position and show
+    subMenu.style.display = 'block';
+    const x = e.pageX, y = e.pageY;
+    const maxX = window.scrollX + document.documentElement.clientWidth - subMenu.offsetWidth - 8;
+    const maxY = window.scrollY + document.documentElement.clientHeight - subMenu.offsetHeight - 8;
+    subMenu.style.left = Math.min(x, maxX) + 'px';
+    subMenu.style.top  = Math.min(y, maxY) + 'px';
+  });
+
+  // actions
+  document.getElementById('shareSubBtn').addEventListener('click', function(){
+    if (this.disabled) return;
+    const root = subMenu.dataset.root, sub = subMenu.dataset.subpath;
+    if (!root || !sub) return;
+    subForm.sub_action.value   = 'share_subfolder';
+    subForm.root_folder.value  = root;
+    subForm.subpath.value      = sub;
+    subForm.submit();
+  });
+
+  document.getElementById('unshareSubBtn').addEventListener('click', function(){
+    const root = subMenu.dataset.root, sub = subMenu.dataset.subpath;
+    if (!root || !sub) return;
+    subForm.sub_action.value   = 'unshare_subfolder';
+    subForm.root_folder.value  = root;
+    subForm.subpath.value      = sub;
+    subForm.submit();
   });
 
   document.getElementById('copySubBtn').addEventListener('click', function(){
-    const root = menu.dataset.root || '';
-    const sub  = menu.dataset.subpath || '';
+    const root = subMenu.dataset.root, sub = subMenu.dataset.subpath;
     if (!root || !sub) return;
-    const dest = prompt('Copy subfolder "'+root+' / '+sub+'" under which DESTINATION top-level folder (same user)?', root + '_copy');
+    const dest = prompt('Copy "'+root+' / '+sub+'" under which DESTINATION top-level folder (same user)?', root + '_copy');
     if (!dest) return;
     if (!/^[a-z0-9_]+$/i.test(dest)) { alert('Use letters, numbers, underscores.'); return; }
-    const overwrite = confirm('Overwrite destination tables if already exist?');
-    form.sub_action.value = 'copy_subfolder_local';
-    form.root_folder.value = root;
-    form.subpath.value = sub;
-    form.dest_folder.value = dest;
-    form.overwrite.value = overwrite ? '1' : '';
-    form.submit();
+    const overwrite = confirm('Overwrite destination tables if they already exist?');
+    subForm.sub_action.value   = 'copy_subfolder_local';
+    subForm.root_folder.value  = root;
+    subForm.subpath.value      = sub;
+    subForm.dest_folder.value  = dest;
+    subForm.overwrite.value    = overwrite ? '1' : '';
+    subForm.submit();
   });
 
   document.getElementById('renameSubBtn').addEventListener('click', function(){
-    const root = menu.dataset.root || '';
-    const sub  = menu.dataset.subpath || '';
+    if (this.disabled) return;
+    const root = subMenu.dataset.root, sub = subMenu.dataset.subpath;
     if (!root || !sub) return;
     const parts = sub.split('_');
-    const current = parts[parts.length-1];
+    const current = parts[parts.length - 1];
     const newName = prompt('Rename subfolder "'+current+'" to:', current);
     if (!newName || newName === current) return;
     if (!/^[a-z0-9_]+$/i.test(newName)) { alert('Use letters, numbers, underscores.'); return; }
-    form.sub_action.value = 'rename_subfolder';
-    form.root_folder.value = root;
-    form.subpath.value = sub;
-    form.new_name.value = newName;
-    form.submit();
+    subForm.sub_action.value   = 'rename_subfolder';
+    subForm.root_folder.value  = root;
+    subForm.subpath.value      = sub;
+    subForm.new_name.value     = newName;
+    subForm.submit();
   });
 
   document.getElementById('deleteSubBtn').addEventListener('click', function(){
-    const root = menu.dataset.root || '';
-    const sub  = menu.dataset.subpath || '';
+    if (this.disabled) return;
+    const root = subMenu.dataset.root, sub = subMenu.dataset.subpath;
     if (!root || !sub) return;
     const confirmText = prompt('Delete ALL tables under "'+root+' / '+sub+'"?\n\nType the subfolder path to confirm:', sub);
     if (confirmText !== sub) return;
-    form.sub_action.value = 'delete_subfolder';
-    form.root_folder.value = root;
-    form.subpath.value = sub;
-    form.confirm_text.value = confirmText;
-    form.submit();
+    subForm.sub_action.value   = 'delete_subfolder';
+    subForm.root_folder.value  = root;
+    subForm.subpath.value      = sub;
+    subForm.confirm_text.value = confirmText;
+    subForm.submit();
   });
 })();
 </script>
