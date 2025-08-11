@@ -354,9 +354,20 @@ if ($selectedTable !== '') {
             if ($del || $q === '' || $c === '') continue;
 
             // Optional: lightweight guard against likely sentences (you can relax/tighten)
-            $looksSentence = (mb_strlen($q, 'UTF-8') > 40 || mb_strlen($c, 'UTF-8') > 40
-                              || preg_match('/[.!?]/u', $q) || preg_match('/[.!?]/u', $c));
+            // New - ignore terminal punctuation, only skip if very long or has many words
+            $qCheck = preg_replace('/[.!?…]+$/u', '', trim($q));
+            $cCheck = preg_replace('/[.!?…]+$/u', '', trim($c));
+
+            $qWords = preg_split('/\s+/u', $qCheck, -1, PREG_SPLIT_NO_EMPTY);
+            $cWords = preg_split('/\s+/u', $cCheck, -1, PREG_SPLIT_NO_EMPTY);
+
+            $looksSentence =
+                (mb_strlen($qCheck, 'UTF-8') > 80 || mb_strlen($cCheck, 'UTF-8') > 80) ||
+                (count($qWords) >= 6 || count($cWords) >= 6);
+
             if ($looksSentence) continue;
+
+            
 
             $editedRows[] = ['question' => $q, 'correct' => $c];
         }
