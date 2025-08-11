@@ -6,11 +6,29 @@ include 'styling.php';
 $text_lines = '';
 $lines = [];
 $translated = [];
-$engineUsed = null; // will show which engine actually produced the preview
+$engineUsed = null; // which engine actually produced the preview
 $sourceLang = $_POST['sourceLang'] ?? '';
 $targetLang = $_POST['targetLang'] ?? '';
 
-// Normalize language codes (legacy 'sp' -> ISO 'es')
+/* ---------- Username + table-name helpers (PREFIX ENFORCED) ---------- */
+$username_raw = $_SESSION['username'] ?? 'user';
+function sanitize_key_str($s) {
+    // Keep letters, digits, underscore; collapse repeats; trim; lowercase
+    $s = strtolower($s);
+    $s = preg_replace('/[^a-z0-9_]+/i', '_', $s);
+    $s = preg_replace('/_+/', '_', $s);
+    return trim($s, '_');
+}
+function prefixed_table_name($username, $userInput) {
+    $u = sanitize_key_str($username);
+    $n = sanitize_key_str($userInput);
+    $final = (strpos($n, $u . '_') === 0) ? $n : ($u . '_' . $n);
+    // MySQL table name max length 64
+    return substr($final, 0, 64);
+}
+$username_safe = sanitize_key_str($username_raw);
+
+/* ---------- Lang handling ---------- */
 function norm_lang($code) {
     $map = ['sp' => 'es'];
     return $map[$code] ?? $code;
@@ -32,10 +50,10 @@ $langLabels = [
 $sourceLabel = $langLabels[$sourceLang] ?? 'Foreign';
 $targetLabel = $langLabels[$targetLang] ?? 'Czech';
 
-$tableName = $_POST['new_table_name'] ?? '';
+$tableNameInput = $_POST['new_table_name'] ?? '';
 $deletePdfPath = $_POST['delete_pdf_path'] ?? '';
 
-// ---------------- HTTP helpers ----------------
+/* ---------- HTTP helpers ---------- */
 function http_post_json($url, $payloadArr, $headers = []) {
     $options = [
         'http' => [
@@ -52,35 +70,24 @@ function http_get_simple($url) {
     return @file_get_contents($url, false, $ctx);
 }
 
-// ---------------- Translation engines ----------------
+/* ---------- Translation engines ---------- */
 function translate_google($text, $source, $target) {
     global $GOOGLE_API_KEY;
     if (empty($GOOGLE_API_KEY)) return null;
-
-    // Build GET query for v2
     $query = [
         'q'      => $text,
         'target' => $target ?: 'cs',
         'format' => 'text',
         'key'    => $GOOGLE_API_KEY
     ];
-    if ($source && $source !== 'auto') {
-        $query['source'] = $source;
-    }
+    if ($source && $source !== 'auto') $query['source'] = $source;
     $url = 'https://translation.googleapis.com/language/translate/v2?' . http_build_query($query);
     $resp = http_get_simple($url);
-    if (!$resp) {
-        error_log('Google Translate HTTP error or empty response');
-        return null;
-    }
+    if (!$resp) { error_log('Google Translate HTTP error or empty response'); return null; }
     $data = json_decode($resp, true);
-    if (isset($data['error'])) {
-        error_log('Google Translate error: ' . ($data['error']['message'] ?? json_encode($data['error'])));
-        return null;
-    }
+    if (isset($data['error'])) { error_log('Google Translate error: ' . ($data['error']['message'] ?? json_encode($data['error']))); return null; }
     return $data['data']['translations'][0]['translatedText'] ?? null;
 }
-
 function translate_libre($text, $source, $target) {
     global $LIBRETRANSLATE_URL;
     if (empty($LIBRETRANSLATE_URL)) return null;
@@ -95,7 +102,6 @@ function translate_libre($text, $source, $target) {
     $data = json_decode($resp, true);
     return $data['translatedText'] ?? null;
 }
-
 function translate_mymemory($text, $source, $target) {
     $src = $source ?: 'auto';
     $tgt = $target ?: 'cs';
@@ -105,7 +111,6 @@ function translate_mymemory($text, $source, $target) {
     $data = json_decode($response, true);
     return $data['responseData']['translatedText'] ?? null;
 }
-
 // Return [text, engineName]
 function translate_text_with_engine($text, $source, $target) {
     if (($g = translate_google($text, $source, $target)) !== null && $g !== '') return [$g, 'Google'];
@@ -114,29 +119,24 @@ function translate_text_with_engine($text, $source, $target) {
     return ['[Translation failed]', 'None'];
 }
 
-// ---------------- Build rows: always Czech on LEFT ----------------
+/* ---------- Build rows: Czech ALWAYS left ---------- */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['text_lines'])) {
     $text_lines = trim($_POST['text_lines']);
-
-    // Merge lines and split into sentences
     $mergedText = preg_replace("/\s+\n\s+|\n+/", ' ', $text_lines);
     $sentences = preg_split('/(?<=[.!?:])\s+(?=[A-Z\xC0-\xFF])/', $mergedText);
     $lines = array_filter(array_map('trim', $sentences));
 
     foreach ($lines as $line) {
         if ($sourceLang === 'cs') {
-            // Left = original Czech, Right = foreign translation
             list($foreign, $eng) = translate_text_with_engine($line, $sourceLang, $targetLang ?: '');
             $cz = $line;
         } else {
-            // Left = Czech translation, Right = original foreign line
             list($cz, $eng) = translate_text_with_engine($line, $sourceLang ?: 'auto', 'cs');
             $foreign = $line;
         }
-        if ($engineUsed === null) $engineUsed = $eng; // first successful engine used
+        if ($engineUsed === null) $engineUsed = $eng;
         $translated[] = ['cz' => $cz, 'foreign' => $foreign];
-
-        usleep(500000); // be gentle with free/limited APIs
+        usleep(500000);
     }
 
     if ($deletePdfPath && file_exists($deletePdfPath)) {
@@ -144,27 +144,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['text_lines'])) {
     }
 }
 
-// ---------------- Save table: LEFT = Czech, RIGHT = other language label ----------------
+/* ---------- Save: enforce username_ prefix ---------- */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['table_data'])) {
     $post_source = norm_lang($_POST['sourceLang'] ?? '');
     $post_target = norm_lang($_POST['targetLang'] ?? '');
+
     $col1 = 'Czech';
     $col2 = ($post_source === 'cs')
         ? ($langLabels[$post_target] ?? 'Foreign')
         : ($langLabels[$post_source] ?? 'Foreign');
 
-    $tableName = $_POST['new_table_name'] ?? '';
+    // Raw user input name (from preview form)
+    $rawInputName = $_POST['new_table_name'] ?? '';
+    $finalTableName = prefixed_table_name($username_raw, $rawInputName);
+
     $tableData = $_POST['table_data'];
     if (!is_array($tableData)) die("❌ Invalid table data format.");
 
-    // Use your DB creds from session.php / elsewhere
     $conn = new mysqli($host, $user, $password, $database);
     $conn->set_charset("utf8");
     if ($conn->connect_error) die("Connection failed: " . $conn->connect_error);
 
-    $safeTable = preg_replace('/[^a-zA-Z0-9_]/', '_', $tableName);
-    $col1_safe = preg_replace('/[^a-zA-Z0-9_]/', '_', $col1);
-    $col2_safe = preg_replace('/[^a-zA-Z0-9_]/', '_', $col2);
+    $safeTable = $finalTableName; // already sanitized + prefixed + length-capped
+    $col1_safe = sanitize_key_str($col1);
+    $col2_safe = sanitize_key_str($col2);
 
     $result = $conn->query("SHOW TABLES LIKE '$safeTable'");
     if ($result && $result->num_rows > 0) die("Table '$safeTable' already exists.");
@@ -186,11 +189,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['table_data'])) {
             $count++;
         }
     }
-
     $stmt->close();
     $conn->close();
 
-    echo "<p style='color: green;'>✅ Table '$safeTable' saved with $count rows.</p>";
+    echo "<p style='color: green;'>✅ Table '<strong>$safeTable</strong>' saved with $count rows.</p>";
     echo "<a href='main.php'>Return to Main</a>";
     exit;
 }
@@ -206,42 +208,43 @@ table { margin-top: 20px; border-collapse: collapse; width: 90%; margin: auto; }
 th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
 form { text-align: center; margin-top: 30px; }
 .engine-badge { margin-top: 8px; font-size: 0.95em; opacity: 0.8; }
+.hint { font-size: 0.9em; opacity: 0.85; }
 </style>
 <script>
-function breakSentences() {
-  const textarea = document.getElementById("text_lines");
-  let text = textarea.value;
-  text = text.replace(/\s+\n\s+|\n+/g, ' ');
-  text = text.replace(/([.!?:])\s+(?=[A-Z\xC0-\xFF])/g, "$1\n");
-  textarea.value = text;
-  autoResize(textarea);
+// Client-side mirror of sanitization to preview/check availability
+const USERNAME_PREFIX = "<?= addslashes($username_safe . '_') ?>";
+function sanitizeKeyStr(s) {
+  s = (s || '').toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/_+/g, '_');
+  return s.replace(/^_+|_+$/g, '');
 }
-function autoResize(textarea) {
-  textarea.style.height = 'auto';
-  textarea.style.overflow = 'hidden';
-  textarea.style.height = textarea.scrollHeight + 'px';
+function makeFinalName(input) {
+  const base = sanitizeKeyStr(input);
+  let finalName = base.startsWith(USERNAME_PREFIX) ? base : (USERNAME_PREFIX + base);
+  if (finalName.length > 64) finalName = finalName.substring(0, 64);
+  return finalName;
 }
-document.addEventListener("DOMContentLoaded", function () {
-  document.querySelectorAll("textarea").forEach(autoResize);
-  document.addEventListener("input", function (e) {
-    if (e.target && e.target.tagName === "TEXTAREA") autoResize(e.target);
-  });
-});
 function checkTableName() {
   const tableInput = document.getElementById("new_table_name");
   const warning = document.getElementById("tableWarning");
-  const tableName = tableInput.value.trim();
-  if (!tableName) {
+  const preview = document.getElementById("finalNamePreview");
+
+  const typed = tableInput.value.trim();
+  if (!typed) {
     warning.textContent = "⚠️ Please enter a table name.";
     warning.style.color = "red";
     warning.setAttribute("data-valid", "false");
+    preview.textContent = "";
     return;
   }
-  fetch("check_table_name.php?name=" + encodeURIComponent(tableName))
+
+  const finalName = makeFinalName(typed);
+  preview.textContent = "Will be saved as: " + finalName;
+
+  fetch("check_table_name.php?name=" + encodeURIComponent(finalName))
     .then(res => res.json())
     .then(data => {
       if (data.exists) {
-        warning.textContent = "❌ Table '" + tableName + "' already exists.";
+        warning.textContent = "❌ Table '" + finalName + "' already exists.";
         warning.style.color = "red";
         warning.setAttribute("data-valid", "false");
       } else {
@@ -265,25 +268,45 @@ function validateLangSelection(event) {
     event.preventDefault(); return false;
   }
   if (!tableOk) {
-    alert("❌ Table name is already used. Please choose another.");
+    alert("❌ Table name is already used (or not verified). Please choose another.");
     event.preventDefault(); return false;
   }
   return true;
 }
+function breakSentences() {
+  const textarea = document.getElementById("text_lines");
+  let text = textarea.value;
+  text = text.replace(/\s+\n\s+|\n+/g, ' ');
+  text = text.replace(/([.!?:])\s+(?=[A-Z\xC0-\xFF])/g, "$1\n");
+  textarea.value = text;
+  autoResize(textarea);
+}
+function autoResize(textarea) {
+  textarea.style.height = 'auto';
+  textarea.style.overflow = 'hidden';
+  textarea.style.height = textarea.scrollHeight + 'px';
+}
+document.addEventListener("DOMContentLoaded", function () {
+  document.querySelectorAll("textarea").forEach(autoResize);
+  document.addEventListener("input", function (e) {
+    if (e.target && e.target.tagName === "TEXTAREA") autoResize(e.target);
+  });
+});
 </script>
 </head>
 <body>
 <div class='content'>
-  👤 Logged in as <?= htmlspecialchars($_SESSION['username'] ?? '') ?> | <a href='logout.php'>Logout</a>
+  👤 Logged in as <?= htmlspecialchars($username_raw) ?> | <a href='logout.php'>Logout</a>
 </div>
 
 <h2>🌍 Translate Sentences to Table</h2>
 
 <form method="POST" onsubmit="return validateLangSelection(event)">
   <label>New Table Name:
-    <input type="text" name="new_table_name" id="new_table_name" value="<?= htmlspecialchars($tableName ?: 'translated_table') ?>" required oninput="checkTableName()">
+    <input type="text" name="new_table_name" id="new_table_name" value="<?= htmlspecialchars($tableNameInput ?: 'folder_table') ?>" required oninput="checkTableName()">
   </label>
-  <div id="tableWarning" data-valid="false" style="font-weight: bold; margin-bottom: 10px;"></div>
+  <div class="hint" id="finalNamePreview" style="margin-top:4px;"></div>
+  <div id="tableWarning" data-valid="false" style="font-weight: bold; margin: 8px 0 10px;"></div>
 
   <label>Paste or review lines:<br>
   <p>One translation request max 500 characters.</p></label><br>
@@ -353,7 +376,8 @@ function validateLangSelection(event) {
       </tbody>
     </table><br>
 
-    <input type="hidden" name="new_table_name" value="<?= htmlspecialchars($tableName) ?>">
+    <!-- Keep the raw name; server will prefix+sanitize on save -->
+    <input type="hidden" name="new_table_name" value="<?= htmlspecialchars($tableNameInput) ?>">
     <input type="hidden" name="sourceLang" value="<?= htmlspecialchars($sourceLang) ?>">
     <input type="hidden" name="targetLang" value="<?= htmlspecialchars($targetLang) ?>">
 
