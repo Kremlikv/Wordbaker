@@ -1,177 +1,34 @@
-V README uvádím poznámky k průběhu projektu a řešení nastalých problémů.
+*** 
+WordBaker is an online language app running at 
+https://kremlik.byethost15.com
+ 
+**** 
 
-**** ****
-
-MOBILE RESPONSIVE DESIGN
-Suitable for mobile phones as well as PC.
-
-TRANSLATOR 
-It translates your text and creates a table 
-with Czech column and foreign language column.
-
-PDF OCR
-It scans a PDF, cleans any garbled text with AI and sends it for translation.
-
-OPRAVY
-- Php soubor musí začínat <?php hned na prvním řádku bez mezery.
-- Include session musí být hned na začátku souboru.
-- Spojení s databází je lépe ošetřit pomocí odkazu na soubor db.php .
-a ne jako několika řádkový skript, co bych musel v každém souboru opakovat.
-- Při github zálohování se mi v byethost adresáři zjevuje dávno smazaný Flashcards.php
-A program se rozhodl používat tento neplatn soubor místo nového flashcards.php
-
-YAML 
-Yaml soubory obsahují přístupovéý klíč, takže umožňují Githubu stáhnout 
-data z mého webu i z databáze, vytvořit zálohu. A také mohou github-push commit protlačit na můj web.
-Aby se aktualizoval. Musí v yaml ale být nastavena správná branch (databázi mám v samosatné db branch)
-
-ALWAYS DATA MÁ DÁLKOVÉ SQL
-Free hosting jako byethost obvykle neumožňuje dálkový přístup k databázím. 
-Ale free databázové služby to umožňují, takže stačí propojit tyto dvě služby na dálku.
-To umožňuje na Githubu zálohovat i databáze.
-Na free databázový server mohu soubory nahrávat jen přes FileZillu (win program)
-Ve free databázové službě AlwaysData pak databázi prohlížím v phpadmin.
-
-TOKEN
-db_backup.yaml také vyžaduje, abych v nastavení projektu v githubu
-šel na: Settings → Actions → General... Scroll to Workflow permissions.
-Make sure this is selected: 🔘 Read and write permissions
-
-SECRETS
-Hesla v Githubu uložit v samostatném šuplíku,
-jinak neumožní zveřejnit adresář jako "veřejný".
-
-GITHUB ACTIONS 
-Na Githubu v sekci Actions vidím, zda se yaml skript zálohování obou věcí
-(databáze AlwaysData, php adresář na Byethost) podařilo... 
-
-EDITABLE TABLES  
-After revert we are back to editable tables where you can add a row.
-Or delete a row. And we still use ElevenLabs.
-
-DIRECTORIES AND FOLDERS
-On the main.php with rules like kremlik_prag_pulverturm.
-
-FREE AUDIO FROM GOOGLE TTS
-Required a full overhaul of the files. 31/7/25
-
-FREE
-Graduaally I switched to free sources. 
-a) Free AlwaysData hosting (allowign scripted backups in git).
-b) Free translation (mymemory).  .
-c) Free audio (google tts). 
-d) And also I replaced AI with a free version from OpenRouter.ai 
-e) And of couse free Byethost hosting.
-
-KAHOOT PREPARATION
-You can load a table and ask A.I. to generate false answers for a quiz.
-The AI suggested options can be edited.
-Then you can play a Kahoot quiz where you can choose from correct and false answers. 
-
-KAHOOT MUSIC
-Background music added to the game. It does not start automatically and is a toggle.
-
-KAHOOT MISTAKES
-The game ends showing score and also a list of mistakes. They are not stored.
-
-FLASHCARDS 
-Now the Mark Difficult system records also names of users and names of tables. 
-So in Flashcards you have the option to show only Difficult words for this table.
-
-STYLE OVERHAUL
-Index, register and login will have only "register" and "login" buttons visible.
-Nothing else in their menu. So they will have their own styling document.
-
-New - Upload, Pdf-to-text, Translate, Edit, Quizmaker,
-Study - Flashcards, Quiz, Difficult, Mastered
-
-CREATE TABLE
-Now user can create an empty table. Upload is a separate php. 
-In Edit.php you can delete the editable tables - and add new words.
-
-FILE EXPLORER
-We created a nicer file explorer.
-
-PIXABAY
-I got an API and now we can add images to the quiz.
-
-AI PROMPT
-The AI which generates quiz answers needs a lot of prompting in order not to generate nonsense.
-Still ot working properly.
-
-SAVE (6 August 2025)
-I spent a day trying to make "save" button in editable quiz table work. I had to divide it into 
-two files. Generate_quiz_choices generates preview and edit button takes you to editable/deletable page.
-From which you can move to picture selection.
-
-EMAIL
-At registration each user must provide an email address. It is stored in the user database.
-Now I can communicate with the users of my website.
-
-RED-GREEN
-Quiz highlights correct answers in red and wrong in red. Result of a day of editing!
-It required moving part of the logic to a separate file submit_answer.php
-
-LONG MP3 AND MP3 DELETE
-We fixed the problem with ssml audio generation for long files. And added option to delete MP3.
-So when you update your table, you can create a new audio.
-
-QUIZ  
-Quiz AI now works reasonably well. You can add pictures. You can select music. 
-When you play the game, the gamebox is at the top of page. It is mobile responsive.
-Users have time to view question and feedback. Feedback is red or green clicked-area.
-
-UPLOAD FORMAT 
-If you cannot format a cvs file properly to be readable for the machine, you an download a sample.
-
-SELF HOSTED AI
-The quiz detractors generation AI hits monthly usage limits and crates gibberish. 
-GPT5 suggested runing open-source AI model Ollama from my own server - virtual machine at Oracle.
-(Oracle: F1oor_, Zurych, name kremlik, kremlik@seznam.cz,credit card, always-free, mobilni app oveřeovací).
-
-FREEPD.COM/MUSIC
-Chatgpt5 dokázal na první pokus do play_quiz integrovat výběr hudby.
-Z freepd.cm/music 
-
-FILE EXPLORER IN PLAY_QUIZ 
-Chatgpt5 byl také schopen rychle dát hezký file explorer do play_quiz.
-Aniž by přestaly kvízy fungovat. A aniž by přestala fungovat PD hudba.
-
-FILE EXPLORER IN MAIN 
-Now able to show subfolders. Able to share-unshared, rename, edit, copy.
-main.php and file_explorer.php Even flashcards work with the new folders.
-
-FILE STRUCTURE
-
-config.php (gitignore)
-index,php
-main.php
-styling.php styling_welcome.php 
-upload_handler.php
-
-register.php  login.php  logout.php  session.php 
-
-db.php
-db_users.php 
-
-mark_difficult.php mastered.php review_difficult.php
-
-upload.php 
-create_table.php
-
-pdf_scan.php
-translator.php
-
-generate_quiz_choices.php  quiz_edit  add.images.php
-
-flashcards.php
-play_quiz.php 
-
-generate_tts_snippet.php
-generate_mp3_google_ssml.php
-
-update_table
-check_table_name
+Features:
+- Login (users provide mail so they can be contacted)
+- MP3 generation
+- Users can create their own quiz.
+- Quiz can have pictures (Pixabay) and music (FreePD.com)
+- AI creating distractors for a quiz automatically. 
+- Language Flashcards with bilingual audio
+- Difficult words and Mastered words can be viewed as separate lists.
+- User can create new tables or upload some from CSV files
+- CVS files must be: no BOM, utf8, first column Czech, second foreign (English, German)- sample file downloadable.
+- Ability to share folders with other users.
+- User can take a piece of text and transform it into dictionary-like study material.
+    - Users can scan PDF, aclean the scan with AI, have it translated and make a bilingual table.
+    - Users an paste in text, break it into clean sentences, have it translated and make a bilingual table.
+- The project uses only free resouces (AlwaysData, mymemory, byethost, Google Cloud TTS, OpenRouter.ai)
+- It is mobile responsive for smalls screens
+- The project was designed with the help of AI (ChatGPT5)
+- Its versions are backec up at Github.
+- I use a yaml script to udate the website from each commit.
+- I use a yaml script to make a backup of my database with each commit.
 
 
+Note:
+
+To function it requires some access keys (to a database, to AI). 
+These are stored either in config.php (not shared on github) or in github secrets vault.
+But you could make the project work from a different AI  and different database.
 
