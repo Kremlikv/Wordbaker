@@ -508,7 +508,7 @@ if ($selectedTable !== '') {
         echo "<div style='overflow-x:auto;'>";
         echo "<table border='1' style='width:100%; max-width:100%; border-collapse:collapse;'>";
         $ansHeader = htmlspecialchars($autoTargetLang ?: 'Answer');
-        echo "<tr><th>Delete</th><th>Czech (question)</th><th>{$ansHeader}</th></tr>";
+        echo "<tr><th>Delete</th><th>Czech</th><th>{$ansHeader}</th></tr>";
 
         foreach ($rows as $i => $r) {
             $q = htmlspecialchars($r['q'], ENT_QUOTES);
