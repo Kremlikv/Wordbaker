@@ -147,6 +147,106 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['folder_action'] ?? '') ===
 }
 
 
+// ---- SUBFOLDER ACTIONS ----
+// Helpers assumed available: safeTablePart(), tableExists()
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sub_action'])) {
+    $conn->set_charset('utf8mb4');
+
+    $username   = strtolower($_SESSION['username'] ?? '');
+    $root       = safeTablePart($_POST['root_folder'] ?? '');
+    $subpath    = preg_replace('/[^a-z0-9_]/i', '_', $_POST['subpath'] ?? ''); // allow underscores chain
+    $overwrite  = !empty($_POST['overwrite']);
+
+    if ($username === '' || $root === '' || $subpath === '') {
+        echo "<div class='content' style='color:#b91c1c;background:#fee2e2;border:1px solid #fecaca;padding:10px;border-radius:8px;margin:10px 0;'>Missing parameters.</div>";
+    } else {
+        $prefix = $username . '_' . $root . '_' . $subpath . '_'; // match all under this subpath
+        $pairs = []; $collisions = [];
+
+        $res = $conn->query("SHOW TABLES");
+        while ($res && ($row = $res->fetch_array())) {
+            $src = $row[0];
+            if (strpos($src, $prefix) === 0) {
+                $rest = substr($src, strlen($prefix)); // includes deeper subpaths + filename
+                if ($rest === '') continue;
+
+                $action = $_POST['sub_action'];
+                if ($action === 'share_subfolder') {
+                    $dst = "shared_{$root}_{$subpath}_{$rest}";
+                } elseif ($action === 'copy_subfolder_local') {
+                    $destFolder = safeTablePart($_POST['dest_folder'] ?? '');
+                    if ($destFolder === '') continue;
+                    $dst = "{$username}_{$destFolder}_{$subpath}_{$rest}";
+                } elseif ($action === 'rename_subfolder') {
+                    // Replace only the LAST segment of subpath
+                    $parts = explode('_', $subpath);
+                    $newName = safeTablePart($_POST['new_name'] ?? '');
+                    if ($newName === '') continue;
+                    $parts[count($parts)-1] = $newName;
+                    $newSub = implode('_', $parts);
+                    $dst = "{$username}_{$root}_{$newSub}_{$rest}";
+                } elseif ($action === 'delete_subfolder') {
+                    $dst = null; // handled separately
+                } else {
+                    $dst = null;
+                }
+
+                if ($dst !== null) {
+                    if (!$overwrite && tableExists($conn, $dst)) $collisions[] = $dst;
+                    else $pairs[] = ['src'=>$src, 'dst'=>$dst];
+                } else {
+                    // delete mode: collect to drop
+                    $pairs[] = ['src'=>$src, 'dst'=>null];
+                }
+            }
+        }
+
+        // Confirm text for delete
+        if (($_POST['sub_action'] ?? '') === 'delete_subfolder') {
+            $confirm = preg_replace('/[^a-z0-9_]/i', '_', $_POST['confirm_text'] ?? '');
+            if ($confirm !== $subpath) {
+                echo "<div class='content' style='color:#b91c1c;background:#fee2e2;border:1px solid #fecaca;padding:10px;border-radius:8px;margin:10px 0;'>".
+                     "Type the subfolder path (<code>".htmlspecialchars($subpath)."</code>) to confirm.</div>";
+                return;
+            }
+        }
+
+        if (!empty($collisions)) {
+            echo "<div class='content' style='color:#92400e;background:#fef3c7;border:1px solid #fde68a;padding:10px;border-radius:8px;margin:10px 0;'>".
+                 "Destination already exists:<br><code>".htmlspecialchars(implode(', ', $collisions))."</code><br>Enable <b>Overwrite</b> to replace.</div>";
+        } elseif (empty($pairs)) {
+            echo "<div class='content' style='color:#92400e;background:#fef3c7;border:1px solid #fde68a;padding:10px;border-radius:8px;margin:10px 0;'>".
+                 "No tables found under <code>".htmlspecialchars($root.' / '.$subpath)."</code>.</div>";
+        } else {
+            $action = $_POST['sub_action'];
+            if ($action === 'delete_subfolder') {
+                foreach ($pairs as $p) {
+                    $srcEsc = $conn->real_escape_string($p['src']);
+                    $conn->query("DROP TABLE `{$srcEsc}`");
+                    $audioPath = "cache/{$p['src']}.mp3";
+                    if (file_exists($audioPath)) @unlink($audioPath);
+                }
+                header("Location: " . $_SERVER['PHP_SELF']); exit;
+            } else {
+                foreach ($pairs as $p) {
+                    $srcEsc = $conn->real_escape_string($p['src']);
+                    $dstEsc = $conn->real_escape_string($p['dst']);
+                    if ($overwrite && tableExists($conn, $p['dst'])) { $conn->query("DROP TABLE `{$dstEsc}`"); }
+                    if (!$conn->query("CREATE TABLE `{$dstEsc}` LIKE `{$srcEsc}`")) {
+                        echo "<div class='content' style='color:#b91c1c;background:#fee2e2;border:1px solid #fecaca;padding:10px;border-radius:8px;margin:10px 0;'>".
+                             "CREATE LIKE failed for <code>".htmlspecialchars($p['dst'])."</code>: ".htmlspecialchars($conn->error)."</div>";
+                        continue;
+                    }
+                    $conn->query("INSERT INTO `{$dstEsc}` SELECT * FROM `{$srcEsc}`");
+                }
+                header("Location: " . $_SERVER['PHP_SELF']); exit;
+            }
+        }
+    }
+}
+
+
 // ---- Save As helpers ----
 function safeTablePart(string $s): string {
     $s = mb_strtolower($s, 'UTF-8');
