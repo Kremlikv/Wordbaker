@@ -44,6 +44,109 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_audio_file']))
     exit;
 }
 
+// ---- SHARE FOLDER: copy current user's <folder> to shared_<folder>_* ----
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['folder_action'] ?? '') === 'share_folder') {
+    $conn->set_charset('utf8mb4');
+    $username = strtolower($_SESSION['username'] ?? '');
+    $srcFolder = safeTablePart($_POST['folder_old'] ?? '');
+    $overwrite = !empty($_POST['overwrite']);
+
+    if ($username === '' || $srcFolder === '') {
+        echo "<div class='content' style='color:#b91c1c;background:#fee2e2;border:1px solid #fecaca;padding:10px;border-radius:8px;margin:10px 0;'>Missing user or folder.</div>";
+    } else {
+        $pairs = []; $collisions = [];
+        $res = $conn->query("SHOW TABLES");
+        while ($res && ($row = $res->fetch_array())) {
+            $t = $row[0];
+            if (stripos($t, $username . '_') === 0) {
+                $suffix = substr($t, strlen($username) + 1); // folder_rest
+                $parts  = explode('_', $suffix, 2);
+                if (count($parts) === 2 && $parts[0] === $srcFolder) {
+                    $rest = $parts[1];
+                    $dst  = "shared_{$srcFolder}_{$rest}";
+                    if (!$overwrite && tableExists($conn, $dst)) { $collisions[] = $dst; }
+                    else { $pairs[] = ['src'=>$t,'dst'=>$dst]; }
+                }
+            }
+        }
+        if (!empty($collisions)) {
+            echo "<div class='content' style='color:#92400e;background:#fef3c7;border:1px solid #fde68a;padding:10px;border-radius:8px;margin:10px 0;'>
+                    Cannot share; destination exists:<br><code>".htmlspecialchars(implode(', ', $collisions))."</code>
+                  </div>";
+        } elseif (empty($pairs)) {
+            echo "<div class='content' style='color:#92400e;background:#fef3c7;border:1px solid #fde68a;padding:10px;border-radius:8px;margin:10px 0;'>
+                    No tables found in folder <code>".htmlspecialchars($srcFolder)."</code>.
+                  </div>";
+        } else {
+            foreach ($pairs as $p) {
+                $srcEsc = $conn->real_escape_string($p['src']);
+                $dstEsc = $conn->real_escape_string($p['dst']);
+                if ($overwrite && tableExists($conn, $p['dst'])) { $conn->query("DROP TABLE `{$dstEsc}`"); }
+                if (!$conn->query("CREATE TABLE `{$dstEsc}` LIKE `{$srcEsc}`")) {
+                    echo "<div class='content' style='color:#b91c1c;background:#fee2e2;border:1px solid #fecaca;padding:10px;border-radius:8px;margin:10px 0;'>".
+                         "CREATE LIKE failed for <code>".htmlspecialchars($p['dst'])."</code>: ".htmlspecialchars($conn->error)."</div>";
+                    continue;
+                }
+                $conn->query("INSERT INTO `{$dstEsc}` SELECT * FROM `{$srcEsc}`");
+            }
+            header("Location: " . $_SERVER['PHP_SELF']); exit;
+        }
+    }
+}
+
+// ---- COPY FOLDER (same user): copy <user>_<srcFolder>_* → <user>_<destFolder>_* ----
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['folder_action'] ?? '') === 'copy_folder_local') {
+    $conn->set_charset('utf8mb4');
+    $username   = strtolower($_SESSION['username'] ?? '');
+    $srcFolder  = safeTablePart($_POST['folder_old'] ?? '');
+    $destFolder = safeTablePart($_POST['dest_folder'] ?? '');
+    $overwrite  = !empty($_POST['overwrite']);
+
+    if ($username === '' || $srcFolder === '' || $destFolder === '') {
+        echo "<div class='content' style='color:#b91c1c;background:#fee2e2;border:1px solid #fecaca;padding:10px;border-radius:8px;margin:10px 0;'>Missing parameters.</div>";
+    } else {
+        $pairs = []; $collisions = [];
+        $prefix = $username . '_';
+        $res = $conn->query("SHOW TABLES");
+        while ($res && ($row = $res->fetch_array())) {
+            $t = $row[0];
+            if (stripos($t, $prefix) === 0) {
+                $suffix = substr($t, strlen($prefix)); // folder_rest
+                $parts  = explode('_', $suffix, 2);
+                if (count($parts) === 2 && $parts[0] === $srcFolder) {
+                    $rest = $parts[1];
+                    $dst  = "{$username}_{$destFolder}_{$rest}";
+                    if (!$overwrite && tableExists($conn, $dst)) { $collisions[] = $dst; }
+                    else { $pairs[] = ['src'=>$t,'dst'=>$dst]; }
+                }
+            }
+        }
+        if (!empty($collisions)) {
+            echo "<div class='content' style='color:#92400e;background:#fef3c7;border:1px solid #fde68a;padding:10px;border-radius:8px;margin:10px 0;'>
+                    Cannot copy; destination exists:<br><code>".htmlspecialchars(implode(', ', $collisions))."</code>
+                  </div>";
+        } elseif (empty($pairs)) {
+            echo "<div class='content' style='color:#92400e;background:#fef3c7;border:1px solid #fde68a;padding:10px;border-radius:8px;margin:10px 0;'>
+                    No tables found in folder <code>".htmlspecialchars($srcFolder)."</code>.
+                  </div>";
+        } else {
+            foreach ($pairs as $p) {
+                $srcEsc = $conn->real_escape_string($p['src']);
+                $dstEsc = $conn->real_escape_string($p['dst']);
+                if ($overwrite && tableExists($conn, $p['dst'])) { $conn->query("DROP TABLE `{$dstEsc}`"); }
+                if (!$conn->query("CREATE TABLE `{$dstEsc}` LIKE `{$srcEsc}`")) {
+                    echo "<div class='content' style='color:#b91c1c;background:#fee2e2;border:1px solid #fecaca;padding:10px;border-radius:8px;margin:10px 0;'>".
+                         "CREATE LIKE failed for <code>".htmlspecialchars($p['dst'])."</code>: ".htmlspecialchars($conn->error)."</div>";
+                    continue;
+                }
+                $conn->query("INSERT INTO `{$dstEsc}` SELECT * FROM `{$srcEsc}`");
+            }
+            header("Location: " . $_SERVER['PHP_SELF']); exit;
+        }
+    }
+}
+
+
 // ---- Save As helpers ----
 function safeTablePart(string $s): string {
     $s = mb_strtolower($s, 'UTF-8');
@@ -236,19 +339,20 @@ function getUserFoldersAndTables($conn, $username) {
             $parts = explode('_', $suffix, 2);
             $folder = (count($parts) === 2 && trim($parts[0]) !== '') ? $parts[0] : 'Uncategorized';
             $file   = (count($parts) === 2) ? $parts[1] : $suffix;
-            $allTables[$folder][] = ['table_name' => $table, 'display_name' => $file];
+            $allTables[$folder][] = ['table_name'=>$table, 'display_name'=>$file];
         }
         // globally shared: "shared_*"
         if (stripos($table, 'shared_') === 0) {
-            $suffix = substr($table, strlen('shared_'));
+            $suffix = substr($table, 7); // after 'shared_'
             $suffix = preg_replace('/_+/', '_', $suffix);
             $parts = explode('_', $suffix, 2);
             $disp  = (count($parts) === 2) ? ($parts[0] . '_' . $parts[1]) : $suffix;
-            $allTables['Shared'][] = ['table_name' => $table, 'display_name' => $disp];
+            $allTables['Shared'][] = ['table_name'=>$table, 'display_name'=>$disp];
         }
     }
     return $allTables;
 }
+
 
 
 $username = strtolower($_SESSION['username'] ?? '');
