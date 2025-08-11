@@ -327,10 +327,11 @@ $banner_parts[] = 'Model: <code>'.htmlspecialchars($MODEL).'</code>';
 $banner_parts[] = 'Daily: used '.intval($DAILY_USED).' / '.intval($DAILY_LIMIT).' (left '.intval(max(0,$DAILY_LIMIT-$DAILY_USED)).')';
 // echo "<div class='content' style='background:#f1f5f9; text-align:center;border:1px solid #e2e8f0;padding:10px 12px;border-radius:8px;margin:10px 0;'>".implode(' · ', $banner_parts)."</div>";
 
-echo "<div class='content' style='display:flex;justify-content:center;align-items:center;gap:6px;
-background:#f1f5f9;border:1px solid #e2e8f0;padding:10px 12px;border-radius:8px;margin:10px 0;'>"
+echo "<div style='max-width:800px;margin:10px auto;text-align:center;
+background:#f1f5f9;border:1px solid #e2e8f0;padding:10px 12px;border-radius:8px;'>"
      . implode(' · ', $banner_parts) .
      "</div>";
+
 
 
 // ====== File Explorer (uses $folderData) ======
