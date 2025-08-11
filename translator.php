@@ -1,28 +1,15 @@
 <?php
 require_once 'session.php';
+require_once 'config.php'; // must define $GOOGLE_API_KEY and optionally $LIBRETRANSLATE_URL
 include 'styling.php';
-
-/**
- * =========================
- *  CONFIG (edit as needed)
- * =========================
- * If you set GOOGLE_API_KEY, we’ll use Google first (most literal and reliable).
- * Else if you set LIBRETRANSLATE_URL, we’ll use LibreTranslate (free instances vary).
- * Otherwise we fall back to MyMemory (may be “creative”).
- */
-const GOOGLE_API_KEY = ''; // e.g. 'AIza...'; leave '' to disable
-const LIBRETRANSLATE_URL = ''; // e.g. 'https://libretranslate.com/translate'; leave '' to disable
-
-// ---------------------
 
 $text_lines = '';
 $lines = [];
 $translated = [];
 $sourceLang = $_POST['sourceLang'] ?? '';
 $targetLang = $_POST['targetLang'] ?? '';
-$engine = $_POST['engine'] ?? ''; // optional UI in future; autodetect below
 
-// Normalize non-ISO codes used in older UI ('sp' -> 'es')
+// Normalize language codes (UI 'sp' → ISO 'es')
 function norm_lang($code) {
     $map = ['sp' => 'es'];
     return $map[$code] ?? $code;
@@ -30,7 +17,6 @@ function norm_lang($code) {
 $sourceLang = norm_lang($sourceLang);
 $targetLang = norm_lang($targetLang);
 
-// Labels for UI
 $langLabels = [
     'en' => 'English',
     'de' => 'German',
@@ -42,39 +28,13 @@ $langLabels = [
     '' => 'Foreign'
 ];
 
-// Labels (used for right column header only; left is always Czech)
 $sourceLabel = $langLabels[$sourceLang] ?? 'Foreign';
 $targetLabel = $langLabels[$targetLang] ?? 'Czech';
 
-// DB/table params
 $tableName = $_POST['new_table_name'] ?? '';
 $deletePdfPath = $_POST['delete_pdf_path'] ?? '';
 
-/**
- * Prefix table/file names with the logged-in username (once) and sanitize.
- * Ensures final name looks like: username_rawname, max 64 chars for MySQL table.
- */
-function build_user_prefixed_name(string $name, string $username): string {
-    // sanitize username (letters+digits only; lowercased)
-    $user = strtolower(preg_replace('/[^a-zA-Z0-9]/', '', (string)$username));
-    if ($user === '') $user = 'user';
-
-    // sanitize requested name (letters, digits, underscores)
-    $name = trim($name);
-    $name = preg_replace('/[^a-zA-Z0-9_]/', '_', $name);
-    $name = preg_replace('/_+/', '_', $name); // collapse multiple underscores
-
-    // ensure single user_ prefix
-    $prefix = $user . '_';
-    if (stripos($name, $prefix) !== 0) {
-        $name = $prefix . $name;
-    }
-
-    // MySQL table name limit is 64 chars
-    return substr($name, 0, 64);
-}
-
-// ---------- HTTP helpers ----------
+// HTTP helpers
 function http_post_json($url, $payloadArr, $headers = []) {
     $options = [
         'http' => [
@@ -84,61 +44,44 @@ function http_post_json($url, $payloadArr, $headers = []) {
             'timeout' => 20
         ]
     ];
-    $context = stream_context_create($options);
-    return @file_get_contents($url, false, $context);
+    return @file_get_contents($url, false, stream_context_create($options));
 }
 
-function http_get($url, $headers = []) {
-    $options = [
-        'http' => [
-            'method'  => 'GET',
-            'header'  => implode("\r\n", $headers),
-            'timeout' => 20
-        ]
-    ];
-    $context = stream_context_create($options);
-    return @file_get_contents($url, false, $context);
-}
-
-// ---------- Translators ----------
+// Translation engines
 function translate_google($text, $source, $target) {
-    // Google v2 REST; if $source === 'auto' or '', we let Google auto-detect by omitting 'source'
-    if (!GOOGLE_API_KEY) return null;
+    global $GOOGLE_API_KEY;
+    if (empty($GOOGLE_API_KEY)) return null;
     $params = [
         'q'      => $text,
         'target' => $target ?: 'cs',
         'format' => 'text',
-        'key'    => GOOGLE_API_KEY
+        'key'    => $GOOGLE_API_KEY
     ];
     if ($source && $source !== 'auto') {
         $params['source'] = $source;
     }
-    $url = 'https://translation.googleapis.com/language/translate/v2';
-    $resp = http_post_json($url, $params);
+    $resp = http_post_json('https://translation.googleapis.com/language/translate/v2', $params);
     if (!$resp) return null;
     $data = json_decode($resp, true);
     return $data['data']['translations'][0]['translatedText'] ?? null;
 }
 
 function translate_libre($text, $source, $target) {
-    if (!LIBRETRANSLATE_URL) return null;
-    // LibreTranslate expects ISO codes; 'auto' is usually 'auto'
+    global $LIBRETRANSLATE_URL;
+    if (empty($LIBRETRANSLATE_URL)) return null;
     $payload = [
         'q' => $text,
         'source' => ($source && $source !== 'auto') ? $source : 'auto',
         'target' => $target ?: 'cs',
         'format' => 'text'
     ];
-    $resp = http_post_json(LIBRETRANSLATE_URL, $payload);
+    $resp = http_post_json($LIBRETRANSLATE_URL, $payload);
     if (!$resp) return null;
     $data = json_decode($resp, true);
-    // Some instances return { translatedText: "..." }, others array/other shape
-    if (is_array($data) && isset($data['translatedText'])) return $data['translatedText'];
-    return null;
+    return $data['translatedText'] ?? null;
 }
 
 function translate_mymemory($text, $source, $target) {
-    // MyMemory may be "creative"; still useful as last fallback
     $src = $source ?: 'auto';
     $tgt = $target ?: 'cs';
     $url = "https://api.mymemory.translated.net/get?q=" . urlencode($text) . "&langpair={$src}|{$tgt}";
@@ -149,7 +92,6 @@ function translate_mymemory($text, $source, $target) {
 }
 
 function translate_text($text, $source, $target) {
-    // Priority: Google -> Libre -> MyMemory
     $out = translate_google($text, $source, $target);
     if ($out !== null && $out !== '') return $out;
 
@@ -162,27 +104,23 @@ function translate_text($text, $source, $target) {
     return '[Translation failed]';
 }
 
-// ---------- Build rows: always Czech on the LEFT ----------
+// Translation request
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['text_lines'])) {
     $text_lines = trim($_POST['text_lines']);
-    // Merge lines, split into sentences
     $mergedText = preg_replace("/\s+\n\s+|\n+/", ' ', $text_lines);
     $sentences = preg_split('/(?<=[.!?:])\s+(?=[A-Z\xC0-\xFF])/', $mergedText);
     $lines = array_filter(array_map('trim', $sentences));
 
     foreach ($lines as $line) {
         if ($sourceLang === 'cs') {
-            // Czech is source: left = original Czech, right = foreign translation
             $foreign = translate_text($line, $sourceLang, $targetLang ?: '');
             $cz = $line;
         } else {
-            // Czech is NOT source: left = Czech translation, right = original foreign
-            // Force target to 'cs' for left column
             $cz = translate_text($line, $sourceLang ?: 'auto', 'cs');
             $foreign = $line;
         }
         $translated[] = ['cz' => $cz, 'foreign' => $foreign];
-        usleep(500000); // be gentle with free APIs
+        usleep(500000);
     }
 
     if ($deletePdfPath && file_exists($deletePdfPath)) {
@@ -190,49 +128,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['text_lines'])) {
     }
 }
 
-// ---------- Save table: LEFT = Czech, RIGHT = other language label ----------
+// Save table
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['table_data'])) {
-    // We recompute labels here to avoid trusting hidden inputs
     $post_source = norm_lang($_POST['sourceLang'] ?? '');
     $post_target = norm_lang($_POST['targetLang'] ?? '');
-    $langLabelsLocal = [
-        'en' => 'English','de' => 'German','fr' => 'French','it' => 'Italian','es' => 'Spanish','cs' => 'Czech','auto' => 'Auto Detect','' => 'Foreign'
-    ];
-
     $col1 = 'Czech';
-    // If user translated from Czech to X, right column is X; else it's source language
     $col2 = ($post_source === 'cs')
-        ? ($langLabelsLocal[$post_target] ?? 'Foreign')
-        : ($langLabelsLocal[$post_source] ?? 'Foreign');
+        ? ($langLabels[$post_target] ?? 'Foreign')
+        : ($langLabels[$post_source] ?? 'Foreign');
 
     $tableName = $_POST['new_table_name'] ?? '';
     $tableData = $_POST['table_data'];
     if (!is_array($tableData)) die("❌ Invalid table data format.");
 
-    // $conn = new mysqli('sql113.byethost15.com', 'b15_39452825', '5761VkRpAk', 'b15_39452825_KremlikDatabase01');
     $conn = new mysqli($host, $user, $password, $database);
     $conn->set_charset("utf8");
     if ($conn->connect_error) die("Connection failed: " . $conn->connect_error);
 
-    // Build username-prefixed, sanitized final table name
-    $finalTable = build_user_prefixed_name($tableName, $_SESSION['username']);
-
-    // Sanitize columns
+    $safeTable = preg_replace('/[^a-zA-Z0-9_]/', '_', $tableName);
     $col1_safe = preg_replace('/[^a-zA-Z0-9_]/', '_', $col1);
     $col2_safe = preg_replace('/[^a-zA-Z0-9_]/', '_', $col2);
 
-    // Check existence & create table
-    $esc = $conn->real_escape_string($finalTable);
-    $result = $conn->query("SHOW TABLES LIKE '$esc'");
-    if ($result && $result->num_rows > 0) die("Table '$finalTable' already exists.");
+    $result = $conn->query("SHOW TABLES LIKE '$safeTable'");
+    if ($result && $result->num_rows > 0) die("Table '$safeTable' already exists.");
 
-    $create_sql = "CREATE TABLE `$finalTable` (
+    $create_sql = "CREATE TABLE `$safeTable` (
         `$col1_safe` VARCHAR(255) NOT NULL,
         `$col2_safe` VARCHAR(255) NOT NULL
     ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci";
     if (!$conn->query($create_sql)) die("Create failed: " . $conn->error);
 
-    $stmt = $conn->prepare("INSERT INTO `$finalTable` (`$col1_safe`, `$col2_safe`) VALUES (?, ?)");
+    $stmt = $conn->prepare("INSERT INTO `$safeTable` (`$col1_safe`, `$col2_safe`) VALUES (?, ?)");
     $count = 0;
     foreach ($tableData as $row) {
         $cz = trim($row['cz'] ?? '');
@@ -247,7 +173,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['table_data'])) {
     $stmt->close();
     $conn->close();
 
-    echo "<p style='color: green;'>✅ Table '$finalTable' saved with $count rows.</p>";
+    echo "<p style='color: green;'>✅ Table '$safeTable' saved with $count rows.</p>";
     echo "<a href='main.php'>Return to Main</a>";
     exit;
 }
@@ -255,184 +181,162 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['table_data'])) {
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Translate and Import Table</title>
-  <style>
-    textarea { width: 90%; font-size: 1em; margin-top: 10px; overflow: hidden; resize: vertical; }
-    table { margin-top: 20px; border-collapse: collapse; width: 90%; margin: auto; }
-    th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
-    form { text-align: center; margin-top: 30px; }
-    .engine-badge { margin-top: 8px; font-size: 0.95em; opacity: 0.8; }
-  </style>
-  <script>
-    function breakSentences() {
-      const textarea = document.getElementById("text_lines");
-      let text = textarea.value;
-      text = text.replace(/\s+\n\s+|\n+/g, ' ');
-      text = text.replace(/([.!?:])\s+(?=[A-Z\xC0-\xFF])/g, "$1\n");
-      textarea.value = text;
-      autoResize(textarea);
-    }
-    function autoResize(textarea) {
-      textarea.style.height = 'auto';
-      textarea.style.overflow = 'hidden';
-      textarea.style.height = textarea.scrollHeight + 'px';
-    }
-    document.addEventListener("DOMContentLoaded", function () {
-      document.querySelectorAll("textarea").forEach(autoResize);
-      document.addEventListener("input", function (e) {
-        if (e.target && e.target.tagName === "TEXTAREA") autoResize(e.target);
-      });
-    });
-    function checkTableName() {
-      const tableInput = document.getElementById("new_table_name");
-      const warning = document.getElementById("tableWarning");
-      const tableName = tableInput.value.trim();
-      if (!tableName) {
-        warning.textContent = "⚠️ Please enter a table name.";
+<meta charset="UTF-8">
+<title>Translate and Import Table</title>
+<style>
+textarea { width: 90%; font-size: 1em; margin-top: 10px; overflow: hidden; resize: vertical; }
+table { margin-top: 20px; border-collapse: collapse; width: 90%; margin: auto; }
+th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+form { text-align: center; margin-top: 30px; }
+.engine-badge { margin-top: 8px; font-size: 0.95em; opacity: 0.8; }
+</style>
+<script>
+function breakSentences() {
+  const textarea = document.getElementById("text_lines");
+  let text = textarea.value;
+  text = text.replace(/\s+\n\s+|\n+/g, ' ');
+  text = text.replace(/([.!?:])\s+(?=[A-Z\xC0-\xFF])/g, "$1\n");
+  textarea.value = text;
+  autoResize(textarea);
+}
+function autoResize(textarea) {
+  textarea.style.height = 'auto';
+  textarea.style.overflow = 'hidden';
+  textarea.style.height = textarea.scrollHeight + 'px';
+}
+document.addEventListener("DOMContentLoaded", function () {
+  document.querySelectorAll("textarea").forEach(autoResize);
+  document.addEventListener("input", function (e) {
+    if (e.target && e.target.tagName === "TEXTAREA") autoResize(e.target);
+  });
+});
+function checkTableName() {
+  const tableInput = document.getElementById("new_table_name");
+  const warning = document.getElementById("tableWarning");
+  const tableName = tableInput.value.trim();
+  if (!tableName) {
+    warning.textContent = "⚠️ Please enter a table name.";
+    warning.style.color = "red";
+    warning.setAttribute("data-valid", "false");
+    return;
+  }
+  fetch("check_table_name.php?name=" + encodeURIComponent(tableName))
+    .then(res => res.json())
+    .then(data => {
+      if (data.exists) {
+        warning.textContent = "❌ Table '" + tableName + "' already exists.";
         warning.style.color = "red";
         warning.setAttribute("data-valid", "false");
-        return;
+      } else {
+        warning.textContent = "✅ Table name is available.";
+        warning.style.color = "green";
+        warning.setAttribute("data-valid", "true");
       }
-      fetch("check_table_name.php?name=" + encodeURIComponent(tableName))
-        .then(res => res.json())
-        .then(data => {
-          const finalName = data.final || tableName; // if API returns resolved name, show it
-          if (data.exists) {
-            warning.textContent = "❌ Table '" + finalName + "' already exists.";
-            warning.style.color = "red";
-            warning.setAttribute("data-valid", "false");
-          } else {
-            warning.textContent = "✅ Will be saved as: " + finalName;
-            warning.style.color = "green";
-            warning.setAttribute("data-valid", "true");
-          }
-        })
-        .catch(() => {
-          warning.textContent = "⚠️ Could not verify table name.";
-          warning.style.color = "orange";
-          warning.setAttribute("data-valid", "false");
-        });
-    }
-    function validateLangSelection(event) {
-      const source = document.getElementById("sourceLang").value;
-      const target = document.getElementById("targetLang").value;
-      const tableOk = document.getElementById("tableWarning").getAttribute("data-valid") === "true";
-      if (!source || !target) {
-        alert("⚠️ Please select both source and target languages.");
-        event.preventDefault(); return false;
-      }
-      if (!tableOk) {
-        alert("❌ Table name is already used. Please choose another.");
-        event.preventDefault(); return false;
-      }
-      return true;
-    }
-  </script>
+    })
+    .catch(() => {
+      warning.textContent = "⚠️ Could not verify table name.";
+      warning.style.color = "orange";
+      warning.setAttribute("data-valid", "false");
+    });
+}
+function validateLangSelection(event) {
+  const source = document.getElementById("sourceLang").value;
+  const target = document.getElementById("targetLang").value;
+  const tableOk = document.getElementById("tableWarning").getAttribute("data-valid") === "true";
+  if (!source || !target) {
+    alert("⚠️ Please select both source and target languages.");
+    event.preventDefault(); return false;
+  }
+  if (!tableOk) {
+    alert("❌ Table name is already used. Please choose another.");
+    event.preventDefault(); return false;
+  }
+  return true;
+}
+</script>
 </head>
 <body>
-
-<?php
-echo "<div class='content'>";
-echo "👤 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Logout</a>";
-?>
-
+<div class='content'>
+👤 Logged in as <?= $_SESSION['username'] ?> | <a href='logout.php'>Logout</a>
+</div>
 <h2>🌍 Translate Sentences to Table</h2>
 
 <form method="POST" onsubmit="return validateLangSelection(event)">
   <label>New Table Name:
-    <input type="text" name="new_table_name" id="new_table_name" value="<?php echo htmlspecialchars($tableName ?: 'translated_table'); ?>" required oninput="checkTableName()">
+    <input type="text" name="new_table_name" id="new_table_name" value="<?= htmlspecialchars($tableName ?: 'translated_table') ?>" required oninput="checkTableName()">
   </label>
   <div id="tableWarning" data-valid="false" style="font-weight: bold; margin-bottom: 10px;"></div>
 
   <label>Paste or review lines:<br>
-  <p>One translation request max 500 characters.</label><br>
-    <textarea name="text_lines" id="text_lines" rows="10"><?php echo htmlspecialchars($text_lines); ?></textarea>
-  </label><br>
+  <p>One translation request max 500 characters.</p></label><br>
+  <textarea name="text_lines" id="text_lines" rows="10"><?= htmlspecialchars($text_lines) ?></textarea><br>
   <button type="button" onclick="breakSentences()">✂️ Break into Sentences</button><br><br>
 
   <label>Source Language:
     <select name="sourceLang" id="sourceLang">
       <option value="" disabled selected>Select source language</option>
-      <option value="auto" <?= ($sourceLang === 'auto') ? 'selected' : '' ?>>Auto Detect</option>
-      <option value="en" <?= ($sourceLang === 'en') ? 'selected' : '' ?>>English</option>
-      <option value="de" <?= ($sourceLang === 'de') ? 'selected' : '' ?>>German</option>
-      <option value="fr" <?= ($sourceLang === 'fr') ? 'selected' : '' ?>>French</option>
-      <option value="it" <?= ($sourceLang === 'it') ? 'selected' : '' ?>>Italian</option>
-      <option value="es" <?= ($sourceLang === 'es') ? 'selected' : '' ?>>Spanish</option>
-      <option value="cs" <?= ($sourceLang === 'cs') ? 'selected' : '' ?>>Czech</option>
+      <option value="auto" <?= $sourceLang === 'auto' ? 'selected' : '' ?>>Auto Detect</option>
+      <option value="en" <?= $sourceLang === 'en' ? 'selected' : '' ?>>English</option>
+      <option value="de" <?= $sourceLang === 'de' ? 'selected' : '' ?>>German</option>
+      <option value="fr" <?= $sourceLang === 'fr' ? 'selected' : '' ?>>French</option>
+      <option value="it" <?= $sourceLang === 'it' ? 'selected' : '' ?>>Italian</option>
+      <option value="es" <?= $sourceLang === 'es' ? 'selected' : '' ?>>Spanish</option>
+      <option value="cs" <?= $sourceLang === 'cs' ? 'selected' : '' ?>>Czech</option>
     </select>
   </label>
 
   <label>Target Language:
     <select name="targetLang" id="targetLang">
       <option value="" disabled selected>Select target language</option>
-      <option value="cs" <?= ($targetLang === 'cs') ? 'selected' : '' ?>>Czech</option>
-      <option value="en" <?= ($targetLang === 'en') ? 'selected' : '' ?>>English</option>
-      <option value="de" <?= ($targetLang === 'de') ? 'selected' : '' ?>>German</option>
-      <option value="fr" <?= ($targetLang === 'fr') ? 'selected' : '' ?>>French</option>
-      <option value="it" <?= ($targetLang === 'it') ? 'selected' : '' ?>>Italian</option>
-      <option value="es" <?= ($targetLang === 'es') ? 'selected' : '' ?>>Spanish</option>
-      <option value="cs" <?= ($targetLang === 'cs') ? 'selected' : '' ?>>Czech</option>
+      <option value="cs" <?= $targetLang === 'cs' ? 'selected' : '' ?>>Czech</option>
+      <option value="en" <?= $targetLang === 'en' ? 'selected' : '' ?>>English</option>
+      <option value="de" <?= $targetLang === 'de' ? 'selected' : '' ?>>German</option>
+      <option value="fr" <?= $targetLang === 'fr' ? 'selected' : '' ?>>French</option>
+      <option value="it" <?= $targetLang === 'it' ? 'selected' : '' ?>>Italian</option>
+      <option value="es" <?= $targetLang === 'es' ? 'selected' : '' ?>>Spanish</option>
+      <option value="cs" <?= $targetLang === 'cs' ? 'selected' : '' ?>>Czech</option>
     </select>
   </label><br><br>
 
   <div class="engine-badge">
     <?php
-      if (GOOGLE_API_KEY)       echo "Using: Google Cloud Translation API";
-      elseif (LIBRETRANSLATE_URL) echo "Using: LibreTranslate";
-      else                        echo "Using: MyMemory (free; may be creative)";
+      if (!empty($GOOGLE_API_KEY))       echo "Using: Google Cloud Translation API";
+      elseif (!empty($LIBRETRANSLATE_URL)) echo "Using: LibreTranslate";
+      else                                 echo "Using: MyMemory (free; may be creative)";
     ?>
   </div>
 
-  <!-- Hidden labels kept for compatibility (not trusted for DB save) -->
-  <input type="hidden" name="source_lang_label" value="<?= htmlspecialchars($sourceLabel) ?>">
-  <input type="hidden" name="target_lang_label" value="<?= htmlspecialchars($targetLabel) ?>">
   <input type="hidden" name="delete_pdf_path" value="<?= htmlspecialchars($deletePdfPath) ?>">
 
   <button type="submit">🌐 Translate</button>
-  <label style="opacity:0.7;">Engines: Google / Libre / MyMemory</label><br><br>
 </form>
 
 <?php if (!empty($translated)): ?>
-  <form method="POST">
-    <h3>Translated Preview</h3>
-    <?php
-      // Show how the table will actually be saved (with username prefix)
-      $resolvedName = build_user_prefixed_name($tableName ?: 'translated_table', $_SESSION['username']);
-      echo "<p style='opacity:.8;margin-top:8px;'>Will be saved as: <code>" . htmlspecialchars($resolvedName) . "</code></p>";
-    ?>
-    <table>
-      <thead>
+<form method="POST">
+  <h3>Translated Preview</h3>
+  <table>
+    <thead>
+      <tr>
+        <th>Czech</th>
+        <th><?= htmlspecialchars(($sourceLang === 'cs') ? ($langLabels[$targetLang] ?? 'Foreign') : ($langLabels[$sourceLang] ?? 'Foreign')) ?></th>
+      </tr>
+    </thead>
+    <tbody>
+      <?php foreach ($translated as $index => $pair): ?>
         <tr>
-          <th>Czech</th>
-          <th>
-            <?php
-              // Right column label: if source was Czech, show target; else show source
-              $rightLabel = ($sourceLang === 'cs') ? ($langLabels[$targetLang] ?? 'Foreign') : ($langLabels[$sourceLang] ?? 'Foreign');
-              echo htmlspecialchars($rightLabel);
-            ?>
-          </th>
+          <td><input type="text" name="table_data[<?= $index ?>][cz]" value="<?= htmlspecialchars($pair['cz']) ?>" style="width: 100%;"></td>
+          <td><input type="text" name="table_data[<?= $index ?>][foreign]" value="<?= htmlspecialchars($pair['foreign']) ?>" style="width: 100%;"></td>
         </tr>
-      </thead>
-      <tbody>
-        <?php foreach ($translated as $index => $pair): ?>
-          <tr>
-            <td><input type="text" name="table_data[<?= $index ?>][cz]" value="<?= htmlspecialchars($pair['cz']) ?>" style="width: 100%;"></td>
-            <td><input type="text" name="table_data[<?= $index ?>][foreign]" value="<?= htmlspecialchars($pair['foreign']) ?>" style="width: 100%;"></td>
-          </tr>
-        <?php endforeach; ?>
-      </tbody>
-    </table><br>
+      <?php endforeach; ?>
+    </tbody>
+  </table><br>
 
-    <!-- Keep essentials for save -->
-    <input type="hidden" name="new_table_name" value="<?= htmlspecialchars($tableName) ?>">
-    <input type="hidden" name="sourceLang" value="<?= htmlspecialchars($sourceLang) ?>">
-    <input type="hidden" name="targetLang" value="<?= htmlspecialchars($targetLang) ?>">
+  <input type="hidden" name="new_table_name" value="<?= htmlspecialchars($tableName) ?>">
+  <input type="hidden" name="sourceLang" value="<?= htmlspecialchars($sourceLang) ?>">
+  <input type="hidden" name="targetLang" value="<?= htmlspecialchars($targetLang) ?>">
 
-    <button type="submit">💾 Save Table to Database</button>
-  </form>
+  <button type="submit">💾 Save Table to Database</button>
+</form>
 <?php endif; ?>
-
 </body>
 </html>
