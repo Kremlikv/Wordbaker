@@ -2,8 +2,9 @@
 require_once 'db.php';
 require_once 'session.php';
 
-
-// Track virtual sharing of tables
+// -------------------------------------------
+// Virtual sharing table + helpers
+// -------------------------------------------
 $conn->query("
 CREATE TABLE IF NOT EXISTS shared_tables (
   table_name VARCHAR(255) PRIMARY KEY,
@@ -12,195 +13,28 @@ CREATE TABLE IF NOT EXISTS shared_tables (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ");
 
-
 function share_add(mysqli $conn, string $table, string $owner): void {
     $stmt = $conn->prepare("INSERT IGNORE INTO shared_tables (table_name, owner) VALUES (?, ?)");
-    $stmt->bind_param('ss', $table, $owner); $stmt->execute(); $stmt->close();
+    $stmt->bind_param('ss', $table, $owner);
+    $stmt->execute(); $stmt->close();
 }
 function share_remove(mysqli $conn, string $table): void {
     $stmt = $conn->prepare("DELETE FROM shared_tables WHERE table_name=?");
-    $stmt->bind_param('s', $table); $stmt->execute(); $stmt->close();
+    $stmt->bind_param('s', $table);
+    $stmt->execute(); $stmt->close();
 }
 function share_owner(mysqli $conn, string $table): ?string {
     $stmt = $conn->prepare("SELECT owner FROM shared_tables WHERE table_name=?");
-    $stmt->bind_param('s', $table); $stmt->execute();
+    $stmt->bind_param('s', $table);
+    $stmt->execute();
     $res = $stmt->get_result(); $row = $res? $res->fetch_assoc(): null;
     $stmt->close();
     return $row['owner'] ?? null;
 }
 
-
-// Handle table deletion BEFORE any output
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_table'])) {
-    $conn = new mysqli($host, $user, $password, $database);
-    $conn->set_charset("utf8mb4");
-
-    if ($conn->connect_error) {
-        die("Connection failed: " . $conn->connect_error);
-    }
-
-    $tableToDelete = $conn->real_escape_string($_POST['delete_table']);
-    $tables = [];
-    $result = $conn->query("SHOW TABLES");
-    while ($row = $result->fetch_array()) {
-        $tables[] = $row[0];
-    }
-
-    if (in_array($tableToDelete, $tables) && !in_array($tableToDelete, ['difficult_words', 'mastered_words'])) {
-        $conn->query("DROP TABLE `$tableToDelete`");
-        $audioPath = "cache/$tableToDelete.mp3";
-        if (file_exists($audioPath)) {
-            unlink($audioPath);
-        }
-    }
-
-    $conn->close();
-    header("Location: " . $_SERVER['PHP_SELF']);
-    exit;
-}
-
-// Handle audio file deletion BEFORE any output
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_audio_file'])) {
-    $tableForAudio = preg_replace('/[^a-zA-Z0-9_]/', '', $_POST['delete_audio_file']); // sanitize
-    $audioPath = "cache/$tableForAudio.mp3";
-
-    if (file_exists($audioPath)) {
-        unlink($audioPath);
-    }
-
-    header("Location: " . $_SERVER['PHP_SELF'] . "?table=" . urlencode($tableForAudio));
-    exit;
-}
-
-// VIRTUAL SHARE: mark all tables in <user>_<folder>_* as shared
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['folder_action'] ?? '') === 'share_folder') {
-    $username = strtolower($_SESSION['username'] ?? '');
-    $folder   = safeTablePart($_POST['folder_old'] ?? '');
-    if ($username === '' || $folder === '') { /* show error */ }
-    else {
-        $res = $conn->query("SHOW TABLES");
-        while ($res && ($row = $res->fetch_array())) {
-            $t = $row[0];
-            if (stripos($t, $username . '_' . $folder . '_') === 0) {
-                share_add($conn, $t, $username);
-            }
-        }
-        header("Location: " . $_SERVER['PHP_SELF']); exit;
-    }
-}
-
-// VIRTUAL UNSHARE: remove from shared_tables
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['folder_action'] ?? '') === 'unshare_folder') {
-    $username = strtolower($_SESSION['username'] ?? '');
-    $folder   = safeTablePart($_POST['folder_old'] ?? '');
-    if ($username === '' || $folder === '') { /* show error */ }
-    else {
-        $res = $conn->query("SHOW TABLES");
-        while ($res && ($row = $res->fetch_array())) {
-            $t = $row[0];
-            if (stripos($t, $username . '_' . $folder . '_') === 0) {
-                // only owner can unshare
-                if (share_owner($conn, $t) === $username) share_remove($conn, $t);
-            }
-        }
-        header("Location: " . $_SERVER['PHP_SELF']); exit;
-    }
-}
-
-// ---- COPY FOLDER (same user): copy <user>_<srcFolder>_* → <user>_<destFolder>_* ----
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['folder_action'] ?? '') === 'copy_folder_local') {
-    $conn->set_charset('utf8mb4');
-    $username   = strtolower($_SESSION['username'] ?? '');
-    $srcFolder  = safeTablePart($_POST['folder_old'] ?? '');
-    $destFolder = safeTablePart($_POST['dest_folder'] ?? '');
-    $overwrite  = !empty($_POST['overwrite']);
-
-    if ($username === '' || $srcFolder === '' || $destFolder === '') {
-        echo "<div class='content' style='color:#b91c1c;background:#fee2e2;border:1px solid #fecaca;padding:10px;border-radius:8px;margin:10px 0;'>Missing parameters.</div>";
-    } else {
-        $pairs = []; $collisions = [];
-        $prefix = $username . '_';
-        $res = $conn->query("SHOW TABLES");
-        while ($res && ($row = $res->fetch_array())) {
-            $t = $row[0];
-            if (stripos($t, $prefix) === 0) {
-                $suffix = substr($t, strlen($prefix)); // folder_rest
-                $parts  = explode('_', $suffix, 2);
-                if (count($parts) === 2 && $parts[0] === $srcFolder) {
-                  
-                    $rest    = $parts[1];                    // e.g. sub1_sub2_filename
-                    $dstRest = "{$srcFolder}_{$rest}";       // keep the folder itself
-                    $dst     = "{$username}_{$destFolder}_{$dstRest}";
-
-                    if (!$overwrite && tableExists($conn, $dst)) { $collisions[] = $dst; }
-                    else { $pairs[] = ['src'=>$t,'dst'=>$dst]; }
-                }
-            }
-        }
-        if (!empty($collisions)) {
-            echo "<div class='content' style='color:#92400e;background:#fef3c7;border:1px solid #fde68a;padding:10px;border-radius:8px;margin:10px 0;'>
-                    Cannot copy; destination exists:<br><code>".htmlspecialchars(implode(', ', $collisions))."</code>
-                  </div>";
-        } elseif (empty($pairs)) {
-            echo "<div class='content' style='color:#92400e;background:#fef3c7;border:1px solid #fde68a;padding:10px;border-radius:8px;margin:10px 0;'>
-                    No tables found in folder <code>".htmlspecialchars($srcFolder)."</code>.
-                  </div>";
-        } else {
-            foreach ($pairs as $p) {
-                $srcEsc = $conn->real_escape_string($p['src']);
-                $dstEsc = $conn->real_escape_string($p['dst']);
-                if ($overwrite && tableExists($conn, $p['dst'])) { $conn->query("DROP TABLE `{$dstEsc}`"); }
-                if (!$conn->query("CREATE TABLE `{$dstEsc}` LIKE `{$srcEsc}`")) {
-                    echo "<div class='content' style='color:#b91c1c;background:#fee2e2;border:1px solid #fecaca;padding:10px;border-radius:8px;margin:10px 0;'>".
-                         "CREATE LIKE failed for <code>".htmlspecialchars($p['dst'])."</code>: ".htmlspecialchars($conn->error)."</div>";
-                    continue;
-                }
-                $conn->query("INSERT INTO `{$dstEsc}` SELECT * FROM `{$srcEsc}`");
-            }
-            header("Location: " . $_SERVER['PHP_SELF']); exit;
-        }
-    }
-}
-
-
-// ---- SUBFOLDER ACTIONS ----
-// VIRTUAL SHARE subfolder: <user>_<root>_<subpath>_*
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['sub_action'] ?? '') === 'share_subfolder') {
-    $username = strtolower($_SESSION['username'] ?? '');
-    $root     = safeTablePart($_POST['root_folder'] ?? '');
-    $subpath  = preg_replace('/[^a-z0-9_]/i', '_', $_POST['subpath'] ?? '');
-    if ($username && $root && $subpath) {
-        $prefix = $username . '_' . $root . '_' . $subpath . '_';
-        $res = $conn->query("SHOW TABLES");
-        while ($res && ($row = $res->fetch_array())) {
-            $t = $row[0];
-            if (strpos($t, $prefix) === 0) share_add($conn, $t, $username);
-        }
-        header("Location: " . $_SERVER['PHP_SELF']); exit;
-    }
-}
-
-// VIRTUAL UNSHARE subfolder
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['sub_action'] ?? '') === 'unshare_subfolder') {
-    $username = strtolower($_SESSION['username'] ?? '');
-    $root     = safeTablePart($_POST['root_folder'] ?? '');
-    $subpath  = preg_replace('/[^a-z0-9_]/i', '_', $_POST['subpath'] ?? '');
-    if ($username && $root && $subpath) {
-        $prefix = $username . '_' . $root . '_' . $subpath . '_';
-        $res = $conn->query("SHOW TABLES");
-        while ($res && ($row = $res->fetch_array())) {
-            $t = $row[0];
-            if (strpos($t, $prefix) === 0 && share_owner($conn, $t) === $username) {
-                share_remove($conn, $t);
-            }
-        }
-        header("Location: " . $_SERVER['PHP_SELF']); exit;
-    }
-}
-
-
-
-// ---- Save As helpers ----
+// -------------------------------------------
+// Common helpers (declared early on purpose)
+// -------------------------------------------
 function safeTablePart(string $s): string {
     $s = mb_strtolower($s, 'UTF-8');
     $s = preg_replace('/[^a-z0-9_]+/u', '_', $s);
@@ -234,7 +68,278 @@ function cloneTableLike(mysqli $conn, string $src, string $dst, bool $overwrite)
     return true;
 }
 
-// ---- FOLDER: rename/delete ----
+// -------------------------------------------
+// Table deletion (single table) BEFORE any output
+// -------------------------------------------
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_table'])) {
+    $conn2 = new mysqli($host, $user, $password, $database);
+    $conn2->set_charset("utf8mb4");
+
+    if ($conn2->connect_error) {
+        die("Connection failed: " . $conn2->connect_error);
+    }
+
+    $tableToDelete = $conn2->real_escape_string($_POST['delete_table']);
+    $tables = [];
+    $result = $conn2->query("SHOW TABLES");
+    while ($row = $result->fetch_array()) {
+        $tables[] = $row[0];
+    }
+
+    if (in_array($tableToDelete, $tables, true) && !in_array($tableToDelete, ['difficult_words', 'mastered_words'], true)) {
+        $conn2->query("DROP TABLE `$tableToDelete`");
+        // clean virtual share pointer (if any)
+        share_remove($conn2, $tableToDelete);
+        // remove cached audio
+        $audioPath = "cache/$tableToDelete.mp3";
+        if (file_exists($audioPath)) { @unlink($audioPath); }
+    }
+
+    $conn2->close();
+    header("Location: " . $_SERVER['PHP_SELF']);
+    exit;
+}
+
+// -------------------------------------------
+// Audio deletion BEFORE any output
+// -------------------------------------------
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_audio_file'])) {
+    $tableForAudio = preg_replace('/[^a-zA-Z0-9_]/', '', $_POST['delete_audio_file']); // sanitize
+    $audioPath = "cache/$tableForAudio.mp3";
+    if (file_exists($audioPath)) { @unlink($audioPath); }
+    header("Location: " . $_SERVER['PHP_SELF'] . "?table=" . urlencode($tableForAudio));
+    exit;
+}
+
+// -------------------------------------------
+// LEFT PANE: folder Share / Unshare (virtual)
+// -------------------------------------------
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['folder_action'] ?? '') === 'share_folder') {
+    $username = strtolower($_SESSION['username'] ?? '');
+    $folder   = safeTablePart($_POST['folder_old'] ?? '');
+    if ($username !== '' && $folder !== '') {
+        $res = $conn->query("SHOW TABLES");
+        while ($res && ($row = $res->fetch_array())) {
+            $t = $row[0];
+            if (stripos($t, $username . '_' . $folder . '_') === 0) {
+                share_add($conn, $t, $username);
+            }
+        }
+        header("Location: " . $_SERVER['PHP_SELF']); exit;
+    }
+}
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['folder_action'] ?? '') === 'unshare_folder') {
+    $username = strtolower($_SESSION['username'] ?? '');
+    $folder   = safeTablePart($_POST['folder_old'] ?? '');
+    if ($username !== '' && $folder !== '') {
+        $res = $conn->query("SHOW TABLES");
+        while ($res && ($row = $res->fetch_array())) {
+            $t = $row[0];
+            if (stripos($t, $username . '_' . $folder . '_') === 0) {
+                if (share_owner($conn, $t) === $username) share_remove($conn, $t);
+            }
+        }
+        header("Location: " . $_SERVER['PHP_SELF']); exit;
+    }
+}
+
+// -------------------------------------------
+// LEFT PANE: Copy folder (same user)
+//  Copies <user>_<srcFolder>_*  →  <user>_<destFolder>_<srcFolder>_*
+// -------------------------------------------
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['folder_action'] ?? '') === 'copy_folder_local') {
+    $conn->set_charset('utf8mb4');
+    $username   = strtolower($_SESSION['username'] ?? '');
+    $srcFolder  = safeTablePart($_POST['folder_old'] ?? '');
+    $destFolder = safeTablePart($_POST['dest_folder'] ?? '');
+    $overwrite  = !empty($_POST['overwrite']);
+
+    if ($username === '' || $srcFolder === '' || $destFolder === '') {
+        echo "<div class='content' style='color:#b91c1c;background:#fee2e2;border:1px solid #fecaca;padding:10px;border-radius:8px;margin:10px 0;'>Missing parameters.</div>";
+    } else {
+        $pairs = []; $collisions = [];
+        $prefix = $username . '_';
+        $res = $conn->query("SHOW TABLES");
+        while ($res && ($row = $res->fetch_array())) {
+            $t = $row[0];
+            if (stripos($t, $prefix) === 0) {
+                $suffix = substr($t, strlen($prefix)); // folder_rest
+                $parts  = explode('_', $suffix, 2);
+                if (count($parts) === 2 && $parts[0] === $srcFolder) {
+                    $rest    = $parts[1];                    // e.g. sub1_sub2_filename
+                    $dstRest = "{$srcFolder}_{$rest}";       // keep the folder itself
+                    $dst     = "{$username}_{$destFolder}_{$dstRest}";
+                    if (!$overwrite && tableExists($conn, $dst)) { $collisions[] = $dst; }
+                    else { $pairs[] = ['src'=>$t,'dst'=>$dst]; }
+                }
+            }
+        }
+        if (!empty($collisions)) {
+            echo "<div class='content' style='color:#92400e;background:#fef3c7;border:1px solid #fde68a;padding:10px;border-radius:8px;margin:10px 0;'>
+                    Cannot copy; destination exists:<br><code>".htmlspecialchars(implode(', ', $collisions))."</code>
+                  </div>";
+        } elseif (empty($pairs)) {
+            echo "<div class='content' style='color:#92400e;background:#fef3c7;border:1px solid #fde68a;padding:10px;border-radius:8px;margin:10px 0;'>
+                    No tables found in folder <code>".htmlspecialchars($srcFolder)."</code>.
+                  </div>";
+        } else {
+            foreach ($pairs as $p) {
+                $srcEsc = $conn->real_escape_string($p['src']);
+                $dstEsc = $conn->real_escape_string($p['dst']);
+                if ($overwrite && tableExists($conn, $p['dst'])) { $conn->query("DROP TABLE `{$dstEsc}`"); }
+                if (!$conn->query("CREATE TABLE `{$dstEsc}` LIKE `{$srcEsc}`")) {
+                    echo "<div class='content' style='color:#b91c1c;background:#fee2e2;border:1px solid #fecaca;padding:10px;border-radius:8px;margin:10px 0;'>".
+                         "CREATE LIKE failed for <code>".htmlspecialchars($p['dst'])."</code>: ".htmlspecialchars($conn->error)."</div>";
+                    continue;
+                }
+                $conn->query("INSERT INTO `{$dstEsc}` SELECT * FROM `{$srcEsc}`");
+            }
+            header("Location: " . $_SERVER['PHP_SELF']); exit;
+        }
+    }
+}
+
+// -------------------------------------------
+// RIGHT PANE: SUBFOLDER actions (virtual share/unshare)
+// -------------------------------------------
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['sub_action'] ?? '') === 'share_subfolder') {
+    $username = strtolower($_SESSION['username'] ?? '');
+    $root     = safeTablePart($_POST['root_folder'] ?? '');
+    $subpath  = preg_replace('/[^a-z0-9_]/i', '_', $_POST['subpath'] ?? '');
+    if ($username && $root && $subpath) {
+        $prefix = $username . '_' . $root . '_' . $subpath . '_';
+        $res = $conn->query("SHOW TABLES");
+        while ($res && ($row = $res->fetch_array())) {
+            $t = $row[0];
+            if (strpos($t, $prefix) === 0) share_add($conn, $t, $username);
+        }
+        header("Location: " . $_SERVER['PHP_SELF']); exit;
+    }
+}
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['sub_action'] ?? '') === 'unshare_subfolder') {
+    $username = strtolower($_SESSION['username'] ?? '');
+    $root     = safeTablePart($_POST['root_folder'] ?? '');
+    $subpath  = preg_replace('/[^a-z0-9_]/i', '_', $_POST['subpath'] ?? '');
+    if ($username && $root && $subpath) {
+        $prefix = $username . '_' . $root . '_' . $subpath . '_';
+        $res = $conn->query("SHOW TABLES");
+        while ($res && ($row = $res->fetch_array())) {
+            $t = $row[0];
+            if (strpos($t, $prefix) === 0 && share_owner($conn, $t) === $username) {
+                share_remove($conn, $t);
+            }
+        }
+        header("Location: " . $_SERVER['PHP_SELF']); exit;
+    }
+}
+
+// -------------------------------------------
+// RIGHT PANE: SUBFOLDER copy / rename / delete
+// -------------------------------------------
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['sub_action'] ?? '') === 'copy_subfolder_local') {
+    $conn->set_charset('utf8mb4');
+    $me         = strtolower($_SESSION['username'] ?? '');
+    $root       = safeTablePart($_POST['root_folder'] ?? '');
+    $sub        = preg_replace('/[^a-z0-9_]/i', '_', $_POST['subpath'] ?? '');
+    $destFolder = safeTablePart($_POST['dest_folder'] ?? '');
+    $overwrite  = !empty($_POST['overwrite']);
+    if ($me && $root && $sub && $destFolder) {
+        $prefix = $me . '_' . $root . '_' . $sub . '_';
+        $res = $conn->query("SHOW TABLES");
+        while ($res && ($row = $res->fetch_array())) {
+            $src = $row[0];
+            if (strpos($src, $prefix) !== 0) continue;
+
+            $rest = substr($src, strlen($prefix));                // after me_root_sub_
+            $dst  = "{$me}_{$destFolder}_{$sub}_{$rest}";         // keep subpath under new top folder
+
+            $srcEsc = $conn->real_escape_string($src);
+            $dstEsc = $conn->real_escape_string($dst);
+
+            if ($overwrite && tableExists($conn, $dst)) $conn->query("DROP TABLE `{$dstEsc}`");
+            if (tableExists($conn, $dst)) continue;
+
+            if ($conn->query("CREATE TABLE `{$dstEsc}` LIKE `{$srcEsc}`")) {
+                $conn->query("INSERT INTO `{$dstEsc}` SELECT * FROM `{$srcEsc}`");
+            } else {
+                echo "<div class='content' style='color:#b91c1c;background:#fee2e2;border:1px solid #fecaca;padding:10px;border-radius:8px;margin:10px 0;'>CREATE LIKE failed for <code>"
+                     .htmlspecialchars($dst)."</code>: ".htmlspecialchars($conn->error)."</div>";
+            }
+        }
+        header("Location: " . $_SERVER['PHP_SELF']); exit;
+    }
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['sub_action'] ?? '') === 'rename_subfolder') {
+    $conn->set_charset('utf8mb4');
+    $me     = strtolower($_SESSION['username'] ?? '');
+    $root   = safeTablePart($_POST['root_folder'] ?? '');
+    $sub    = preg_replace('/[^a-z0-9_]/i', '_', $_POST['subpath'] ?? '');
+    $newSeg = safeTablePart($_POST['new_name'] ?? '');
+    if ($me && $root && $sub && $newSeg) {
+        $prefix = $me . '_' . $root . '_' . $sub . '_';
+
+        $parts = explode('_', $sub);
+        $parts[count($parts)-1] = $newSeg;
+        $newSub = implode('_', $parts);
+
+        $pairs = []; $collisions = [];
+        $res = $conn->query("SHOW TABLES");
+        while ($res && ($row = $res->fetch_array())) {
+            $src = $row[0];
+            if (strpos($src, $prefix) !== 0) continue;
+            $rest = substr($src, strlen($prefix));
+            $dst  = "{$me}_{$root}_{$newSub}_{$rest}";
+            if (tableExists($conn, $dst)) $collisions[] = $dst;
+            else $pairs[] = ['src'=>$src,'dst'=>$dst];
+        }
+        if (!empty($collisions)) {
+            echo "<div class='content' style='color:#92400e;background:#fef3c7;border:1px solid #fde68a;padding:10px;border-radius:8px;margin:10px 0;'>Cannot rename, destination exists:<br><code>"
+                 .htmlspecialchars(implode(', ', $collisions))."</code></div>";
+        } elseif (!empty($pairs)) {
+            $chunks = [];
+            foreach ($pairs as $p) $chunks[] = "`".$conn->real_escape_string($p['src'])."` TO `".$conn->real_escape_string($p['dst'])."`";
+            if ($conn->query("RENAME TABLE ".implode(', ', $chunks))) {
+                // update any virtual shares owned by me (so Shared view stays in sync)
+                $stmt = $conn->prepare("UPDATE shared_tables SET table_name=? WHERE table_name=? AND owner=?");
+                foreach ($pairs as $p) { $stmt->bind_param('sss', $p['dst'], $p['src'], $me); $stmt->execute(); }
+                $stmt->close();
+                header("Location: " . $_SERVER['PHP_SELF']); exit;
+            } else {
+                echo "<div class='content' style='color:#b91c1c;background:#fee2e2;border:1px solid #fecaca;padding:10px;border-radius:8px;margin:10px 0;'>Rename failed: "
+                     .htmlspecialchars($conn->error)."</div>";
+            }
+        }
+    }
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['sub_action'] ?? '') === 'delete_subfolder') {
+    $conn->set_charset('utf8mb4');
+    $me      = strtolower($_SESSION['username'] ?? '');
+    $root    = safeTablePart($_POST['root_folder'] ?? '');
+    $sub     = preg_replace('/[^a-z0-9_]/i', '_', $_POST['subpath'] ?? '');
+    $confirm = preg_replace('/[^a-z0-9_]/i', '_', $_POST['confirm_text'] ?? '');
+    if ($me && $root && $sub && $confirm === $sub) {
+        $prefix = $me . '_' . $root . '_' . $sub . '_';
+        $res = $conn->query("SHOW TABLES");
+        while ($res && ($row = $res->fetch_array())) {
+            $t = $row[0];
+            if (strpos($t, $prefix) !== 0) continue;
+            $tEsc = $conn->real_escape_string($t);
+            $conn->query("DROP TABLE `{$tEsc}`");
+            share_remove($conn, $t); // clean any share pointer
+            $audio = "cache/$t.mp3"; if (file_exists($audio)) @unlink($audio);
+        }
+        header("Location: " . $_SERVER['PHP_SELF']); exit;
+    } elseif ($confirm !== $sub) {
+        echo "<div class='content' style='color:#b91c1c;background:#fee2e2;border:1px solid #fecaca;padding:10px;border-radius:8px;margin:10px 0;'>Type the subfolder path (<code>"
+             .htmlspecialchars($sub)."</code>) to confirm.</div>";
+    }
+}
+
+// -------------------------------------------
+// FOLDER: rename / delete (left pane)
+// -------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['folder_action'] ?? '';
 
@@ -263,12 +368,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if ($action === 'rename_folder') {
                 $new = safeTablePart($_POST['folder_new'] ?? '');
-                if ($new === '') {
-                    echo "<div class='content' style='color:#b91c1c;background:#fee2e2;border:1px solid #fecaca;padding:10px;border-radius:8px;margin:10px 0;'>Enter the new folder name.</div>";
-                } elseif ($new === $old) {
-                    // nothing to do
-                } else {
-                    // Preflight: check for name collisions
+                if ($new !== '' && $new !== $old) {
                     $collisions = [];
                     $pairs = [];
                     foreach ($tables as $src) {
@@ -286,13 +386,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 Cannot rename: the following tables already exist:<br><code>".htmlspecialchars(implode(', ', $collisions))."</code>
                               </div>";
                     } elseif (!empty($pairs)) {
-                        // Build single atomic RENAME TABLE statement
                         $chunks = [];
                         foreach ($pairs as $p) {
                             $chunks[] = "`".$conn->real_escape_string($p['src'])."` TO `".$conn->real_escape_string($p['dst'])."`";
                         }
                         $sql = "RENAME TABLE ".implode(', ', $chunks);
                         if ($conn->query($sql)) {
+                            // update virtual shares you own
+                            $stmt = $conn->prepare("UPDATE shared_tables SET table_name=? WHERE table_name=? AND owner=?");
+                            foreach ($pairs as $p) { $stmt->bind_param('sss', $p['dst'], $p['src'], $username); $stmt->execute(); }
+                            $stmt->close();
                             header("Location: " . $_SERVER['PHP_SELF']); exit;
                         } else {
                             echo "<div class='content' style='color:#b91c1c;background:#fee2e2;border:1px solid #fecaca;padding:10px;border-radius:8px;margin:10px 0;'>".
@@ -303,16 +406,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             if ($action === 'delete_folder') {
-                // Require confirmation text to match folder name
                 $confirm = safeTablePart($_POST['confirm_text'] ?? '');
                 if ($confirm !== $old) {
                     echo "<div class='content' style='color:#b91c1c;background:#fee2e2;border:1px solid #fecaca;padding:10px;border-radius:8px;margin:10px 0;'>
                             Type the folder name (<code>".htmlspecialchars($old)."</code>) to confirm deletion.
                           </div>";
                 } else {
-                    // Drop all tables in this folder; also remove mp3 caches
                     foreach ($tables as $t) {
                         $conn->query("DROP TABLE `".$conn->real_escape_string($t)."`");
+                        share_remove($conn, $t); // clean any share pointer
                         $audioPath = "cache/$t.mp3";
                         if (file_exists($audioPath)) @unlink($audioPath);
                     }
@@ -323,8 +425,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-
-// ---- SAVE AS (runs before any HTML output) ----
+// -------------------------------------------
+// SAVE AS (runs before any HTML output)
+// -------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_as') {
     $conn->set_charset("utf8mb4");
 
@@ -337,11 +440,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
     $overwrite = !empty($_POST['saveas_overwrite']);
 
     if ($srcTable === '' || $col1 === '' || $col2 === '') {
-        echo "<div class='content' style='color:#b91c1c;background:#fee2e2;border:1px solid #fecaca;padding:10px;border-radius:8px;margin:10px 0;'>".
-             "Missing table/column info.</div>";
+        echo "<div class='content' style='color:#b91c1c;background:#fee2e2;border:1px solid #fecaca;padding:10px;border-radius:8px;margin:10px 0;'>Missing table/column info.</div>";
     } elseif ($folder === '' || $name === '') {
-        echo "<div class='content' style='color:#b91c1c;background:#fee2e2;border:1px solid #fecaca;padding:10px;border-radius:8px;margin:10px 0;'>".
-             "Please enter both Folder and New name.</div>";
+        echo "<div class='content' style='color:#b91c1c;background:#fee2e2;border:1px solid #fecaca;padding:10px;border-radius:8px;margin:10px 0;'>Please enter both Folder and New name.</div>";
     } else {
         $newTable = "{$username}_{$folder}_{$name}";
         if (cloneTableLike($conn, $srcTable, $newTable, $overwrite)) {
@@ -351,28 +452,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
                     (`".$conn->real_escape_string($col1)."`, `".$conn->real_escape_string($col2)."`) VALUES (?, ?)";
             $stmt = $conn->prepare($sql);
             if (!$stmt) {
-                echo "<div class='content' style='color:#b91c1c;background:#fee2e2;border:1px solid #fecaca;padding:10px;border-radius:8px;margin:10px 0;'>".
-                     "Prepare failed: ".htmlspecialchars($conn->error)."</div>";
+                echo "<div class='content' style='color:#b91c1c;background:#fee2e2;border:1px solid #fecaca;padding:10px;border-radius:8px;margin:10px 0;'>Prepare failed: ".htmlspecialchars($conn->error)."</div>";
             } else {
                 foreach ($rows as $r) {
                     if (!empty($r['delete'])) continue;
-                    $v1 = trim($r['col1'] ?? '');
-                    $v2 = trim($r['col2'] ?? '');
+                    $v1 = trim($r['col1'] ?? ''); $v2 = trim($r['col2'] ?? '');
                     if ($v1 === '' || $v2 === '') continue;
                     $stmt->bind_param('ss', $v1, $v2);
                     $stmt->execute();
                 }
-                // also include the "new row" if provided
                 if (!empty($_POST['new_row']['col1']) || !empty($_POST['new_row']['col2'])) {
                     $nv1 = trim($_POST['new_row']['col1'] ?? '');
                     $nv2 = trim($_POST['new_row']['col2'] ?? '');
-                    if ($nv1 !== '' && $nv2 !== '') {
-                        $stmt->bind_param('ss', $nv1, $nv2);
-                        $stmt->execute();
-                    }
+                    if ($nv1 !== '' && $nv2 !== '') { $stmt->bind_param('ss', $nv1, $nv2); $stmt->execute(); }
                 }
                 $stmt->close();
-
                 header("Location: " . $_SERVER['PHP_SELF'] . "?table=" . urlencode($newTable));
                 exit;
             }
@@ -380,6 +474,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
     }
 }
 
+// -------------------------------------------
+// Build folder list for explorer
+// -------------------------------------------
 function getUserFoldersAndTables($conn, $username) {
     $all = [];
 
@@ -427,15 +524,14 @@ function getUserFoldersAndTables($conn, $username) {
     return $all;
 }
 
-
-
+// -------------------------------------------
+// Page state & render
+// -------------------------------------------
 $username = strtolower($_SESSION['username'] ?? '');
 $conn->set_charset("utf8mb4");
 
-// Build folder structure
+// Build folder structure (no extra duplicate built-ins here)
 $folders = getUserFoldersAndTables($conn, $username);
-$folders['Shared'][] = ['table_name' => 'difficult_words', 'display_name' => 'Difficult Words'];
-$folders['Shared'][] = ['table_name' => 'mastered_words', 'display_name' => 'Mastered Words'];
 
 // Prepare folder data for JS in file_explorer.php
 $folderData = [];
@@ -478,7 +574,7 @@ include 'styling.php';
 echo "</head><body>";
 
 echo "<div class='content'>";
-echo "👤 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Logout</a><br><br>";
+echo "👤 Logged in as " . htmlspecialchars($_SESSION['username'] ?? '') . " | <a href='logout.php'>Logout</a><br><br>";
 echo "<h2> View and edit your tables </h2>";
 
 // Include the reusable file explorer
@@ -489,20 +585,19 @@ echo "<br><br>";
 // Table editing logic
 if (!empty($selectedFullTable) && $res !== false) {
     echo "<h3>Selected Table: " . htmlspecialchars($selectedFullTable) . "</h3>";
-    
-    $builtInReadOnly = in_array($selectedFullTable, ['difficult_words', 'mastered_words'], true);
-    $ownerOfShare = share_owner($conn, $selectedFullTable);
-    $readonlyShared = $ownerOfShare && (strtolower($ownerOfShare) !== strtolower($_SESSION['username'] ?? ''));
-    $isSharedTable = $builtInReadOnly || $readonlyShared;
 
+    $builtInReadOnly = in_array($selectedFullTable, ['difficult_words', 'mastered_words'], true);
+    $ownerOfShare    = share_owner($conn, $selectedFullTable);
+    $readonlyShared  = $ownerOfShare && (strtolower($ownerOfShare) !== strtolower($_SESSION['username'] ?? ''));
+    $isSharedTable   = $builtInReadOnly || $readonlyShared;
 
     $audioFile = "cache/$selectedFullTable.mp3";
 
     $buttonStyle = "style=\"border:2px solid black; background:none; color:black; font-size: 0.8em; padding:8px 14px; border-radius:4px; cursor:pointer;\"";
     if (file_exists($audioFile)) {
-        echo "<audio controls src='$audioFile'></audio><br>";
+        echo "<audio controls src='".htmlspecialchars($audioFile, ENT_QUOTES)."'></audio><br>";
         echo "<a href='generate_mp3_google_ssml.php'><button $buttonStyle>🎧 Create MP3</button></a> ";
-        echo "<a href='$audioFile' download><button $buttonStyle>⇩ Download MP3</button></a> | ";
+        echo "<a href='".htmlspecialchars($audioFile, ENT_QUOTES)."' download><button $buttonStyle>⇩ Download MP3</button></a> | ";
         echo "<form method='POST' action='' style='display:inline;' onsubmit=\"return confirm('Really delete the audio file for this table?');\">";
         echo "<input type='hidden' name='delete_audio_file' value='" . htmlspecialchars($selectedFullTable) . "'>";
         echo "<button type='submit' $buttonStyle>🗑️ Delete MP3</button>";
@@ -536,7 +631,7 @@ if (!empty($selectedFullTable) && $res !== false) {
         echo "</table><br>";
         echo "<button type='submit'>💾 Save Changes</button>";
 
-        // --- Save As UI (same form; posts back to main.php) ---
+        // Save As UI
         echo "<div style='margin-top:12px; padding:10px; border:1px solid #e2e8f0; border-radius:8px;'>";
         echo "<strong>Save As…</strong>";
         echo "<div style='display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:6px;'>";
@@ -553,8 +648,8 @@ if (!empty($selectedFullTable) && $res !== false) {
 
         echo "</form><br>";
 
-        if (!in_array($selectedFullTable, ['difficult_words', 'mastered_words', 'users'])) {
-            echo "<form method='POST' action='' onsubmit=\"return confirm('Really delete the table: $selectedFullTable?');\">";
+        if (!in_array($selectedFullTable, ['difficult_words', 'mastered_words', 'users'], true)) {
+            echo "<form method='POST' action='' onsubmit=\"return confirm('Really delete the table: ".htmlspecialchars($selectedFullTable)." ?');\">";
             echo "<input type='hidden' name='delete_table' value='" . htmlspecialchars($selectedFullTable) . "'>";
             echo "<button type='submit' class='delete-button'>🗑️ Delete This Table</button>";
             echo "</form><br>";
