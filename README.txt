@@ -137,10 +137,8 @@ FILE EXPLORER IN PLAY_QUIZ
 Chatgpt5 byl také schopen rychle dát hezký file explorer do play_quiz.
 Aniž by přestaly kvízy fungovat. A aniž by přestala fungovat PD hudba.
 
-OWN AI (not finished)
-At Oracle Cloud I set up an instance (image: inux 8, shape: AMD - VM.Standard.E2.1.Micro)
-Public IP: 144.24.254.136
-1) In vs code install ssh extension ... Remote-SSH: Add New SSH Host ... 
-ssh -i /path/to/your/private_key.pem opc@YOUR_PUBLIC_IP 
+FILE EXPLORER IN MAIN 
+Now able to show subfolders. Able to share-unshared, rename, edit, copy.
+main.php and file_explorer.php
 
 
