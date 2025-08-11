@@ -6,11 +6,12 @@ require_once 'session.php';
 // Track virtual sharing of tables
 $conn->query("
 CREATE TABLE IF NOT EXISTS shared_tables (
-  table_name  VARCHAR(255) PRIMARY KEY,
-  owner       VARCHAR(64)  NOT NULL,
-  shared_at   DATETIME     DEFAULT CURRENT_TIMESTAMP
+  table_name VARCHAR(255) PRIMARY KEY,
+  owner      VARCHAR(64)  NOT NULL,
+  shared_at  DATETIME     DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 ");
+
 
 function share_add(mysqli $conn, string $table, string $owner): void {
     $stmt = $conn->prepare("INSERT IGNORE INTO shared_tables (table_name, owner) VALUES (?, ?)");
@@ -126,8 +127,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['folder_action'] ?? '') ===
                 $suffix = substr($t, strlen($prefix)); // folder_rest
                 $parts  = explode('_', $suffix, 2);
                 if (count($parts) === 2 && $parts[0] === $srcFolder) {
-                    $rest = $parts[1];
-                    $dst  = "{$username}_{$destFolder}_{$rest}";
+                  
+                    $rest    = $parts[1];                    // e.g. sub1_sub2_filename
+                    $dstRest = "{$srcFolder}_{$rest}";       // keep the folder itself
+                    $dst     = "{$username}_{$destFolder}_{$dstRest}";
+
                     if (!$overwrite && tableExists($conn, $dst)) { $collisions[] = $dst; }
                     else { $pairs[] = ['src'=>$t,'dst'=>$dst]; }
                 }
@@ -377,50 +381,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
 }
 
 function getUserFoldersAndTables($conn, $username) {
-    $allTables = [];
-    $result = $conn->query("SHOW TABLES");
-    while ($row = $result->fetch_array()) {
-        $table = $row[0];
-        // user's own tables
-        if (stripos($table, $username . '_') === 0) {
-            $suffix = substr($table, strlen($username) + 1);
+    $all = [];
+
+    // User's own tables
+    $res = $conn->query("SHOW TABLES");
+    while ($res && ($row = $res->fetch_array())) {
+        $t = $row[0];
+        if (stripos($t, $username . '_') === 0) {
+            $suffix = substr($t, strlen($username) + 1);
             $suffix = preg_replace('/_+/', '_', $suffix);
-            $parts = explode('_', $suffix, 2);
+            $parts  = explode('_', $suffix, 2);
             $folder = (count($parts) === 2 && trim($parts[0]) !== '') ? $parts[0] : 'Uncategorized';
             $file   = (count($parts) === 2) ? $parts[1] : $suffix;
-            $allTables[$folder][] = ['table_name'=>$table, 'display_name'=>$file];
+            $all[$folder][] = ['table_name'=>$t, 'display_name'=>$file];
         }
-
-        // globally shared: "shared_*"
-        if (stripos($table, 'shared_') === 0) {
-            $suffix = substr($table, 7); // after 'shared_'
-            $suffix = preg_replace('/_+/', '_', $suffix);
-            $parts = explode('_', $suffix, 2);
-            $disp  = (count($parts) === 2) ? ($parts[0] . '_' . $parts[1]) : $suffix;
-            $allTables['Shared'][] = ['table_name'=>$table, 'display_name'=>$disp];
-        }
-
-        // globally visible virtual shares from shared_tables
-    $shares = $conn->query("SELECT table_name, owner FROM shared_tables");
-        while ($shares && ($s = $shares->fetch_assoc())) {
-            $t = $s['table_name'];  $owner = strtolower($s['owner']);
-            // ensure the physical table still exists
-            $exists = $conn->query("SHOW TABLES LIKE '".$conn->real_escape_string($t)."'");
-            if (!$exists || $exists->num_rows === 0) { continue; }
-
-            // Display path under Shared: owner + the rest (keeps your nested tree behavior)
-            if (stripos($t, $owner . '_') === 0) {
-                $suffix = substr($t, strlen($owner) + 1); // e.g. folder_sub_file
-                $display = $owner . '_' . $suffix;        // owner at top-level in Shared
-            } else {
-                // fallback if naming doesn’t match the usual pattern
-                $display = $t;
-            }
-            $allTables['Shared'][] = ['table_name' => $t, 'display_name' => $display];
-        }
-
     }
-    return $allTables;
+
+    // Built-ins in Shared
+    $all['Shared'][] = ['table_name'=>'difficult_words', 'display_name'=>'Difficult Words'];
+    $all['Shared'][] = ['table_name'=>'mastered_words',  'display_name'=>'Mastered Words'];
+
+    // Virtual shares (shared_tables)
+    $seen = [];
+    $shares = $conn->query("SELECT table_name, owner FROM shared_tables");
+    while ($shares && ($s = $shares->fetch_assoc())) {
+        $t = $s['table_name'];  $owner = strtolower($s['owner']);
+
+        if (isset($seen[$t])) continue;                 // dedupe
+        $exists = $conn->query("SHOW TABLES LIKE '".$conn->real_escape_string($t)."'");
+        if (!$exists || $exists->num_rows === 0) {       // auto-clean dead pointers
+            share_remove($conn, $t);
+            continue;
+        }
+        $seen[$t] = true;
+
+        if (stripos($t, $owner . '_') === 0) {
+            $suffix = substr($t, strlen($owner) + 1);   // folder_sub_file
+            $display = $owner . '_' . $suffix;          // show owner at top in Shared
+        } else {
+            $display = $t;
+        }
+        $all['Shared'][] = ['table_name'=>$t, 'display_name'=>$display];
+    }
+
+    return $all;
 }
 
 
