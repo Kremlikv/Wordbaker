@@ -13,8 +13,8 @@ $langLabels = [
     'de' => 'German',
     'fr' => 'French',
     'it' => 'Italian',
-    'cs' => 'Czech',
-    'auto' => 'Auto Detect',
+    'sp' => 'Spanish',
+    'cs' => 'Czech',    
     '' => 'Foreign'
 ];
 
@@ -216,6 +216,8 @@ echo "👤 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Log
       <option value="de">German</option>
       <option value="fr">French</option>
       <option value="it">Italian</option>
+      <option value="sp">Spanish</option>
+      <option value="cs">Czech</option>
     </select>
   </label>
 
@@ -227,6 +229,8 @@ echo "👤 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Log
       <option value="de">German</option>
       <option value="fr">French</option>
       <option value="it">Italian</option>
+      <option value="sp">Spanish</option>
+      <option value="cs">Czech</option>
     </select>
   </label><br><br>
 
