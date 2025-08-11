@@ -30,7 +30,6 @@ function norm_lang($code) {
 $sourceLang = norm_lang($sourceLang);
 $targetLang = norm_lang($targetLang);
 
-// Labels for UI
 $langLabels = [
     'en' => 'English',
     'de' => 'German',
@@ -49,30 +48,6 @@ $targetLabel = $langLabels[$targetLang] ?? 'Czech';
 // DB/table params
 $tableName = $_POST['new_table_name'] ?? '';
 $deletePdfPath = $_POST['delete_pdf_path'] ?? '';
-
-/**
- * Prefix table/file names with the logged-in username (once) and sanitize.
- * Ensures final name looks like: username_rawname, max 64 chars for MySQL table.
- */
-function build_user_prefixed_name(string $name, string $username): string {
-    // sanitize username (letters+digits only; lowercased)
-    $user = strtolower(preg_replace('/[^a-zA-Z0-9]/', '', (string)$username));
-    if ($user === '') $user = 'user';
-
-    // sanitize requested name (letters, digits, underscores)
-    $name = trim($name);
-    $name = preg_replace('/[^a-zA-Z0-9_]/', '_', $name);
-    $name = preg_replace('/_+/', '_', $name); // collapse multiple underscores
-
-    // ensure single user_ prefix
-    $prefix = $user . '_';
-    if (stripos($name, $prefix) !== 0) {
-        $name = $prefix . $name;
-    }
-
-    // MySQL table name limit is 64 chars
-    return substr($name, 0, 64);
-}
 
 // ---------- HTTP helpers ----------
 function http_post_json($url, $payloadArr, $headers = []) {
@@ -214,25 +189,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['table_data'])) {
     $conn->set_charset("utf8");
     if ($conn->connect_error) die("Connection failed: " . $conn->connect_error);
 
-    // Build username-prefixed, sanitized final table name
-    $finalTable = build_user_prefixed_name($tableName, $_SESSION['username']);
-
-    // Sanitize columns
+    $safeTable = preg_replace('/[^a-zA-Z0-9_]/', '_', $tableName);
     $col1_safe = preg_replace('/[^a-zA-Z0-9_]/', '_', $col1);
     $col2_safe = preg_replace('/[^a-zA-Z0-9_]/', '_', $col2);
 
-    // Check existence & create table
-    $esc = $conn->real_escape_string($finalTable);
-    $result = $conn->query("SHOW TABLES LIKE '$esc'");
-    if ($result && $result->num_rows > 0) die("Table '$finalTable' already exists.");
+    $result = $conn->query("SHOW TABLES LIKE '$safeTable'");
+    if ($result && $result->num_rows > 0) die("Table '$safeTable' already exists.");
 
-    $create_sql = "CREATE TABLE `$finalTable` (
+    $create_sql = "CREATE TABLE `$safeTable` (
         `$col1_safe` VARCHAR(255) NOT NULL,
         `$col2_safe` VARCHAR(255) NOT NULL
     ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci";
     if (!$conn->query($create_sql)) die("Create failed: " . $conn->error);
 
-    $stmt = $conn->prepare("INSERT INTO `$finalTable` (`$col1_safe`, `$col2_safe`) VALUES (?, ?)");
+    $stmt = $conn->prepare("INSERT INTO `$safeTable` (`$col1_safe`, `$col2_safe`) VALUES (?, ?)");
     $count = 0;
     foreach ($tableData as $row) {
         $cz = trim($row['cz'] ?? '');
@@ -247,7 +217,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['table_data'])) {
     $stmt->close();
     $conn->close();
 
-    echo "<p style='color: green;'>✅ Table '$finalTable' saved with $count rows.</p>";
+    echo "<p style='color: green;'>✅ Table '$safeTable' saved with $count rows.</p>";
     echo "<a href='main.php'>Return to Main</a>";
     exit;
 }
@@ -297,13 +267,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['table_data'])) {
       fetch("check_table_name.php?name=" + encodeURIComponent(tableName))
         .then(res => res.json())
         .then(data => {
-          const finalName = data.final || tableName; // if API returns resolved name, show it
           if (data.exists) {
-            warning.textContent = "❌ Table '" + finalName + "' already exists.";
+            warning.textContent = "❌ Table '" + tableName + "' already exists.";
             warning.style.color = "red";
             warning.setAttribute("data-valid", "false");
           } else {
-            warning.textContent = "✅ Will be saved as: " + finalName;
+            warning.textContent = "✅ Table name is available.";
             warning.style.color = "green";
             warning.setAttribute("data-valid", "true");
           }
@@ -397,11 +366,6 @@ echo "👤 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Log
 <?php if (!empty($translated)): ?>
   <form method="POST">
     <h3>Translated Preview</h3>
-    <?php
-      // Show how the table will actually be saved (with username prefix)
-      $resolvedName = build_user_prefixed_name($tableName ?: 'translated_table', $_SESSION['username']);
-      echo "<p style='opacity:.8;margin-top:8px;'>Will be saved as: <code>" . htmlspecialchars($resolvedName) . "</code></p>";
-    ?>
     <table>
       <thead>
         <tr>
