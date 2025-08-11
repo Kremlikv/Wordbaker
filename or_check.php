@@ -4,15 +4,16 @@
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
+require_once __DIR__ . '/config.php';
 
 echo "Start\n";
 
 // DEEPSEEK R1
 
-$OPENROUTER_API_KEY = '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';
-$OPENROUTER_MODEL = 'deepseek/deepseek-r1:free';
-$OPENROUTER_REFERER = 'https://kremlik.byethost15.com';
-$APP_TITLE = 'KahootGenerator';
+// $OPENROUTER_API_KEY = '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';
+// $OPENROUTER_MODEL = 'deepseek/deepseek-r1:free';
+// $OPENROUTER_REFERER = 'https://kremlik.byethost15.com';
+// $APP_TITLE = 'KahootGenerator';
 
 // require_once __DIR__ . '/config.php';
 // echo "config loaded\n";
