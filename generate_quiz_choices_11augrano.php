@@ -305,79 +305,66 @@ if ($selectedTable) {
     }
 }
 
-
-
-
-// ====== EDIT-FIRST WORKFLOW ======
 $generatedTable = '';
-
 if ($selectedTable) {
-    // If user submitted edited rows, generate from those; otherwise show the editable table
-    $stage = $_POST['stage'] ?? 'edit';
+    $quizTable = 'quiz_choices_' . $selectedTable;
+    if (!quizTableExists($conn, $selectedTable)) {
+        $res = $conn->query("SELECT * FROM `$selectedTable`");
+        if ($res && $res->num_rows > 0) {
+            $fields = $res->fetch_fields();
+            $col1 = $fields[0]->name; // question (Czech)
+            $col2 = $fields[1]->name; // correct answer (target)
 
-    if ($stage === 'generate' && !empty($_POST['items']) && is_array($_POST['items'])) {
-        // --- Build the list of edited rows ---
-        $editedRows = [];
-        foreach ($_POST['items'] as $idx => $item) {
-            $q   = trim($item['q'] ?? '');
-            $c   = trim($item['c'] ?? '');
-            $del = isset($item['del']) && $item['del'] === '1';
-            if ($del || $q === '' || $c === '') continue;
+            // Create with ai_candidates column
+            $conn->query("CREATE TABLE `$quizTable` (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                question TEXT,
+                correct_answer TEXT,
+                wrong1 TEXT,
+                wrong2 TEXT,
+                wrong3 TEXT,
+                source_lang VARCHAR(50),
+                target_lang VARCHAR(50),
+                image_url TEXT,
+                ai_candidates TEXT
+            )");
 
-            // Optional: lightweight guard against likely sentences (you can relax/tighten)
-            // Skip if either side is "too long" or contains sentence punctuation.
-            $looksSentence = (mb_strlen($q, 'UTF-8') > 40 || mb_strlen($c, 'UTF-8') > 40
-                              || preg_match('/[.!?]/u', $q) || preg_match('/[.!?]/u', $c));
-            if ($looksSentence) continue;
-
-            $editedRows[] = ['question' => $q, 'correct' => $c];
-        }
-
-        if (empty($editedRows)) {
-            echo "<div class='content' style='color:#b91c1c;background:#fee2e2;border:1px solid #fecaca;padding:10px;border-radius:8px;margin:10px 0;'>
-                    Nothing to generate. Make sure at least one row is kept (not deleted) and not a full sentence.
-                  </div>";
-            $stage = 'edit'; // fall back to edit view
-        } else {
-            // --- Proceed with generation using the edited rows only ---
-            $quizTable = 'quiz_choices_' . $selectedTable;
-
-            if (!quizTableExists($conn, $selectedTable)) {
-                // Create target table if missing
-                $conn->query("CREATE TABLE `$quizTable` (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    question TEXT,
-                    correct_answer TEXT,
-                    wrong1 TEXT,
-                    wrong2 TEXT,
-                    wrong3 TEXT,
-                    source_lang VARCHAR(50),
-                    target_lang VARCHAR(50),
-                    image_url TEXT,
-                    ai_candidates TEXT
-                )");
-            }
+            // Ensure column exists even if table pre-existed somehow
             ensureAiCandidatesColumn($conn, $quizTable);
 
-            // Process edited rows in chunks of up to 20 items
+            // Load all rows first (so we can batch easily)
+            $rows = [];
+            $res2 = $conn->query("SELECT `$col1` AS q, `$col2` AS c FROM `$selectedTable`");
+            while ($r = $res2->fetch_assoc()) {
+                $q = trim($r['q']); $c = trim($r['c']);
+                if ($q === '' || $c === '') continue;
+                $rows[] = ['question' => $q, 'correct' => $c];
+            }
+
+            // Process in chunks of up to 20 items
             $batchSize = 20;
-            for ($offset = 0; $offset < count($editedRows); $offset += $batchSize) {
-                $DAILY_USED = daily_used_for_model($conn, $MODEL);
-                $DAILY_LEFT = max(0, $DAILY_LIMIT - $DAILY_USED);
-                if ($DAILY_LEFT <= 0 && $is_free_tier) break;
+            for ($offset = 0; $offset < count($rows); $offset += $batchSize) {
+                // Check daily remaining before each API call
+                $DAILY_USED  = daily_used_for_model($conn, $MODEL);
+                $DAILY_LEFT  = max(0, $DAILY_LIMIT - $DAILY_USED);
+                if ($DAILY_LEFT <= 0 && $is_free_tier) {
+                    // Out of free quota for today — stop generating further batches
+                    break;
+                }
 
-                $chunk = array_slice($editedRows, $offset, $batchSize);
+                $chunk = array_slice($rows, $offset, $batchSize);
 
-                // Prepare items for AI (per-chunk index 1..N)
+                // Prepare items with stable 1..N indexes for this chunk
                 $items = [];
                 foreach ($chunk as $i => $r) {
                     $items[] = [
-                        'index'   => $i + 1,
+                        'index'   => $i + 1, // per-chunk index
                         'czech'   => $r['question'],
                         'correct' => $r['correct'],
                     ];
                 }
 
+                // Single AI request for up to 20 word-pairs (returns up to 12 candidates each)
                 $map = callOpenRouterBatch(
                     $OPENROUTER_API_KEY,
                     $OPENROUTER_MODEL,
@@ -387,10 +374,15 @@ if ($selectedTable) {
                     $APP_TITLE
                 );
 
-                // Count the call against the daily counter (success or not — consistent with previous behavior)
-                daily_inc_for_model($conn, $MODEL, 1);
+                // If we got anything back, count this as one API call against the daily quota
+                if (!empty($map)) {
+                    daily_inc_for_model($conn, $MODEL, 1);
+                } else {
+                    // Even if nothing came back, it was still a call; you can choose to count it as well:
+                    daily_inc_for_model($conn, $MODEL, 1);
+                }
 
-                // Insert rows with validated distractors + raw candidates
+                // Insert rows (validate + fallbacks), also store raw candidates
                 $stmt = $conn->prepare("INSERT INTO `$quizTable`
                     (question, correct_answer, wrong1, wrong2, wrong3, source_lang, target_lang, ai_candidates)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
@@ -404,6 +396,7 @@ if ($selectedTable) {
                         $cands = $map[$it['index']]['candidates'];
                     }
 
+                    // Choose 3 validated distractors from candidates
                     $chosen = validateDistractors($q, $co, $cands);
                     if (count($chosen) < 3) {
                         $fallbacks = cleanAIOutput([$co.'x', strrev($co), 'wrong']);
@@ -414,6 +407,7 @@ if ($selectedTable) {
                     }
                     [$w1, $w2, $w3] = array_slice($chosen, 0, 3);
 
+                    // Save the whole candidate list (pipe-separated) for display
                     $aiNote = '';
                     if (!empty($cands)) {
                         $safeCands = [];
@@ -430,108 +424,32 @@ if ($selectedTable) {
                     $stmt->bind_param('ssssssss', $q, $co, $w1, $w2, $w3, $autoSourceLang, $autoTargetLang, $aiNote);
                     $stmt->execute();
                 }
+
                 $stmt->close();
 
-                // Respect short-window rate limit
+                // Pause between batches to respect short-window rate-limit info
                 usleep($per_call_ms * 1000);
             }
-
-            $generatedTable = $quizTable;
         }
     }
-
-    if ($stage === 'edit') {
-        // --- Show editable table taken from the selected source table ---
-        $res = $conn->query("SELECT * FROM `$selectedTable`");
-        $rows = [];
-        $fields = [];
-        if ($res && $res->num_rows > 0) {
-            $fields = $res->fetch_fields();
-            $col1 = $fields[0]->name; // Czech / question
-            $col2 = $fields[1]->name; // target / correct
-            $res2 = $conn->query("SELECT `$col1` AS q, `$col2` AS c FROM `$selectedTable`");
-            while ($r = $res2->fetch_assoc()) {
-                $q = trim($r['q']); $c = trim($r['c']);
-                if ($q === '' || $c === '') continue;
-                $rows[] = ['q' => $q, 'c' => $c];
-            }
-        }
-
-        echo "<h3 style='text-align:center;'>Review & Edit: <code>".htmlspecialchars($selectedTable)."</code></h3>";
-        echo "<form method='post' style='margin:10px 0;'>";
-        echo "<input type='hidden' name='table' value='".htmlspecialchars($selectedTable, ENT_QUOTES)."'>";
-        echo "<input type='hidden' name='stage' value='generate'>";
-
-        // small helper controls
-        echo "<div class='content' style='display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:center;margin-bottom:8px;'>
-                <button type='button' id='markSentences' style='padding:6px 10px;'>Mark suspected sentences</button>
-                <button type='button' id='deleteMarked'  style='padding:6px 10px;'>Delete marked</button>
-              </div>";
-
-        echo "<div style='overflow-x:auto;'>";
-        echo "<table border='1' style='width:100%; max-width:100%; border-collapse:collapse;'>";
-        echo "<tr><th>Delete</th><th>Czech (question)</th><th>".htmlspecialchars($autoTargetLang ?: 'Answer')."</th></tr>";
-
-        foreach ($rows as $i => $r) {
-            $q = htmlspecialchars($r['q'], ENT_QUOTES);
-            $c = htmlspecialchars($r['c'], ENT_QUOTES);
-            echo "<tr>
-                    <td style='text-align:center;'>
-                        <input type='checkbox' name='items[$i][del]' value='1'>
-                    </td>
-                    <td>
-                        <input type='text' name='items[$i][q]' value='$q' style='width:100%; padding:6px;'>
-                    </td>
-                    <td>
-                        <input type='text' name='items[$i][c]' value='$c' style='width:100%; padding:6px;'>
-                    </td>
-                  </tr>";
-        }
-        echo "</table></div>";
-
-        echo "<div style='text-align:center; margin:14px 0;'>
-                <button type='submit' style='padding:10px 14px; background:#4CAF50; color:#fff; border:none; border-radius:6px;'>
-                    ▶ Generate with AI (edited rows only)
-                </button>
-              </div>";
-
-        echo "</form>";
-
-        // Client-side helpers: mark likely sentences (length>40 or has .!?)
-        echo "<script>
-            (function(){
-                const btnMark = document.getElementById('markSentences');
-                const btnDelete = document.getElementById('deleteMarked');
-                if (!btnMark) return;
-
-                btnMark.onclick = function(){
-                    const rows = document.querySelectorAll('table tr');
-                    for (let r = 1; r < rows.length; r++) {
-                        const inputs = rows[r].querySelectorAll('input[type=text]');
-                        if (inputs.length !== 2) continue;
-                        const q = inputs[0].value.trim();
-                        const c = inputs[1].value.trim();
-                        const looksSentence = (q.length > 40 || c.length > 40 || /[.!?]/.test(q) || /[.!?]/.test(c));
-                        if (looksSentence) {
-                            const del = rows[r].querySelector('input[type=checkbox]');
-                            if (del) del.checked = true;
-                            rows[r].style.background = '#fff7ed'; // light highlight
-                        }
-                    }
-                };
-                btnDelete.onclick = function(){
-                    const rows = document.querySelectorAll('table tr');
-                    for (let r = rows.length - 1; r >= 1; r--) {
-                        const del = rows[r].querySelector('input[type=checkbox]');
-                        if (del && del.checked) rows[r].remove();
-                    }
-                };
-            })();
-        </script>";
-    }
+    $generatedTable = $quizTable ?? '';
 }
 
-// ====== If we generated, show a small preview like before ======
+// ====== UI ======
+echo "<div class='content'>👤 Logged in as ".htmlspecialchars($_SESSION['username'] ?? '')." | <a href='logout.php'>Logout</a></div>";
+echo "<h2 style='text-align:center;'>Generate AI Quiz Choices</h2>";
+echo "<p style='text-align:center;'>This AI is designed for vocabulary, not sentences!</p>";
+echo "<p style='text-align:center;'>Distractors suggested by AI require your manual review and editing. </p>";
+
+// ====== Minimal Banner: Model + Daily usage ======
+$banner_parts = [];
+$banner_parts[] = 'Model: <code>'.htmlspecialchars($MODEL).'</code>'; 
+$banner_parts[] = 'Daily: used '.intval($DAILY_USED).' / '.intval($DAILY_LIMIT).' (left '.intval(max(0,$DAILY_LIMIT-$DAILY_USED)).')';
+
+echo "<div class='content' style='background:#f1f5f9; text-align:center;border:1px solid #e2e8f0;padding:10px 12px;border-radius:8px;margin:10px 0;'>".implode(' · ', $banner_parts)."</div>";
+
+include 'file_explorer.php';
+
 if (!empty($generatedTable)) {
     echo "<h3 style='text-align:center;'>Preview: <code>".htmlspecialchars($generatedTable)."</code></h3>";
     echo "<div style='overflow-x:auto;'><table border='1' style='width:100%; max-width:100%; border-collapse:collapse;'>
@@ -552,5 +470,4 @@ if (!empty($generatedTable)) {
             <a href='quiz_edit.php?table=".urlencode($generatedTable)."' style='padding:10px; background:#4CAF50; color:#fff; text-decoration:none;'>✏ Edit</a>
           </div>";
 }
-
-
+?>
