@@ -32,16 +32,7 @@ function getUserFoldersAndTables($conn, $username) {
 }
 
 $username = strtolower($_SESSION['username'] ?? '');
-// $conn->set_charset("utf8mb4");
-
-
-// Put this near the top, right after you create $conn:
-mysqli_report(MYSQLI_REPORT_OFF); // keep global quiet
 $conn->set_charset("utf8mb4");
-function fatal($msg){ echo "<pre style='color:#b00'>$msg</pre>"; exit; }
-
-
-
 
 $folders = getUserFoldersAndTables($conn, $username);
 $folders['Shared'][] = ['table_name' => 'difficult_words', 'display_name' => 'Difficult Words'];
@@ -72,63 +63,41 @@ $difficultOnly = isset($_GET['difficult_only']) && $_GET['difficult_only'] == '1
 $user_id = $_SESSION['user_id'] ?? null;
 
 if (!empty($selectedTable)) {
-    $res1 = $conn->query("SELECT * FROM `$selectedTable` LIMIT 1");
-    if (!$res1) fatal("Probe query failed for `$selectedTable`: " . htmlspecialchars($conn->error));
-    if ($res1->num_rows > 0) {
-        $fields = $res1->fetch_fields();
+    $result = $conn->query("SELECT * FROM `$selectedTable` LIMIT 1");
+    if ($result && $result->num_rows > 0) {
+        $columns = $result->fetch_fields();
+        $col1 = $columns[0]->name;
+        $col2 = $columns[1]->name;
 
-        // Prefer data columns; skip meta
-        $skip = ['id','language','created_at','updated_at','user_id'];
-        $dataCols = [];
-        foreach ($fields as $f) {
-            $n = strtolower($f->name);
-            if (!in_array($n, $skip, true)) $dataCols[] = $f->name;
-        }
-
-        // Pick 'Czech' explicitly if present, otherwise first data column
-        $czechCol = null; $foreignCol = null;
-        foreach ($dataCols as $c) if (strtolower($c) === 'czech') { $czechCol = $c; break; }
-        if ($czechCol === null) $czechCol = $dataCols[0] ?? null;
-        foreach ($dataCols as $c) if ($c !== $czechCol) { $foreignCol = $c; break; }
-
-        if (!$czechCol || !$foreignCol) {
-            fatal("Cannot determine word columns in `$selectedTable`. Expected a 'Czech' column plus one foreign-language column.");
-        }
-
-        $_SESSION['col1'] = $czechCol;
-        $_SESSION['col2'] = $foreignCol;
+        $_SESSION['col1'] = $col1;
+        $_SESSION['col2'] = $col2;
 
         if ($difficultOnly && $user_id) {
-            $sql = "
-                SELECT t.* 
-                FROM `$selectedTable` AS t
-                INNER JOIN `difficult_words` AS d
-                  ON t.`$czechCol` = d.`source_word`
-                 AND t.`$foreignCol` = d.`target_word`
-                WHERE d.`user_id` = ? AND d.`table_name` = ?
-            ";
-            $stmt = $conn->prepare($sql);
-            if (!$stmt) fatal("Prepare failed: " . htmlspecialchars($conn->error) . "\n\nSQL:\n$sql");
+            $stmt = $conn->prepare("
+                SELECT t.* FROM `$selectedTable` t
+                JOIN difficult_words d ON t.`$col1` = d.source_word AND t.`$col2` = d.target_word
+                WHERE d.user_id = ? AND d.table_name = ?
+            ");
             $stmt->bind_param("is", $user_id, $selectedTable);
-            if (!$stmt->execute()) fatal("Execute failed: " . htmlspecialchars($stmt->error) . "\n\nSQL:\n$sql");
+            $stmt->execute();
             $result = $stmt->get_result();
-            if (!$result) fatal("get_result failed: " . htmlspecialchars($conn->error));
         } else {
             $result = $conn->query("SELECT * FROM `$selectedTable`");
-            if (!$result) fatal("Query failed: " . htmlspecialchars($conn->error));
         }
 
-        while ($row = $result->fetch_assoc()) {
-            $rows[] = [
-                'cz'       => $row[$czechCol] ?? '',
-                'foreign'  => $row[$foreignCol] ?? '',
-                'language' => $row['language'] ?? strtolower($foreignCol),
-            ];
+        if ($result) {
+            while ($row = $result->fetch_assoc()) {
+                $rows[] = [
+                    'cz' => $row[$col1],
+                    'foreign' => $row[$col2],
+                    'language' => $row['language'] ?? strtolower($col2)
+                ];
+            }
         }
 
-        $column1 = $czechCol;
-        $column2 = $foreignCol;
-        $targetLanguage = strtolower($foreignCol);
+        $column1 = $col1;
+        $column2 = $col2;
+        $targetLanguage = strtolower($col2);
     }
 }
 
