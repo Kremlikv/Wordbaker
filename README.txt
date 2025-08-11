@@ -141,4 +141,37 @@ FILE EXPLORER IN MAIN
 Now able to show subfolders. Able to share-unshared, rename, edit, copy.
 main.php and file_explorer.php Even flashcards work with the new folders.
 
+FILE STRUCTURE
+
+config.php (gitignore)
+index,php
+main.php
+styling.php styling_welcome.php 
+upload_handler.php
+
+register.php  login.php  logout.php  session.php 
+
+db.php
+db_users.php 
+
+mark_difficult.php mastered.php review_difficult.php
+
+upload.php 
+create_table.php
+
+pdf_scan.php
+translator.php
+
+generate_quiz_choices.php  quiz_edit  add.images.php
+
+flashcards.php
+play_quiz.php 
+
+generate_tts_snippet.php
+generate_mp3_google_ssml.php
+
+update_table
+check_table_name
+
+
 

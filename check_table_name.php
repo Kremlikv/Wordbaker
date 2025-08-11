@@ -1,6 +1,7 @@
 <?php
 require_once 'db.php'; 
 // check_table_name.php
+// It’s a tiny JSON endpoint that answers one question: “Does a table named X exist in my database?”
 
 header('Content-Type: application/json');
 
