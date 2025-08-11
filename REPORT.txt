@@ -177,3 +177,12 @@ BRANCH
 I renamed the branch01 to main so that he public version of the project is on default main.
 yaml files set to main. 
 
+FIXES
+I fixed some minor problems. 
+Flashcard "dificult only" no working due to character collation.
+ai_cleaner not working due to deleted/inactive key for a model. 
+A nice pdf-scan fail log.
+Distrator generation must have no sentences.
+Text going to distrator generation must be proofed against invisible bad //**% characters.
+
+
