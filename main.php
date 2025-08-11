@@ -229,25 +229,27 @@ function getUserFoldersAndTables($conn, $username) {
     $result = $conn->query("SHOW TABLES");
     while ($row = $result->fetch_array()) {
         $table = $row[0];
+        // user's own tables
         if (stripos($table, $username . '_') === 0) {
             $suffix = substr($table, strlen($username) + 1);
             $suffix = preg_replace('/_+/', '_', $suffix);
             $parts = explode('_', $suffix, 2);
-            if (count($parts) === 2 && trim($parts[0]) !== '') {
-                $folder = $parts[0];
-                $file = $parts[1];
-            } else {
-                $folder = 'Uncategorized';
-                $file = $suffix;
-            }
-            $allTables[$folder][] = [
-                'table_name' => $table,
-                'display_name' => $file
-            ];
+            $folder = (count($parts) === 2 && trim($parts[0]) !== '') ? $parts[0] : 'Uncategorized';
+            $file   = (count($parts) === 2) ? $parts[1] : $suffix;
+            $allTables[$folder][] = ['table_name' => $table, 'display_name' => $file];
+        }
+        // globally shared: "shared_*"
+        if (stripos($table, 'shared_') === 0) {
+            $suffix = substr($table, strlen('shared_'));
+            $suffix = preg_replace('/_+/', '_', $suffix);
+            $parts = explode('_', $suffix, 2);
+            $disp  = (count($parts) === 2) ? ($parts[0] . '_' . $parts[1]) : $suffix;
+            $allTables['Shared'][] = ['table_name' => $table, 'display_name' => $disp];
         }
     }
     return $allTables;
 }
+
 
 $username = strtolower($_SESSION['username'] ?? '');
 $conn->set_charset("utf8mb4");

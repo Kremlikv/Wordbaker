@@ -54,8 +54,13 @@
     background: #ccc;
 }
 @media (max-width: 768px) {
-    .two-column { flex-direction: column; }
-    .folder-panel, .file-panel { width: 100%; max-height: 40vh; }
+    .two-column {
+        flex-direction: column;
+    }
+    .folder-panel, .file-panel {
+        width: 100%;
+        max-height: 40vh;
+    }
 }
 #fileExplorer {
     display: none;
@@ -63,7 +68,10 @@
     transition: opacity 0.4s ease;
     margin-top: 20px;
 }
-#fileExplorer.visible { display: flex; opacity: 1; }
+#fileExplorer.visible {
+    display: flex;
+    opacity: 1;
+}
 .select-file-btn {
     display: inline-block;
     padding: 10px 15px;
@@ -73,14 +81,16 @@
     border-radius: 4px;
     cursor: pointer;
 }
-.select-file-btn:hover { background: #777; }
+.select-file-btn:hover {
+    background: #777;
+}
 
 /* Right-click menu */
 .folder-context-menu {
     position: absolute; display: none; z-index: 9999;
     background: #fff; border: 1px solid #e2e8f0; border-radius: 8px;
     box-shadow: 0 10px 20px rgba(0,0,0,0.08);
-    min-width: 200px; padding: 6px;
+    min-width: 190px; padding: 6px;
 }
 .folder-context-menu button {
     width: 100%; border: 0; background: transparent; text-align: left;
@@ -128,7 +138,6 @@
 <!-- Right-click menu + hidden form for folder actions -->
 <div id="folderMenu" class="folder-context-menu">
   <button type="button" id="renameFolderBtn">✏️ Rename folder…</button>
-  <button type="button" id="copyFolderBtn">📄 Copy folder…</button>
   <button type="button" id="deleteFolderBtn" style="color:#b91c1c;">🗑️ Delete folder…</button>
 </div>
 
@@ -137,11 +146,6 @@
   <input type="hidden" name="folder_old" value="">
   <input type="hidden" name="folder_new" value="">
   <input type="hidden" name="confirm_text" value="">
-  <!-- copy-specific -->
-  <input type="hidden" name="dest_user" value="">
-  <input type="hidden" name="dest_folder" value="">
-  <input type="hidden" name="overwrite" value="">
-  <input type="hidden" name="include_data" value="1">
 </form>
 
 <div id="fileSelectedMsg" style="display:none;text-align:center;margin-top:10px;font-weight:bold;color:green;"></div>
@@ -149,7 +153,6 @@
 <script>
 const folderData = <?php echo json_encode($folderData, JSON_UNESCAPED_UNICODE); ?>;
 const firstFolderName = <?php echo json_encode($firstFolderName); ?>;
-const currentUser = <?php echo json_encode(strtolower($_SESSION['username'] ?? '')); ?>;
 
 function showFileExplorer() {
     const explorer = document.getElementById("fileExplorer");
@@ -233,31 +236,6 @@ function selectTable(fullTableName, displayName) {
     actionForm.folder_action.value = 'rename_folder';
     actionForm.folder_old.value    = targetFolder;
     actionForm.folder_new.value    = newName;
-    actionForm.submit();
-  });
-
-  // Copy folder
-  document.getElementById('copyFolderBtn').addEventListener('click', function () {
-    if (!targetFolder) return;
-    let destUser = prompt(
-      'Copy folder "' + targetFolder + '" to which USER?\n- Use your username (default)\n- Use "shared" to share with ALL\n- Or another username (e.g., user5)',
-      currentUser || 'shared'
-    );
-    if (!destUser) return;
-    destUser = destUser.trim().toLowerCase();
-
-    let destFolder = prompt('Destination FOLDER name:', targetFolder);
-    if (!destFolder) return;
-    if (!/^[a-z0-9_]+$/i.test(destFolder)) { alert('Use letters, numbers, and underscores only.'); return; }
-
-    const overwrite = confirm('Overwrite destination tables if they already exist? OK = Yes, Cancel = No');
-
-    actionForm.folder_action.value = 'copy_folder';
-    actionForm.folder_old.value    = targetFolder;
-    actionForm.dest_user.value     = destUser;
-    actionForm.dest_folder.value   = destFolder;
-    actionForm.overwrite.value     = overwrite ? '1' : '';
-    actionForm.include_data.value  = '1'; // keep data
     actionForm.submit();
   });
 
