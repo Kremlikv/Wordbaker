@@ -15,14 +15,14 @@
 .folder-item { padding:8px 10px; cursor:pointer; border:1px solid #fff; color:#fff; text-align:left; background:#444; user-select:none; }
 .folder-item:hover, .folder-item.active { background:#555; }
 .folder-item.shared { opacity:.8; cursor:default; }
-.file-panel { flex:1; background:#ddd; padding:6px 0; max-height:66vh; overflow-y:auto; }
+.file-panel { flex:1; background:#ddd; padding:6px 0; max-height:66vh; text-align:left; overflow-y:auto; }
 
 /* Tree in right pane */
-.tree { padding:4px 8px; }
-.tree-folder, .tree-file { padding:6px 8px; cursor:pointer; border-radius:6px; margin-left: 0; user-select:none; }
+.tree { padding:4px 8px; text-align:left; }
+.tree-folder, .tree-file { padding:6px 8px; cursor:pointer; text-align:left; border-radius:6px; margin-left: 0; user-select:none; }
 .tree-folder:hover, .tree-file:hover { background:#ccc; }
 .tree-children { margin-left: 18px; }
-.tree-toggle { display:inline-block; width:1em; text-align:center; margin-right:6px; }
+.tree-toggle { display:inline-block; width:1em; text-align:left ; margin-right:6px; }
 .tree-folder > .tree-label { font-weight:600; }
 .tree-file { background:#eee; }
 .tree-file:hover { background:#e0e0e0; }
