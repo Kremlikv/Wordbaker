@@ -1,15 +1,16 @@
 <?php
 require_once 'session.php';
-require_once 'config.php'; // must define $GOOGLE_API_KEY and optionally $LIBRETRANSLATE_URL
+require_once 'config.php'; // expects $GOOGLE_API_KEY (and optional $LIBRETRANSLATE_URL)
 include 'styling.php';
 
 $text_lines = '';
 $lines = [];
 $translated = [];
+$engineUsed = null; // will show which engine actually produced the preview
 $sourceLang = $_POST['sourceLang'] ?? '';
 $targetLang = $_POST['targetLang'] ?? '';
 
-// Normalize language codes (UI 'sp' → ISO 'es')
+// Normalize language codes (legacy 'sp' -> ISO 'es')
 function norm_lang($code) {
     $map = ['sp' => 'es'];
     return $map[$code] ?? $code;
@@ -34,7 +35,7 @@ $targetLabel = $langLabels[$targetLang] ?? 'Czech';
 $tableName = $_POST['new_table_name'] ?? '';
 $deletePdfPath = $_POST['delete_pdf_path'] ?? '';
 
-// HTTP helpers
+// ---------------- HTTP helpers ----------------
 function http_post_json($url, $payloadArr, $headers = []) {
     $options = [
         'http' => [
@@ -46,23 +47,37 @@ function http_post_json($url, $payloadArr, $headers = []) {
     ];
     return @file_get_contents($url, false, stream_context_create($options));
 }
+function http_get_simple($url) {
+    $ctx = stream_context_create(['http' => ['method' => 'GET', 'timeout' => 20]]);
+    return @file_get_contents($url, false, $ctx);
+}
 
-// Translation engines
+// ---------------- Translation engines ----------------
 function translate_google($text, $source, $target) {
     global $GOOGLE_API_KEY;
     if (empty($GOOGLE_API_KEY)) return null;
-    $params = [
+
+    // Build GET query for v2
+    $query = [
         'q'      => $text,
         'target' => $target ?: 'cs',
         'format' => 'text',
         'key'    => $GOOGLE_API_KEY
     ];
     if ($source && $source !== 'auto') {
-        $params['source'] = $source;
+        $query['source'] = $source;
     }
-    $resp = http_post_json('https://translation.googleapis.com/language/translate/v2', $params);
-    if (!$resp) return null;
+    $url = 'https://translation.googleapis.com/language/translate/v2?' . http_build_query($query);
+    $resp = http_get_simple($url);
+    if (!$resp) {
+        error_log('Google Translate HTTP error or empty response');
+        return null;
+    }
     $data = json_decode($resp, true);
+    if (isset($data['error'])) {
+        error_log('Google Translate error: ' . ($data['error']['message'] ?? json_encode($data['error'])));
+        return null;
+    }
     return $data['data']['translations'][0]['translatedText'] ?? null;
 }
 
@@ -91,36 +106,37 @@ function translate_mymemory($text, $source, $target) {
     return $data['responseData']['translatedText'] ?? null;
 }
 
-function translate_text($text, $source, $target) {
-    $out = translate_google($text, $source, $target);
-    if ($out !== null && $out !== '') return $out;
-
-    $out = translate_libre($text, $source, $target);
-    if ($out !== null && $out !== '') return $out;
-
-    $out = translate_mymemory($text, $source, $target);
-    if ($out !== null && $out !== '') return $out;
-
-    return '[Translation failed]';
+// Return [text, engineName]
+function translate_text_with_engine($text, $source, $target) {
+    if (($g = translate_google($text, $source, $target)) !== null && $g !== '') return [$g, 'Google'];
+    if (($l = translate_libre($text, $source, $target)) !== null && $l !== '') return [$l, 'LibreTranslate'];
+    if (($m = translate_mymemory($text, $source, $target)) !== null && $m !== '') return [$m, 'MyMemory'];
+    return ['[Translation failed]', 'None'];
 }
 
-// Translation request
+// ---------------- Build rows: always Czech on LEFT ----------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['text_lines'])) {
     $text_lines = trim($_POST['text_lines']);
+
+    // Merge lines and split into sentences
     $mergedText = preg_replace("/\s+\n\s+|\n+/", ' ', $text_lines);
     $sentences = preg_split('/(?<=[.!?:])\s+(?=[A-Z\xC0-\xFF])/', $mergedText);
     $lines = array_filter(array_map('trim', $sentences));
 
     foreach ($lines as $line) {
         if ($sourceLang === 'cs') {
-            $foreign = translate_text($line, $sourceLang, $targetLang ?: '');
+            // Left = original Czech, Right = foreign translation
+            list($foreign, $eng) = translate_text_with_engine($line, $sourceLang, $targetLang ?: '');
             $cz = $line;
         } else {
-            $cz = translate_text($line, $sourceLang ?: 'auto', 'cs');
+            // Left = Czech translation, Right = original foreign line
+            list($cz, $eng) = translate_text_with_engine($line, $sourceLang ?: 'auto', 'cs');
             $foreign = $line;
         }
+        if ($engineUsed === null) $engineUsed = $eng; // first successful engine used
         $translated[] = ['cz' => $cz, 'foreign' => $foreign];
-        usleep(500000);
+
+        usleep(500000); // be gentle with free/limited APIs
     }
 
     if ($deletePdfPath && file_exists($deletePdfPath)) {
@@ -128,7 +144,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['text_lines'])) {
     }
 }
 
-// Save table
+// ---------------- Save table: LEFT = Czech, RIGHT = other language label ----------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['table_data'])) {
     $post_source = norm_lang($_POST['sourceLang'] ?? '');
     $post_target = norm_lang($_POST['targetLang'] ?? '');
@@ -141,6 +157,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['table_data'])) {
     $tableData = $_POST['table_data'];
     if (!is_array($tableData)) die("❌ Invalid table data format.");
 
+    // Use your DB creds from session.php / elsewhere
     $conn = new mysqli($host, $user, $password, $database);
     $conn->set_charset("utf8");
     if ($conn->connect_error) die("Connection failed: " . $conn->connect_error);
@@ -257,8 +274,9 @@ function validateLangSelection(event) {
 </head>
 <body>
 <div class='content'>
-👤 Logged in as <?= $_SESSION['username'] ?> | <a href='logout.php'>Logout</a>
+  👤 Logged in as <?= htmlspecialchars($_SESSION['username'] ?? '') ?> | <a href='logout.php'>Logout</a>
 </div>
+
 <h2>🌍 Translate Sentences to Table</h2>
 
 <form method="POST" onsubmit="return validateLangSelection(event)">
@@ -300,9 +318,9 @@ function validateLangSelection(event) {
 
   <div class="engine-badge">
     <?php
-      if (!empty($GOOGLE_API_KEY))       echo "Using: Google Cloud Translation API";
-      elseif (!empty($LIBRETRANSLATE_URL)) echo "Using: LibreTranslate";
-      else                                 echo "Using: MyMemory (free; may be creative)";
+      if (!empty($GOOGLE_API_KEY))          echo "Configured engine priority: Google → LibreTranslate → MyMemory";
+      elseif (!empty($LIBRETRANSLATE_URL))  echo "Configured engine priority: LibreTranslate → MyMemory";
+      else                                  echo "Configured engine: MyMemory (free; may be creative)";
     ?>
   </div>
 
@@ -312,31 +330,35 @@ function validateLangSelection(event) {
 </form>
 
 <?php if (!empty($translated)): ?>
-<form method="POST">
-  <h3>Translated Preview</h3>
-  <table>
-    <thead>
-      <tr>
-        <th>Czech</th>
-        <th><?= htmlspecialchars(($sourceLang === 'cs') ? ($langLabels[$targetLang] ?? 'Foreign') : ($langLabels[$sourceLang] ?? 'Foreign')) ?></th>
-      </tr>
-    </thead>
-    <tbody>
-      <?php foreach ($translated as $index => $pair): ?>
+  <div class="engine-badge" style="text-align:center; margin-top:10px;">
+    Engine used for this preview: <strong><?= htmlspecialchars($engineUsed ?: 'Unknown') ?></strong>
+  </div>
+
+  <form method="POST">
+    <h3>Translated Preview</h3>
+    <table>
+      <thead>
         <tr>
-          <td><input type="text" name="table_data[<?= $index ?>][cz]" value="<?= htmlspecialchars($pair['cz']) ?>" style="width: 100%;"></td>
-          <td><input type="text" name="table_data[<?= $index ?>][foreign]" value="<?= htmlspecialchars($pair['foreign']) ?>" style="width: 100%;"></td>
+          <th>Czech</th>
+          <th><?= htmlspecialchars(($sourceLang === 'cs') ? ($langLabels[$targetLang] ?? 'Foreign') : ($langLabels[$sourceLang] ?? 'Foreign')) ?></th>
         </tr>
-      <?php endforeach; ?>
-    </tbody>
-  </table><br>
+      </thead>
+      <tbody>
+        <?php foreach ($translated as $index => $pair): ?>
+          <tr>
+            <td><input type="text" name="table_data[<?= $index ?>][cz]" value="<?= htmlspecialchars($pair['cz']) ?>" style="width: 100%;"></td>
+            <td><input type="text" name="table_data[<?= $index ?>][foreign]" value="<?= htmlspecialchars($pair['foreign']) ?>" style="width: 100%;"></td>
+          </tr>
+        <?php endforeach; ?>
+      </tbody>
+    </table><br>
 
-  <input type="hidden" name="new_table_name" value="<?= htmlspecialchars($tableName) ?>">
-  <input type="hidden" name="sourceLang" value="<?= htmlspecialchars($sourceLang) ?>">
-  <input type="hidden" name="targetLang" value="<?= htmlspecialchars($targetLang) ?>">
+    <input type="hidden" name="new_table_name" value="<?= htmlspecialchars($tableName) ?>">
+    <input type="hidden" name="sourceLang" value="<?= htmlspecialchars($sourceLang) ?>">
+    <input type="hidden" name="targetLang" value="<?= htmlspecialchars($targetLang) ?>">
 
-  <button type="submit">💾 Save Table to Database</button>
-</form>
+    <button type="submit">💾 Save Table to Database</button>
+  </form>
 <?php endif; ?>
 </body>
 </html>
