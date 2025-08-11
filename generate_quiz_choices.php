@@ -293,25 +293,23 @@ foreach ($folders as $folder => $tableList) {
     }
 }
 
-$selectedTable = $_POST['table'] ?? $_GET['table'] ?? '';
-$autoSourceLang = '';
-$autoTargetLang = '';
-if ($selectedTable) {
-    $columnsRes = $conn->query("SHOW COLUMNS FROM `$selectedTable`");
-    if ($columnsRes && $columnsRes->num_rows >= 2) {
-        $cols = $columnsRes->fetch_all(MYSQLI_ASSOC);
-        $autoSourceLang = ucfirst($cols[0]['Field']);
-        $autoTargetLang = ucfirst($cols[1]['Field']);
-    }
-}
-
-
-
 
 // ====== EDIT-FIRST WORKFLOW ======
 $generatedTable = '';
 
 if ($selectedTable) {
+
+    $selectedTable = $_POST['table'] ?? $_GET['table'] ?? '';
+    $autoSourceLang = '';
+    $autoTargetLang = '';
+    if ($selectedTable) {
+        $columnsRes = $conn->query("SHOW COLUMNS FROM `$selectedTable`");
+        if ($columnsRes && $columnsRes->num_rows >= 2) {
+            $cols = $columnsRes->fetch_all(MYSQLI_ASSOC);
+            $autoSourceLang = ucfirst($cols[0]['Field']);
+            $autoTargetLang = ucfirst($cols[1]['Field']);
+        }
+
     // If user submitted edited rows, generate from those; otherwise show the editable table
     $stage = $_POST['stage'] ?? 'edit';
 
@@ -529,7 +527,7 @@ if ($selectedTable) {
             })();
         </script>";
     }
-}
+}}
 
 // ====== If we generated, show a small preview like before ======
 if (!empty($generatedTable)) {
