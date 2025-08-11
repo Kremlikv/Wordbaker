@@ -99,14 +99,18 @@ if (!empty($selectedTable)) {
         $_SESSION['col2'] = $foreignCol;
 
         if ($difficultOnly && $user_id) {
+           
             $sql = "
-                SELECT t.* 
+                SELECT t.*
                 FROM `$selectedTable` AS t
                 INNER JOIN `difficult_words` AS d
-                  ON t.`$czechCol` = d.`source_word`
-                 AND t.`$foreignCol` = d.`target_word`
+                  ON t.`$czechCol`   COLLATE utf8mb4_czech_ci = d.`source_word` COLLATE utf8mb4_czech_ci
+                AND t.`$foreignCol` COLLATE utf8mb4_czech_ci = d.`target_word` COLLATE utf8mb4_czech_ci
                 WHERE d.`user_id` = ? AND d.`table_name` = ?
             ";
+
+
+
             $stmt = $conn->prepare($sql);
             if (!$stmt) fatal("Prepare failed: " . htmlspecialchars($conn->error) . "\n\nSQL:\n$sql");
             $stmt->bind_param("is", $user_id, $selectedTable);

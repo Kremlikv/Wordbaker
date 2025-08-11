@@ -175,7 +175,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['table_data'])) {
     $create_sql = "CREATE TABLE `$safeTable` (
         `$col1_safe` VARCHAR(255) NOT NULL,
         `$col2_safe` VARCHAR(255) NOT NULL
-    ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci";
+    ) CHARACTER SET utf8mb4 COLLATE utf8mb4_czech_ci";
     if (!$conn->query($create_sql)) die("Create failed: " . $conn->error);
 
     $stmt = $conn->prepare("INSERT INTO `$safeTable` (`$col1_safe`, `$col2_safe`) VALUES (?, ?)");
