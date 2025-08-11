@@ -15,7 +15,10 @@ if (!$table || !$col1 || !$col2) {
 $voices = [
     'czech'   => ['name' => 'cs-CZ-Standard-B', 'code' => 'cs-CZ'],
     'english' => ['name' => 'en-GB-Standard-O', 'code' => 'en-GB'],
-    'german'  => ['name' => 'de-DE-Standard-H', 'code' => 'de-DE']
+    'german'  => ['name' => 'de-DE-Standard-H', 'code' => 'de-DE'],
+    'french'  => ['name' => 'fr-FR-Standard-G', 'code' => 'fr-FR'],
+    'italian' => ['name' => 'it-IT-Standard-F', 'code' => 'it-IT'],
+    'spanish' => ['name' => 'es-ES-Standard-G', 'code' => 'es-ES'],
 ];
 
 $srcLang = strtolower($col1);

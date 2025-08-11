@@ -23,7 +23,10 @@ if (!$text || !$lang) {
 $voiceMap = [
     'czech'   => 'cs-CZ-Standard-B',
     'english' => 'en-GB-Standard-O',
-    'german'  => 'de-DE-Wavenet-H'
+    'german'  => 'de-DE-Wavenet-H',
+    'french'  => 'fr-FR-Standard-G',
+    'italian' => 'it-IT-Standard-F',
+    'spanish' => 'es-ES-Standard-G'
 ];
 
 if (!isset($voiceMap[$lang])) {
