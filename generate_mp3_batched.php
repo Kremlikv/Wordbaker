@@ -77,7 +77,7 @@ function tts_google_mp3(string $apiKey, string $voiceName, string $langCode, str
   ];
   if ($wantMarks) $payload['enableTimePointing'] = ['SSML_MARK'];
 
-  $ch = curl_init('https://texttospeech.googleapis.com/v1/text:synthesize?key=' . urlencode($apiKey));
+  $ch = curl_init('https://texttospeech.googleapis.com/v1beta1/text:synthesize?key=' . urlencode($apiKey));
   curl_setopt_array($ch, [
     CURLOPT_RETURNTRANSFER => true,
     CURLOPT_POST           => true,
