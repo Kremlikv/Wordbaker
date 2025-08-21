@@ -176,17 +176,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' &&
 
         <h2>Create New Table</h2>
         <form method="POST">
-            <label>Folder Name (e.g., <em>prag</em>):</label>
+            <label>Folder Name (e.g., <em>Animals</em>):</label>
             <input type="text" name="folder" required>
 
-            <label>File Name (e.g., <em>04jacob</em>):</label>
+            <label>File Name (e.g., <em>Birds</em>):</label>
             <input type="text" name="filename" required>
 
             <label>Second Language Column (e.g., <em>German</em>, <em>English</em>, etc.):</label>
             <input type="text" name="second_language" required>
 
             <fieldset>
-                <legend>Optional: Import cards now (Quizlet-style)</legend>
+                <legend>Optional: Import cards (copy and paste)</legend>
 
                 <label><input type="checkbox" name="do_import" id="do_import"> Import pasted text into the new table</label>
 
