@@ -77,7 +77,7 @@ function tts_google_mp3(string $apiKey, string $voiceName, string $langCode, str
   ];
   if ($wantMarks) $payload['enableTimePointing'] = ['SSML_MARK'];
 
-  $ch = curl_init('https://texttospeech.googleapis.com/v1beta1/text:synthesize?key=' . urlencode($apiKey));
+  $ch = curl_init('https://texttospeech.googleapis.com/v1/text:synthesize?key=' . urlencode($apiKey));
   curl_setopt_array($ch, [
     CURLOPT_RETURNTRANSFER => true,
     CURLOPT_POST           => true,
@@ -116,20 +116,136 @@ function synth_blob_with_fallback(array $voicePrefs, string $apiKey, string $ssm
   fail('No voice available');
 }
 
-function timepoints_to_slices(array $timepoints, int $totalBytes, float $totalSeconds): array {
+/**
+ * Parse MP3 frames and build a time->byte map that is robust to VBR.
+ * This lets us cut only on frame boundaries so we never split inside a word.
+ */
+function mp3_parse_frames(string $bytes): array {
+  $len = strlen($bytes);
+  $pos = 0;
+
+  // Skip ID3v2 header if present
+  if ($len >= 10 && substr($bytes,0,3) === "ID3") {
+    $id3len = 10;
+    $sizeBytes = substr($bytes,6,4);
+    // Synchsafe int
+    $sz = ((ord($sizeBytes[0]) & 0x7F) << 21) | ((ord($sizeBytes[1]) & 0x7F) << 14) | ((ord($sizeBytes[2]) & 0x7F) << 7) | (ord($sizeBytes[3]) & 0x7F);
+    $id3len += $sz;
+    $pos = $id3len;
+  }
+
+  $frames = [];
+  $time = 0.0;
+
+  // Tables
+  $bitrateTable = [
+    // version => layer => index => kbps
+    3 => [ // MPEG1
+      1 => [0,32,40,48,56,64,80,96,112,128,160,192,224,256,320,0], // Layer III uses table for layer 3 but indexes differ; we use Layer III row 1 here
+      2 => [0,32,48,56,64,80,96,112,128,160,192,224,256,320,384,0],
+      3 => [0,32,64,96,128,160,192,224,256,320,384,448,512,576,640,0]
+    ],
+    2 => [ // MPEG2
+      1 => [0,8,16,24,32,40,48,56,64,80,96,112,128,144,160,0],
+      2 => [0,8,16,24,32,40,48,56,64,80,96,112,128,144,160,0],
+      3 => [0,32,48,56,64,80,96,112,128,144,160,176,192,224,256,0]
+    ],
+    0 => [ // MPEG2.5
+      1 => [0,8,16,24,32,40,48,56,64,80,96,112,128,144,160,0],
+      2 => [0,8,16,24,32,40,48,56,64,80,96,112,128,144,160,0],
+      3 => [0,32,48,56,64,80,96,112,128,144,160,176,192,224,256,0]
+    ]
+  ];
+  $srTable = [
+    3 => [44100, 48000, 32000, 0], // MPEG1
+    2 => [22050, 24000, 16000, 0], // MPEG2
+    0 => [11025, 12000, 8000, 0],  // MPEG2.5
+  ];
+
+  while ($pos + 4 <= $len) {
+    // seek sync
+    if ((ord($bytes[$pos]) == 0xFF) && ((ord($bytes[$pos+1]) & 0xE0) == 0xE0)) {
+      $b1 = ord($bytes[$pos+1]);
+      $verID  = ($b1 >> 3) & 0x03;      // 00=2.5, 10=2, 11=1; 01 reserved
+      if ($verID == 1) { $pos++; continue; } // reserved, skip
+      $version = ($verID == 3) ? 3 : (($verID == 2) ? 2 : 0);
+      $layerBits = ($b1 >> 1) & 0x03;   // 01=III,10=II,11=I; 00 reserved
+      if ($layerBits == 0) { $pos++; continue; }
+      $layer = (4 - $layerBits);        // 3=Layer I,2=II,1=III
+
+      $b2 = ord($bytes[$pos+2]);
+      $bitrateIdx = ($b2 >> 4) & 0x0F;
+      $srIdx      = ($b2 >> 2) & 0x03;
+      $padding    = ($b2 >> 1) & 0x01;
+
+      $sr = $srTable[$version][$srIdx] ?? 0;
+      $kbps = $bitrateTable[$version][$layer][$bitrateIdx] ?? 0;
+      if ($sr == 0 || $kbps == 0) { $pos++; continue; }
+
+      // Samples per frame
+      $samples = 1152;
+      if ($layer == 1) { $samples = 384; }
+      elseif ($layer == 2) { $samples = 1152; }
+      else { // Layer III
+        $samples = ($version == 3) ? 1152 : 576; // MPEG1=1152, MPEG2/2.5=576
+      }
+
+      // Frame length in bytes
+      if ($layer == 3) { // Layer I
+        $frameLen = (int)floor(((12 * ($kbps*1000) / $sr) + $padding) * 4);
+      } else { // Layer II/III
+        $frameLen = (int)floor((144 * ($kbps*1000) / $sr) + $padding);
+      }
+      if ($frameLen <= 0 || $pos + $frameLen > $len) { $pos++; continue; }
+
+      $dur = $samples / $sr;
+      $frames[] = ['offset'=>$pos, 'length'=>$frameLen, 'start'=>$time, 'end'=>$time + $dur];
+      $time += $dur;
+      $pos += $frameLen;
+    } else {
+      $pos++;
+    }
+  }
+  return $frames; // each element: offset,length,start,end
+}
+
+/**
+ * Convert timepoint list to byte slices using MP3 frame boundaries (VBR-safe).
+ */
+function timepoints_to_slices(string $mp3, array $timepoints, float $totalSeconds): array {
+  $frames = mp3_parse_frames($mp3);
+  if (empty($frames)) return [];
+
+  $slices = [];
   $n = count($timepoints);
-  if ($n === 0) return [];
-  $bps = ($totalSeconds > 0.0) ? ($totalBytes / $totalSeconds) : 0.0;
-  $ranges = [];
   for ($i = 0; $i < $n; $i++) {
     $tStart = (float)$timepoints[$i]['timeSeconds'];
     $tEnd   = ($i+1 < $n) ? (float)$timepoints[$i+1]['timeSeconds'] : $totalSeconds;
-    $bStart = (int)floor($tStart * $bps);
-    $bEnd   = (int)floor($tEnd   * $bps);
-    if ($bStart < 0) $bStart = 0; if ($bEnd < $bStart) $bEnd = $bStart;
-    $ranges[] = [$bStart, $bEnd];
+
+    // find first frame whose end > tStart
+    $startIdx = 0;
+    $lo = 0; $hi = count($frames)-1;
+    while ($lo <= $hi) { // binary search by start
+      $mid = intdiv($lo+$hi,2);
+      if ($frames[$mid]['end'] <= $tStart) $lo = $mid+1; else $hi = $mid-1;
+    }
+    $startIdx = min($lo, count($frames)-1);
+
+    // find last frame whose start < tEnd
+    $endIdx = $startIdx;
+    $lo = $startIdx; $hi = count($frames)-1;
+    while ($lo <= $hi) {
+      $mid = intdiv($lo+$hi,2);
+      if ($frames[$mid]['start'] < $tEnd) { $endIdx = $mid; $lo = $mid+1; }
+      else { $hi = $mid-1; }
+    }
+
+    $bStart = $frames[$startIdx]['offset'];
+    $last   = $frames[$endIdx];
+    $bEnd   = $last['offset'] + $last['length'];
+    $slices[] = [$bStart, $bEnd];
   }
-  return $ranges;
+  return $slices;
 }
 
 function build_batches(array $rows, int $maxSsmlBytes, int $minPerBatch, int $itemBreakMs): array {
@@ -218,8 +334,8 @@ SSML1 len=".strlen($ssml1).", SSML2 len=".strlen($ssml2)."
   }
 
   // Compute slices
-  $slices1 = timepoints_to_slices($tp1, strlen($bytes1), $t1_total);
-  $slices2 = timepoints_to_slices($tp2, strlen($bytes2), $t2_total);
+  $slices1 = timepoints_to_slices($bytes1, $tp1, $t1_total);
+  $slices2 = timepoints_to_slices($bytes2, $tp2, $t2_total);
 
   // Append bilingual pairs
   for ($j = 0; $j < count($batch); $j++) {
