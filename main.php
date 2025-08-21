@@ -597,6 +597,7 @@ if (!empty($selectedFullTable) && $res !== false) {
     if (file_exists($audioFile)) {
         echo "<audio controls src='".htmlspecialchars($audioFile, ENT_QUOTES)."'></audio><br>";
         echo "<a href='generate_mp3_google_ssml.php'><button $buttonStyle>🎧 Create MP3 (cz,de,gb,fr,it,sp) </button></a> ";
+        echo "<a href='generate_mp3_batched.php'><button $buttonStyle>🎧 Create MP3 (batched, WaveNet)</button></a> ";
         echo "<a href='".htmlspecialchars($audioFile, ENT_QUOTES)."' download><button $buttonStyle>⇩ Download MP3</button></a> | ";
         echo "<form method='POST' action='' style='display:inline;' onsubmit=\"return confirm('Really delete the audio file for this table?');\">";
         echo "<input type='hidden' name='delete_audio_file' value='" . htmlspecialchars($selectedFullTable) . "'>";
