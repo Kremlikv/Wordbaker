@@ -606,6 +606,7 @@ if (!empty($selectedFullTable) && $res !== false) {
     } else {
         echo "<em>No audio generated yet for this table.</em><br><br>";
         echo "<a href='generate_mp3_google_ssml.php'><button $buttonStyle>🎧 Create MP3</button></a> ";
+        echo "<a href='generate_mp3_batched.php'><button $buttonStyle>🎧 Create MP3 (batched, WaveNet)</button></a> ";
     }
 
     if (!$isSharedTable) {
