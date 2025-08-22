@@ -595,6 +595,11 @@ if (!empty($selectedFullTable) && $res !== false) {
 
     $buttonStyle = "style=\"border:2px solid black; background:none; color:black; font-size: 0.8em; padding:8px 14px; border-radius:4px; cursor:pointer;\"";
     if (file_exists($audioFile)) {
+        
+        // when file exists:
+        echo "<audio controls src='".htmlspecialchars(\"cache/$selectedFullTable.wav\", ENT_QUOTES)."' style='max-width:100%;'></audio>";
+        echo "<a href='cache/".htmlspecialchars($selectedFullTable, ENT_QUOTES).".wav' download><button $buttonStyle>⇩ Download WAV</button></a>";   
+        
         echo "<audio controls src='".htmlspecialchars($audioFile, ENT_QUOTES)."'></audio><br>";
         echo "<a href='generate_mp3_google_ssml.php'><button $buttonStyle>🎧 Create MP3 (cz,de,gb,fr,it,sp) </button></a> ";
         echo "<a href='generate_mp3_batched.php'><button $buttonStyle>🎧 Create MP3 (batched, WaveNet)</button></a> ";
