@@ -16,6 +16,352 @@ if (
 require_once 'db.php';
 require_once 'session.php';
 
+// Context menu  - right click
+
+
+/* ========= QUIZ sharing/copy helpers & handlers (post back to play_quiz.php) ========= */
+
+// Ensure share tables exist (harmless if already created elsewhere)
+$conn->query("
+CREATE TABLE IF NOT EXISTS shared_tables (
+  table_name VARCHAR(255) PRIMARY KEY,
+  owner      VARCHAR(64)  NOT NULL,
+  shared_at  DATETIME     DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+");
+$conn->query("
+CREATE TABLE IF NOT EXISTS shared_tables_private (
+  id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+  table_name      VARCHAR(255) NOT NULL,
+  owner           VARCHAR(64)  NOT NULL,
+  target_username VARCHAR(64)  NULL,
+  target_email    VARCHAR(190) NULL,
+  shared_at       DATETIME     DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uq_table_user (table_name, target_username),
+  UNIQUE KEY uq_table_email (table_name, target_email)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+");
+
+function safeTablePart(string $s): string {
+    $s = mb_strtolower($s, 'UTF-8');
+    $s = preg_replace('/[^a-z0-9_]+/u', '_', $s);
+    $s = preg_replace('/_+/', '_', $s);
+    return trim($s, '_');
+}
+function tableExists(mysqli $conn, string $t): bool {
+    $res = $conn->query("SHOW TABLES LIKE '".$conn->real_escape_string($t)."'");
+    return $res && $res->num_rows > 0;
+}
+function share_add(mysqli $conn, string $table, string $owner): void {
+    $stmt = $conn->prepare("INSERT IGNORE INTO shared_tables (table_name, owner) VALUES (?, ?)");
+    $stmt->bind_param('ss', $table, $owner); $stmt->execute(); $stmt->close();
+}
+function share_remove(mysqli $conn, string $table): void {
+    $stmt = $conn->prepare("DELETE FROM shared_tables WHERE table_name=?");
+    $stmt->bind_param('s', $table); $stmt->execute(); $stmt->close();
+}
+function share_owner(mysqli $conn, string $table): ?string {
+    $stmt = $conn->prepare("SELECT owner FROM shared_tables WHERE table_name=?");
+    $stmt->bind_param('s', $table); $stmt->execute();
+    $res = $stmt->get_result(); $row = $res? $res->fetch_assoc(): null; $stmt->close();
+    return $row['owner'] ?? null;
+}
+// private shares
+function share_private_add(mysqli $conn, string $table, string $owner, ?string $username, ?string $email): void {
+    if ($username) {
+        $stmt = $conn->prepare("INSERT IGNORE INTO shared_tables_private (table_name, owner, target_username) VALUES (?, ?, ?)");
+        $stmt->bind_param('sss', $table, $owner, $username); $stmt->execute(); $stmt->close();
+    }
+    if ($email) {
+        $stmt = $conn->prepare("INSERT IGNORE INTO shared_tables_private (table_name, owner, target_email) VALUES (?, ?, ?)");
+        $stmt->bind_param('sss', $table, $owner, $email); $stmt->execute(); $stmt->close();
+    }
+}
+function share_private_remove(mysqli $conn, string $table, ?string $username, ?string $email): void {
+    if ($username) {
+        $stmt = $conn->prepare("DELETE FROM shared_tables_private WHERE table_name=? AND target_username=?");
+        $stmt->bind_param('ss', $table, $username); $stmt->execute(); $stmt->close();
+    }
+    if ($email) {
+        $stmt = $conn->prepare("DELETE FROM shared_tables_private WHERE table_name=? AND target_email=?");
+        $stmt->bind_param('ss', $table, $email); $stmt->execute(); $stmt->close();
+    }
+}
+function resolve_share_target(mysqli $conn, string $kind, string $value): array {
+    $kind = strtolower(trim($kind));
+    $value = trim($value);
+    if ($kind === 'email') {
+        return [null, mb_strtolower($value)];
+    }
+    // kind=username
+    $u = safeTablePart($value);
+    // optional: look up email from users table
+    $stmt = $conn->prepare("SELECT email FROM users WHERE username=? LIMIT 1");
+    $stmt->bind_param('s', $u);
+    $stmt->execute(); $res = $stmt->get_result();
+    $email = null; if ($res && ($row = $res->fetch_assoc())) $email = $row['email'] ?? null;
+    $stmt->close();
+    return [$u ?: null, $email ? mb_strtolower($email) : null];
+}
+
+/* ---------- FOLDER actions (left pane) — quiz tables only ---------- */
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['folder_action'])) {
+    $me = strtolower($_SESSION['username'] ?? '');
+    if (!$me) { header("Location: play_quiz.php"); exit; }
+    $action = $_POST['folder_action'];
+    $folder = safeTablePart($_POST['folder_old'] ?? '');
+
+    // collect my quiz tables in this folder: quiz_choices_me_folder_*
+    $tables = [];
+    $res = $conn->query("SHOW TABLES");
+    while ($res && ($row = $res->fetch_array())) {
+        $t = $row[0];
+        if (strpos($t, 'quiz_choices_'.$me.'_') === 0) {
+            $suffix = substr($t, strlen('quiz_choices_'.$me.'_')); // folder_rest
+            $parts = explode('_', $suffix, 2);
+            if (count($parts) === 2 && $parts[0] === $folder) $tables[] = $t;
+        }
+    }
+
+    if ($action === 'share_folder') {
+        foreach ($tables as $t) share_add($conn, $t, $me);
+        header("Location: play_quiz.php"); exit;
+    }
+    if ($action === 'unshare_folder') {
+        foreach ($tables as $t) if (share_owner($conn, $t) === $me) share_remove($conn, $t);
+        header("Location: play_quiz.php"); exit;
+    }
+    if ($action === 'share_folder_private') {
+        $kind = $_POST['share_target_kind'] ?? '';
+        $val  = $_POST['share_target_value'] ?? '';
+        [$targetU, $targetE] = resolve_share_target($conn, $kind, $val);
+        foreach ($tables as $t) share_private_add($conn, $t, $me, $targetU, $targetE);
+        header("Location: play_quiz.php"); exit;
+    }
+    if ($action === 'unshare_folder_private') {
+        $kind = $_POST['share_target_kind'] ?? '';
+        $val  = $_POST['share_target_value'] ?? '';
+        [$targetU, $targetE] = resolve_share_target($conn, $kind, $val);
+        foreach ($tables as $t) share_private_remove($conn, $t, $targetU, $targetE);
+        header("Location: play_quiz.php"); exit;
+    }
+
+    // COPY folder within my quiz namespace:
+    if ($action === 'copy_folder_local') {
+        $dest = safeTablePart($_POST['dest_folder'] ?? '');
+        $overwrite = !empty($_POST['overwrite']);
+        if ($dest === '') { header("Location: play_quiz.php"); exit; }
+        foreach ($tables as $src) {
+            $suffix = substr($src, strlen('quiz_choices_'.$me.'_')); // folder_rest
+            [$oldFolder, $rest] = explode('_', $suffix, 2);
+            $dst = 'quiz_choices_'.$me.'_'.$dest.'_'.$oldFolder.'_'.$rest;
+            $srcEsc = $conn->real_escape_string($src);
+            $dstEsc = $conn->real_escape_string($dst);
+            if ($overwrite && tableExists($conn, $dst)) $conn->query("DROP TABLE `{$dstEsc}`");
+            if (tableExists($conn, $dst)) continue;
+            if ($conn->query("CREATE TABLE `{$dstEsc}` LIKE `{$srcEsc}`")) {
+                $conn->query("INSERT INTO `{$dstEsc}` SELECT * FROM `{$srcEsc}`");
+            }
+        }
+        header("Location: play_quiz.php"); exit;
+    }
+
+    // RENAME folder
+    if ($action === 'rename_folder') {
+        $new = safeTablePart($_POST['folder_new'] ?? '');
+        if ($new === '' || $new === $folder) { header("Location: play_quiz.php"); exit; }
+        $pairs = []; $collisions = [];
+        foreach ($tables as $src) {
+            $suffix = substr($src, strlen('quiz_choices_'.$me.'_')); // folder_rest
+            [$oldFolder, $rest] = explode('_', $suffix, 2);
+            $dst = 'quiz_choices_'.$me.'_'.$new.'_'.$rest;
+            if (tableExists($conn, $dst)) $collisions[] = $dst; else $pairs[] = ['src'=>$src,'dst'=>$dst];
+        }
+        if (empty($collisions) && !empty($pairs)) {
+            $chunks = [];
+            foreach ($pairs as $p) $chunks[] = "`".$conn->real_escape_string($p['src'])."` TO `".$conn->real_escape_string($p['dst'])."`";
+            if ($conn->query("RENAME TABLE ".implode(', ', $chunks))) {
+                // update public shares you own
+                $stmt = $conn->prepare("UPDATE shared_tables SET table_name=? WHERE table_name=? AND owner=?");
+                foreach ($pairs as $p) { $stmt->bind_param('sss', $p['dst'], $p['src'], $me); $stmt->execute(); }
+                $stmt->close();
+                // update private shares you own
+                $stmt = $conn->prepare("UPDATE shared_tables_private SET table_name=? WHERE table_name=? AND owner=?");
+                foreach ($pairs as $p) { $stmt->bind_param('sss', $p['dst'], $p['src'], $me); $stmt->execute(); }
+                $stmt->close();
+            }
+        }
+        header("Location: play_quiz.php"); exit;
+    }
+
+    // DELETE folder
+    if ($action === 'delete_folder') {
+        $confirm = safeTablePart($_POST['confirm_text'] ?? '');
+        if ($confirm === $folder) {
+            foreach ($tables as $t) {
+                $tEsc = $conn->real_escape_string($t);
+                $conn->query("DROP TABLE `{$tEsc}`");
+                share_remove($conn, $t);
+                // also remove private shares
+                $stmt = $conn->prepare("DELETE FROM shared_tables_private WHERE table_name=?");
+                $stmt->bind_param('s', $t); $stmt->execute(); $stmt->close();
+            }
+        }
+        header("Location: play_quiz.php"); exit;
+    }
+}
+
+/* ---------- SUBFOLDER actions (right pane) — quiz tables only ---------- */
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['sub_action'])) {
+    $me = strtolower($_SESSION['username'] ?? '');
+    if (!$me) { header("Location: play_quiz.php"); exit; }
+
+    $root = safeTablePart($_POST['root_folder'] ?? '');   // top-level left-pane folder (or 'Shared')
+    $sub  = preg_replace('/[^a-z0-9_]/i', '_', $_POST['subpath'] ?? ''); // tree subpath (underscore-delimited)
+    $act  = $_POST['sub_action'];
+
+    if ($act === 'share_subfolder' || $act === 'unshare_subfolder'
+        || $act === 'share_subfolder_private' || $act === 'unshare_subfolder_private') {
+
+        // Determine prefix of tables in this subfolder.
+        if ($root === 'Shared') {
+            // Shared path format: owner_root_sub...
+            $parts = array_values(array_filter(explode('_', $sub)));
+            if (count($parts) < 2) { header("Location: play_quiz.php"); exit; }
+            $srcOwner = strtolower($parts[0]);
+            $srcRoot  = $parts[1];
+            $srcAfter = (count($parts) > 2) ? implode('_', array_slice($parts, 2)) : '';
+            $prefix = $srcOwner.'_'.$srcRoot.($srcAfter ? '_'.$srcAfter : '').'_';
+        } else {
+            $prefix = $me.'_'.$root.'_'.$sub.'_';
+        }
+
+        $res = $conn->query("SHOW TABLES");
+        while ($res && ($row = $res->fetch_array())) {
+            $t = $row[0];
+            // Only quiz tables
+            if (strpos($t, 'quiz_choices_') !== 0) continue;
+            $nameAfter = substr($t, strlen('quiz_choices_')); // me_root_sub_file...
+            if (strpos($nameAfter, $prefix) !== 0) continue;
+
+            if ($act === 'share_subfolder') {
+                if (stripos($t, 'quiz_choices_'.$me.'_') === 0) share_add($conn, $t, $me);
+            } elseif ($act === 'unshare_subfolder') {
+                if (share_owner($conn, $t) === $me) share_remove($conn, $t);
+            } elseif ($act === 'share_subfolder_private') {
+                $kind = $_POST['share_target_kind'] ?? '';
+                $val  = $_POST['share_target_value'] ?? '';
+                [$targetU, $targetE] = resolve_share_target($conn, $kind, $val);
+                if (stripos($t, 'quiz_choices_'.$me.'_') === 0) share_private_add($conn, $t, $me, $targetU, $targetE);
+            } elseif ($act === 'unshare_subfolder_private') {
+                $kind = $_POST['share_target_kind'] ?? '';
+                $val  = $_POST['share_target_value'] ?? '';
+                [$targetU, $targetE] = resolve_share_target($conn, $kind, $val);
+                share_private_remove($conn, $t, $targetU, $targetE);
+            }
+        }
+        header("Location: play_quiz.php"); exit;
+    }
+
+    // COPY subfolder (supports copying from Shared → my namespace)
+    if ($act === 'copy_subfolder_local') {
+        $destFolder = safeTablePart($_POST['dest_folder'] ?? '');
+        $overwrite  = !empty($_POST['overwrite']);
+        if (!$destFolder || !$sub || !$root) { header("Location: play_quiz.php"); exit; }
+
+        if ($root === 'Shared') {
+            $parts = array_values(array_filter(explode('_', $sub)));
+            if (count($parts) < 2) { header("Location: play_quiz.php"); exit; }
+            $srcOwner = strtolower($parts[0]);
+            $srcRoot  = $parts[1];
+            $srcAfter = (count($parts) > 2) ? implode('_', array_slice($parts, 2)) : '';
+            $srcPrefix = 'quiz_choices_'.$srcOwner.'_'.$srcRoot.($srcAfter? '_'.$srcAfter : '').'_';
+            $dstPrefix = 'quiz_choices_'.$me.'_'.$destFolder.($srcAfter? '_'.$srcAfter : '').'_';
+        } else {
+            $srcPrefix = 'quiz_choices_'.$me.'_'.$root.'_'.$sub.'_';
+            $dstPrefix = 'quiz_choices_'.$me.'_'.$destFolder.'_'.$sub.'_';
+        }
+
+        $res = $conn->query("SHOW TABLES");
+        while ($res && ($row = $res->fetch_array())) {
+            $src = $row[0];
+            if (strpos($src, $srcPrefix) !== 0) continue;
+
+            $rest = substr($src, strlen($srcPrefix));
+            $dst  = $dstPrefix.$rest;
+
+            $srcEsc = $conn->real_escape_string($src);
+            $dstEsc = $conn->real_escape_string($dst);
+
+            if ($overwrite && tableExists($conn, $dst)) $conn->query("DROP TABLE `{$dstEsc}`");
+            if (tableExists($conn, $dst)) continue;
+
+            if ($conn->query("CREATE TABLE `{$dstEsc}` LIKE `{$srcEsc}`")) {
+                $conn->query("INSERT INTO `{$dstEsc}` SELECT * FROM `{$srcEsc}`");
+            }
+        }
+        header("Location: play_quiz.php"); exit;
+    }
+
+    // RENAME subfolder (only my tables)
+    if ($act === 'rename_subfolder') {
+        $newSeg = safeTablePart($_POST['new_name'] ?? '');
+        if (!$newSeg || !$root || !$sub) { header("Location: play_quiz.php"); exit; }
+
+        $prefix = 'quiz_choices_'.$me.'_'.$root.'_'.$sub.'_';
+        $parts = explode('_', $sub);
+        $parts[count($parts)-1] = $newSeg;
+        $newSub = implode('_', $parts);
+
+        $pairs = []; $collisions = [];
+        $res = $conn->query("SHOW TABLES");
+        while ($res && ($row = $res->fetch_array())) {
+            $src = $row[0];
+            if (strpos($src, $prefix) !== 0) continue;
+            $rest = substr($src, strlen($prefix));
+            $dst  = 'quiz_choices_'.$me.'_'.$root.'_'.$newSub.'_'.$rest;
+            if (tableExists($conn, $dst)) $collisions[] = $dst;
+            else $pairs[] = ['src'=>$src,'dst'=>$dst];
+        }
+        if (empty($collisions) && !empty($pairs)) {
+            $chunks = [];
+            foreach ($pairs as $p) $chunks[] = "`".$conn->real_escape_string($p['src'])."` TO `".$conn->real_escape_string($p['dst'])."`";
+            if ($conn->query("RENAME TABLE ".implode(', ', $chunks))) {
+                // update public + private shares you own
+                $stmt = $conn->prepare("UPDATE shared_tables SET table_name=? WHERE table_name=? AND owner=?");
+                foreach ($pairs as $p) { $stmt->bind_param('sss', $p['dst'], $p['src'], $me); $stmt->execute(); }
+                $stmt->close();
+                $stmt = $conn->prepare("UPDATE shared_tables_private SET table_name=? WHERE table_name=? AND owner=?");
+                foreach ($pairs as $p) { $stmt->bind_param('sss', $p['dst'], $p['src'], $me); $stmt->execute(); }
+                $stmt->close();
+            }
+        }
+        header("Location: play_quiz.php"); exit;
+    }
+
+    // DELETE subfolder (only my tables)
+    if ($act === 'delete_subfolder') {
+        $confirm = preg_replace('/[^a-z0-9_]/i', '_', $_POST['confirm_text'] ?? '');
+        if (!$root || !$sub || $confirm !== $sub) { header("Location: play_quiz.php"); exit; }
+
+        $prefix = 'quiz_choices_'.$me.'_'.$root.'_'.$sub.'_';
+        $res = $conn->query("SHOW TABLES");
+        while ($res && ($row = $res->fetch_array())) {
+            $t = $row[0];
+            if (strpos($t, $prefix) !== 0) continue;
+            $tEsc = $conn->real_escape_string($t);
+            $conn->query("DROP TABLE `{$tEsc}`");
+            share_remove($conn, $t);
+            $stmt = $conn->prepare("DELETE FROM shared_tables_private WHERE table_name=?");
+            $stmt->bind_param('s', $t); $stmt->execute(); $stmt->close();
+        }
+        header("Location: play_quiz.php"); exit;
+    }
+}
+
+
+
+
 // 🎵 Build a dropdown of FreePD tracks (server-side fetch)
 $freepdTracks = [];
 $freepdFetchError = '';
@@ -51,7 +397,6 @@ if ($freepdHtml !== false) {
     $freepdFetchError = 'FreePD is unreachable right now.';
 }
 
-// === Quiz File Explorer prep (quiz_choices_username_foldername_filename) ===
 
 // === Quiz File Explorer prep (quiz_choices_username_foldername_filename) ===
 function getQuizFoldersAndFiles(mysqli $conn, string $username): array {
