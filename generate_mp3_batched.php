@@ -1,12 +1,14 @@
 <?php
 /**
- * generate_mp3_batched.php — robust version with diagnostics
- * - Batches many rows per language, uses SSML <mark/> timepoints
- * - Few requests, supports cs/en/de/fr/it/es
- * - Writes cache/<table>.mp3
- * - Adds strong error checks + logging to log_batched.txt
+ * generate_mp2_batched.php — Bilingual TTS (batched, WAV-precise)
  *
- * To debug in browser: append ?debug=1 to the URL to see errors.
+ * - Uses Google Cloud TTS v1beta1 with SSML <mark/> timepoints
+ * - Synthesizes TWO big WAV blobs (col1 language and col2 language) per batch
+ * - Slices by exact PCM samples (no MP3 drift) and assembles as: L1 → gap → L2 → gap …
+ * - Supports cs/en/de/fr/it/es (WaveNet first, fallback to Standard)
+ * - Writes cache/<table>.wav and redirects to main.php
+ *
+ * Debug: append ?debug=1 to the URL
  */
 
 // ---- Debug controls ----
@@ -14,8 +16,7 @@ $DEBUG = isset($_GET['debug']);
 if ($DEBUG) { ini_set('display_errors', 1); error_reporting(E_ALL); }
 
 function fail($msg, $httpCode = 500) {
-  @file_put_contents(__DIR__.'/log_batched.txt', "[".date('c')."] FAIL: $msg
-", FILE_APPEND);
+  @file_put_contents(__DIR__.'/log_batched.txt', "[".date('c')."] FAIL(mp2): $msg\n", FILE_APPEND);
   http_response_code($httpCode);
   echo "❌ $msg";
   exit;
@@ -27,7 +28,6 @@ require_once __DIR__ . '/db.php';
 require_once __DIR__ . '/config.php'; // should define $GOOGLE_API_KEY
 
 if (!isset($GOOGLE_API_KEY) || !$GOOGLE_API_KEY) {
-  // fallback: try env var
   $env = getenv('GOOGLE_API_KEY');
   if ($env) { $GOOGLE_API_KEY = $env; }
 }
@@ -37,9 +37,10 @@ if (empty($GOOGLE_API_KEY)) {
 if (!extension_loaded('curl')) { fail('PHP cURL extension is not enabled.'); }
 
 // ---- Config ----
-$SAMPLE_RATE_HZ = 22050;       // Fix output format for consistent slicing
-$ITEM_BREAK_MS  = 300;         // pause after each item inside monolingual blobs
-$PAIR_GAP_MS    = 400;         // gap between L1 and L2 in final bilingual stream
+$SAMPLE_RATE_HZ = 22050;       // WAV sample rate
+$BITS_PER_SAMPLE = 16;         // LINEAR16
+$ITEM_BREAK_MS  = 300;         // pause after each item INSIDE mono blobs
+$PAIR_GAP_MS    = 400;         // gap between L1 and L2 in FINAL output
 $MAX_SSML_BYTES = 4600;        // keep below ~5000 bytes safety
 $BATCH_MIN      = 20;          // min items per batch before splitting
 
@@ -52,7 +53,7 @@ $VOICE_PREFS = [
   'spanish' => [ ['name' => 'es-ES-Wavenet-A', 'code' => 'es-ES'], ['name' => 'es-ES-Standard-G', 'code' => 'es-ES'] ],
 ];
 
-// ---- Inputs from session (same as your other script) ----
+// ---- Inputs from session ----
 $table = $_SESSION['table'] ?? '';
 $col1  = $_SESSION['col1'] ?? '';
 $col2  = $_SESSION['col2'] ?? '';
@@ -65,15 +66,13 @@ if (!isset($VOICE_PREFS[$srcKey], $VOICE_PREFS[$tgtKey])) {
 }
 
 // ---- Helpers ----
-function ssml_escape(string $s): string {
-  return htmlspecialchars($s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-}
+function ssml_escape(string $s): string { return htmlspecialchars($s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); }
 
-function tts_google_mp3(string $apiKey, string $voiceName, string $langCode, string $ssml, int $sampleRate, bool $wantMarks = false): array {
+function tts_google_wav(string $apiKey, string $voiceName, string $langCode, string $ssml, int $sampleRate, int $bits = 16, bool $wantMarks = false): array {
   $payload = [
     'input'       => ['ssml' => $ssml],
     'voice'       => ['languageCode' => $langCode, 'name' => $voiceName],
-    'audioConfig' => ['audioEncoding' => 'MP3', 'sampleRateHertz' => $sampleRate]
+    'audioConfig' => ['audioEncoding' => 'LINEAR16', 'sampleRateHertz' => $sampleRate]
   ];
   if ($wantMarks) $payload['enableTimePointing'] = ['SSML_MARK'];
 
@@ -89,17 +88,11 @@ function tts_google_mp3(string $apiKey, string $voiceName, string $langCode, str
   $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
   curl_close($ch);
 
-  if ($res === false) {
-    fail('cURL error: ' . $err);
-  }
+  if ($res === false) fail('cURL error: ' . $err);
   $j = json_decode($res, true);
   if ($code !== 200 || empty($j['audioContent'])) {
-    @file_put_contents(__DIR__.'/log_batched.txt', "[".date('c')."] HTTP $code
-Payload: ".json_encode($payload)."
-Response: $res
-
-", FILE_APPEND);
-    fail('Google TTS failed. See log_batched.txt');
+    @file_put_contents(__DIR__.'/log_batched.txt', "[".date('c')."] HTTP $code\nPayload: ".json_encode($payload)."\nResponse: $res\n\n", FILE_APPEND);
+    fail('Google TTS failed (WAV). See log_batched.txt');
   }
   $bytes = base64_decode($j['audioContent']);
   $marks = $j['timepoints'] ?? [];
@@ -109,145 +102,68 @@ Response: $res
 function synth_blob_with_fallback(array $voicePrefs, string $apiKey, string $ssml, int $sampleRate, bool $wantMarks): array {
   $last = null;
   foreach ($voicePrefs as $v) {
-    try { return tts_google_mp3($apiKey, $v['name'], $v['code'], $ssml, $sampleRate, $wantMarks); }
+    try { return tts_google_wav($apiKey, $v['name'], $v['code'], $ssml, $sampleRate, 16, $wantMarks); }
     catch (Throwable $e) { $last = $e; }
   }
   if ($last) fail('All voice fallbacks failed: ' . $last->getMessage());
   fail('No voice available');
 }
 
-/**
- * Parse MP3 frames and build a time->byte map that is robust to VBR.
- * This lets us cut only on frame boundaries so we never split inside a word.
- */
-function mp3_parse_frames(string $bytes): array {
-  $len = strlen($bytes);
-  $pos = 0;
-
-  // Skip ID3v2 header if present
-  if ($len >= 10 && substr($bytes,0,3) === "ID3") {
-    $id3len = 10;
-    $sizeBytes = substr($bytes,6,4);
-    // Synchsafe int
-    $sz = ((ord($sizeBytes[0]) & 0x7F) << 21) | ((ord($sizeBytes[1]) & 0x7F) << 14) | ((ord($sizeBytes[2]) & 0x7F) << 7) | (ord($sizeBytes[3]) & 0x7F);
-    $id3len += $sz;
-    $pos = $id3len;
+// Parse a minimal WAV header and return [fmt] + PCM bytes.
+function wav_decode(string $bytes): array {
+  if (substr($bytes,0,4)!=="RIFF" || substr($bytes,8,4)!=="WAVE") {
+    throw new RuntimeException("Not a WAV file");
   }
-
-  $frames = [];
-  $time = 0.0;
-
-  // Tables
-  $bitrateTable = [
-    // version => layer => index => kbps
-    3 => [ // MPEG1
-      1 => [0,32,40,48,56,64,80,96,112,128,160,192,224,256,320,0], // Layer III uses table for layer 3 but indexes differ; we use Layer III row 1 here
-      2 => [0,32,48,56,64,80,96,112,128,160,192,224,256,320,384,0],
-      3 => [0,32,64,96,128,160,192,224,256,320,384,448,512,576,640,0]
-    ],
-    2 => [ // MPEG2
-      1 => [0,8,16,24,32,40,48,56,64,80,96,112,128,144,160,0],
-      2 => [0,8,16,24,32,40,48,56,64,80,96,112,128,144,160,0],
-      3 => [0,32,48,56,64,80,96,112,128,144,160,176,192,224,256,0]
-    ],
-    0 => [ // MPEG2.5
-      1 => [0,8,16,24,32,40,48,56,64,80,96,112,128,144,160,0],
-      2 => [0,8,16,24,32,40,48,56,64,80,96,112,128,144,160,0],
-      3 => [0,32,48,56,64,80,96,112,128,144,160,176,192,224,256,0]
-    ]
-  ];
-  $srTable = [
-    3 => [44100, 48000, 32000, 0], // MPEG1
-    2 => [22050, 24000, 16000, 0], // MPEG2
-    0 => [11025, 12000, 8000, 0],  // MPEG2.5
-  ];
-
-  while ($pos + 4 <= $len) {
-    // seek sync
-    if ((ord($bytes[$pos]) == 0xFF) && ((ord($bytes[$pos+1]) & 0xE0) == 0xE0)) {
-      $b1 = ord($bytes[$pos+1]);
-      $verID  = ($b1 >> 3) & 0x03;      // 00=2.5, 10=2, 11=1; 01 reserved
-      if ($verID == 1) { $pos++; continue; } // reserved, skip
-      $version = ($verID == 3) ? 3 : (($verID == 2) ? 2 : 0);
-      $layerBits = ($b1 >> 1) & 0x03;   // 01=III,10=II,11=I; 00 reserved
-      if ($layerBits == 0) { $pos++; continue; }
-      $layer = (4 - $layerBits);        // 3=Layer I,2=II,1=III
-
-      $b2 = ord($bytes[$pos+2]);
-      $bitrateIdx = ($b2 >> 4) & 0x0F;
-      $srIdx      = ($b2 >> 2) & 0x03;
-      $padding    = ($b2 >> 1) & 0x01;
-
-      $sr = $srTable[$version][$srIdx] ?? 0;
-      $kbps = $bitrateTable[$version][$layer][$bitrateIdx] ?? 0;
-      if ($sr == 0 || $kbps == 0) { $pos++; continue; }
-
-      // Samples per frame
-      $samples = 1152;
-      if ($layer == 1) { $samples = 384; }
-      elseif ($layer == 2) { $samples = 1152; }
-      else { // Layer III
-        $samples = ($version == 3) ? 1152 : 576; // MPEG1=1152, MPEG2/2.5=576
-      }
-
-      // Frame length in bytes
-      if ($layer == 3) { // Layer I
-        $frameLen = (int)floor(((12 * ($kbps*1000) / $sr) + $padding) * 4);
-      } else { // Layer II/III
-        $frameLen = (int)floor((144 * ($kbps*1000) / $sr) + $padding);
-      }
-      if ($frameLen <= 0 || $pos + $frameLen > $len) { $pos++; continue; }
-
-      $dur = $samples / $sr;
-      $frames[] = ['offset'=>$pos, 'length'=>$frameLen, 'start'=>$time, 'end'=>$time + $dur];
-      $time += $dur;
-      $pos += $frameLen;
-    } else {
-      $pos++;
+  $pos = 12; $len = strlen($bytes);
+  $fmt = null; $dataOff = null; $dataLen = null;
+  while ($pos + 8 <= $len) {
+    $id = substr($bytes,$pos,4);
+    $sz = unpack('V', substr($bytes,$pos+4,4))[1];
+    $pos += 8;
+    if ($id === "fmt ") {
+      $fmt = unpack('vAudioFormat/vNumChannels/VSampleRate/VByteRate/vBlockAlign/vBitsPerSample', substr($bytes,$pos,16));
+    } elseif ($id === "data") {
+      $dataOff = $pos; $dataLen = $sz;
     }
+    $pos += $sz;
+    if ($pos % 2) $pos++; // padding
   }
-  return $frames; // each element: offset,length,start,end
+  if (!$fmt || $dataOff===null) throw new RuntimeException("WAV missing fmt/data");
+  $pcm = substr($bytes, $dataOff, $dataLen);
+  return [$fmt, $pcm];
 }
 
-/**
- * Convert timepoint list to byte slices using MP3 frame boundaries (VBR-safe).
- */
-function timepoints_to_slices(string $mp3, array $timepoints, float $totalSeconds): array {
-  $frames = mp3_parse_frames($mp3);
-  if (empty($frames)) return [];
+// Build a WAV blob from raw PCM + fmt.
+function wav_encode(array $fmt, string $pcm): string {
+  $dataLen = strlen($pcm);
+  $fmtBin  = pack('vvVVvv',
+    $fmt['AudioFormat'], $fmt['NumChannels'], $fmt['SampleRate'],
+    $fmt['ByteRate'], $fmt['BlockAlign'], $fmt['BitsPerSample']
+  );
+  $chunks  = "fmt " . pack('V', 16) . $fmtBin;
+  $chunks .= "data" . pack('V', $dataLen) . $pcm;
+  $riffSz  = 4 + strlen($chunks);
+  return "RIFF" . pack('V',$riffSz) . "WAVE" . $chunks;
+}
 
-  $slices = [];
+// Convert SSML timepoints to PCM byte ranges (exact sample math).
+function timepoints_to_pcm_slices(array $timepoints, int $sampleRate, int $blockAlign, float $trailingBreakSec, int $totalPcmBytes): array {
   $n = count($timepoints);
-  for ($i = 0; $i < $n; $i++) {
+  $slices = [];
+  for ($i=0; $i<$n; $i++) {
     $tStart = (float)$timepoints[$i]['timeSeconds'];
-    $tEnd   = ($i+1 < $n) ? (float)$timepoints[$i+1]['timeSeconds'] : $totalSeconds;
-
-    // find first frame whose end > tStart
-    $startIdx = 0;
-    $lo = 0; $hi = count($frames)-1;
-    while ($lo <= $hi) { // binary search by start
-      $mid = intdiv($lo+$hi,2);
-      if ($frames[$mid]['end'] <= $tStart) $lo = $mid+1; else $hi = $mid-1;
-    }
-    $startIdx = min($lo, count($frames)-1);
-
-    // find last frame whose start < tEnd
-    $endIdx = $startIdx;
-    $lo = $startIdx; $hi = count($frames)-1;
-    while ($lo <= $hi) {
-      $mid = intdiv($lo+$hi,2);
-      if ($frames[$mid]['start'] < $tEnd) { $endIdx = $mid; $lo = $mid+1; }
-      else { $hi = $mid-1; }
-    }
-
-    $bStart = $frames[$startIdx]['offset'];
-    $last   = $frames[$endIdx];
-    $bEnd   = $last['offset'] + $last['length'];
+    $tEnd   = ($i+1 < $n) ? (float)$timepoints[$i+1]['timeSeconds'] : ($tStart + $trailingBreakSec);
+    $sStart = (int)floor($tStart * $sampleRate);
+    $sEnd   = (int)ceil($tEnd   * $sampleRate);
+    $bStart = $sStart * $blockAlign;
+    $bEnd   = min($totalPcmBytes, $sEnd * $blockAlign);
+    if ($bEnd < $bStart) $bEnd = $bStart;
     $slices[] = [$bStart, $bEnd];
   }
   return $slices;
 }
 
+// Build batches of item indexes so each SSML stays under MAX_SSML_BYTES
 function build_batches(array $rows, int $maxSsmlBytes, int $minPerBatch, int $itemBreakMs): array {
   $batches = [];
   $cur = [];
@@ -287,11 +203,13 @@ if (empty($rows)) fail('No usable rows (empty values).');
 $batches = build_batches($rows, $MAX_SSML_BYTES, $BATCH_MIN, $ITEM_BREAK_MS);
 if (empty($batches)) fail('Batch builder produced 0 batches.');
 
-// ---- Prepare reusable gap MP3 ----
+// ---- Prepare reusable GAP WAV once ----
 $gapSSML = "<speak><break time='{$PAIR_GAP_MS}ms'/></speak>";
 [$gapBytes,] = synth_blob_with_fallback($VOICE_PREFS[$srcKey], $GOOGLE_API_KEY, $gapSSML, $SAMPLE_RATE_HZ, false);
+[$gapFmt, $gapPcm] = wav_decode($gapBytes);
 
-$final = '';
+$finalPcm = '';
+$finalFmt = $gapFmt; // will validate against blob fmts
 
 foreach ($batches as $batch) {
   // Build monolingual blobs with marks
@@ -306,21 +224,35 @@ foreach ($batches as $batch) {
 
   // Synthesize both with timepoints
   try {
-    [$bytes1, $marks1] = synth_blob_with_fallback($VOICE_PREFS[$srcKey], $GOOGLE_API_KEY, $ssml1, $SAMPLE_RATE_HZ, true);
-    [$bytes2, $marks2] = synth_blob_with_fallback($VOICE_PREFS[$tgtKey], $GOOGLE_API_KEY, $ssml2, $SAMPLE_RATE_HZ, true);
+    [$wav1, $marks1] = synth_blob_with_fallback($VOICE_PREFS[$srcKey], $GOOGLE_API_KEY, $ssml1, $SAMPLE_RATE_HZ, true);
+    [$wav2, $marks2] = synth_blob_with_fallback($VOICE_PREFS[$tgtKey], $GOOGLE_API_KEY, $ssml2, $SAMPLE_RATE_HZ, true);
   } catch (Throwable $e) {
     fail('Synthesis failed: ' . $e->getMessage());
   }
 
   if (empty($marks1) || empty($marks2)) {
-    @file_put_contents(__DIR__.'/log_batched.txt', "[".date('c')."] No timepoints returned.
-SSML1 len=".strlen($ssml1).", SSML2 len=".strlen($ssml2)."
-", FILE_APPEND);
+    @file_put_contents(__DIR__.'/log_batched.txt', "[".date('c')."] No timepoints returned (mp2)\nSSML1 len=".strlen($ssml1).", SSML2 len=".strlen($ssml2)."\n", FILE_APPEND);
     fail('No timepoints returned by Google TTS');
   }
 
-  $t1_total = (float)end($marks1)['timeSeconds'] + ($ITEM_BREAK_MS/1000.0);
-  $t2_total = (float)end($marks2)['timeSeconds'] + ($ITEM_BREAK_MS/1000.0);
+  // Decode WAV headers → PCM
+  [$fmt1, $pcm1] = wav_decode($wav1);
+  [$fmt2, $pcm2] = wav_decode($wav2);
+
+  // Basic consistency check (channels, sample rate, bits)
+  foreach (['NumChannels','SampleRate','BitsPerSample'] as $k) {
+    if ($fmt1[$k] !== $fmt2[$k] || $fmt1[$k] !== $gapFmt[$k]) {
+      fail("WAV format mismatch on $k");
+    }
+  }
+  $finalFmt = $fmt1; // store for final WAV encoding
+
+  $sampleRate = $fmt1['SampleRate'];
+  $blockAlign = $fmt1['BlockAlign'];
+  $trailSec   = $ITEM_BREAK_MS / 1000.0;
+
+  $t1_total = (float)end($marks1)['timeSeconds'] + $trailSec;
+  $t2_total = (float)end($marks2)['timeSeconds'] + $trailSec;
 
   // Map marks to original order
   $map1 = []; foreach ($marks1 as $m) { $map1[$m['markName']] = (float)$m['timeSeconds']; }
@@ -333,28 +265,28 @@ SSML1 len=".strlen($ssml1).", SSML2 len=".strlen($ssml2)."
     $tp2[] = ['markName'=>$k, 'timeSeconds'=>$map2[$k]];
   }
 
-  // Compute slices
-  $slices1 = timepoints_to_slices($bytes1, $tp1, $t1_total);
-  $slices2 = timepoints_to_slices($bytes2, $tp2, $t2_total);
+  // Compute precise slices
+  $slices1 = timepoints_to_pcm_slices($tp1, $sampleRate, $blockAlign, $trailSec, strlen($pcm1));
+  $slices2 = timepoints_to_pcm_slices($tp2, $sampleRate, $blockAlign, $trailSec, strlen($pcm2));
 
-  // Append bilingual pairs
+  // Append bilingual pairs in PCM
   for ($j = 0; $j < count($batch); $j++) {
     [$b1s, $b1e] = $slices1[$j];
     [$b2s, $b2e] = $slices2[$j];
-    $seg1 = substr($bytes1, $b1s, max(0, $b1e - $b1s));
-    $seg2 = substr($bytes2, $b2s, max(0, $b2e - $b2s));
-    $final .= $seg1 . $gapBytes . $seg2 . $gapBytes; // COL1 → gap → COL2 → gap
+    $seg1 = substr($pcm1, $b1s, max(0, $b1e - $b1s));
+    $seg2 = substr($pcm2, $b2s, max(0, $b2e - $b2s));
+    $finalPcm .= $seg1 . $gapPcm . $seg2 . $gapPcm; // order: COL1 → gap → COL2 → gap
   }
 }
 
-// ---- Save ----
+// ---- Save final WAV ----
 $outDir  = __DIR__ . '/cache';
-$outPath = $outDir . '/' . $table . '.mp3';
 if (!is_dir($outDir)) { @mkdir($outDir, 0775, true); }
 if (!is_writable($outDir)) { fail('cache/ directory is not writable.'); }
 
-if ($final === '') fail('Final MP3 is empty (nothing synthesized).');
-file_put_contents($outPath, $final);
+$finalWav = wav_encode($finalFmt, $finalPcm);
+$outPath  = $outDir . '/' . $table . '.wav';
+file_put_contents($outPath, $finalWav);
 
 // ---- Redirect ----
 header('Location: main.php?table=' . urlencode($table));
