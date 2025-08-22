@@ -391,32 +391,82 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['sub_action'] ?? '') === 'c
     $sub        = preg_replace('/[^a-z0-9_]/i', '_', $_POST['subpath'] ?? '');
     $destFolder = safeTablePart($_POST['dest_folder'] ?? '');
     $overwrite  = !empty($_POST['overwrite']);
-    if ($me && $root && $sub && $destFolder) {
-        $prefix = $me . '_' . $root . '_' . $sub . '_';
+
+    if (!$me || !$root || !$sub || !$destFolder) {
+        echo "<div class='content' style='color:#b91c1c;background:#fee2e2;border:1px solid #fecaca;padding:10px;border-radius:8px;margin:10px 0;'>Missing parameters.</div>";
+    } else {
+        $srcPrefix = '';
+        $dstPrefix = '';
+
+        if ($root === 'Shared') {
+            // sub is like: owner_root_sub1_sub2...
+            $parts = array_values(array_filter(explode('_', $sub), fn($p) => $p !== ''));
+            if (count($parts) < 2) {
+                echo "<div class='content' style='color:#b91c1c;background:#fee2e2;border:1px solid #fecaca;padding:10px;border-radius:8px;margin:10px 0;'>
+                        Please right-click a folder at least at <code>owner / root</code> depth inside Shared to copy.
+                      </div>";
+                exit;
+            }
+            $srcOwner = strtolower($parts[0]);
+            $srcRoot  = $parts[1];
+            $srcAfter = (count($parts) > 2) ? implode('_', array_slice($parts, 2)) : '';
+
+            // Source prefix we will match tables against:
+            //   owner_root_[after]_   (after may be empty)
+            $srcPrefix = $srcOwner . '_' . $srcRoot . ($srcAfter !== '' ? '_' . $srcAfter : '') . '_';
+
+            // Destination prefix we will create tables under:
+            //   me_destFolder_[after]_   (we do NOT include source owner or root)
+            $dstPrefix = $me . '_' . $destFolder . ($srcAfter !== '' ? '_' . $srcAfter : '') . '_';
+        } else {
+            // Copying my own subtree: me_root_sub_...
+            $srcPrefix = $me . '_' . $root . '_' . $sub . '_';
+            // Destination keeps the selected subpath under destFolder
+            $dstPrefix = $me . '_' . $destFolder . '_' . $sub . '_';
+        }
+
         $res = $conn->query("SHOW TABLES");
+        $copied = 0; $errors = 0;
+
         while ($res && ($row = $res->fetch_array())) {
             $src = $row[0];
-            if (strpos($src, $prefix) !== 0) continue;
+            if (strpos($src, $srcPrefix) !== 0) continue;
 
-            $rest = substr($src, strlen($prefix));                // after me_root_sub_
-            $dst  = "{$me}_{$destFolder}_{$sub}_{$rest}";         // keep subpath under new top folder
+            $rest = substr($src, strlen($srcPrefix)); // file name (and any deeper sub-sub paths baked into file name)
+            $dst  = $dstPrefix . $rest;
 
             $srcEsc = $conn->real_escape_string($src);
             $dstEsc = $conn->real_escape_string($dst);
 
-            if ($overwrite && tableExists($conn, $dst)) $conn->query("DROP TABLE `{$dstEsc}`");
-            if (tableExists($conn, $dst)) continue;
+            if ($overwrite && tableExists($conn, $dst)) {
+                $conn->query("DROP TABLE `{$dstEsc}`");
+            }
+            if (tableExists($conn, $dst)) {
+                // skip silently if not overwriting
+                continue;
+            }
 
             if ($conn->query("CREATE TABLE `{$dstEsc}` LIKE `{$srcEsc}`")) {
-                $conn->query("INSERT INTO `{$dstEsc}` SELECT * FROM `{$srcEsc}`");
+                if ($conn->query("INSERT INTO `{$dstEsc}` SELECT * FROM `{$srcEsc}`")) {
+                    $copied++;
+                } else {
+                    $errors++;
+                    echo "<div class='content' style='color:#b91c1c;background:#fee2e2;border:1px solid #fecaca;padding:10px;border-radius:8px;margin:10px 0;'>Copy rows failed for <code>"
+                         .htmlspecialchars($dst)."</code>: ".htmlspecialchars($conn->error)."</div>";
+                }
             } else {
+                $errors++;
                 echo "<div class='content' style='color:#b91c1c;background:#fee2e2;border:1px solid #fecaca;padding:10px;border-radius:8px;margin:10px 0;'>CREATE LIKE failed for <code>"
                      .htmlspecialchars($dst)."</code>: ".htmlspecialchars($conn->error)."</div>";
             }
         }
-        header("Location: " . $_SERVER['PHP_SELF']); exit;
+
+        // After attempting copies, go back to the page (even if some errors were displayed)
+        header("Location: " . $_SERVER['PHP_SELF']);
+        exit;
     }
 }
+
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['sub_action'] ?? '') === 'rename_subfolder') {
     $conn->set_charset('utf8mb4');
