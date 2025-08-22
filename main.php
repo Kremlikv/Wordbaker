@@ -104,9 +104,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_table'])) {
 // Audio deletion BEFORE any output
 // -------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_audio_file'])) {
-    $tableForAudio = preg_replace('/[^a-zA-Z0-9_]/', '', $_POST['delete_audio_file']); // sanitize
-    $audioPath = "cache/$tableForAudio.mp3";
-    if (file_exists($audioPath)) { @unlink($audioPath); }
+    $tableForAudio = preg_replace('/[^a-zA-Z0-9_]/', '', $_POST['delete_audio_file']);
+    foreach (['mp3','wav'] as $ext) {
+        $path = "cache/$tableForAudio.$ext";
+        if (file_exists($path)) { @unlink($path); }
+    }
     header("Location: " . $_SERVER['PHP_SELF'] . "?table=" . urlencode($tableForAudio));
     exit;
 }
