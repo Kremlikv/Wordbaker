@@ -438,20 +438,30 @@ function getQuizFoldersAndFiles(mysqli $conn, string $username): array {
         $stmt->close();
     }
 
+  
     // Helper: push a shared row if table exists and is a quiz table
     $pushShared = function(string $t, string $owner) use (&$folders, $conn) {
         if (strpos($t, 'quiz_choices_') !== 0) return; // only quiz sets
         $exists = $conn->query("SHOW TABLES LIKE '".$conn->real_escape_string($t)."'");
         if (!$exists || $exists->num_rows === 0) return;
-        // Build display "owner_rest"
-        if (stripos($t, $owner . '_') === 0) {
-            $suffix  = substr($t, strlen($owner) + 1);
-            $display = $owner . '_' . $suffix;
+
+        // Parse quiz_choices_username_rootfolder_rest
+        if (preg_match('/^quiz_choices_([^_]+)_([^_]+)_(.+)$/', $t, $m)) {
+            $username = strtolower($m[1]);   // who shared it
+            $root     = $m[2];               // shared folder name
+            $rest     = $m[3];               // subfolders + file (underscored)
+
+            // Display path for the explorer tree (username / rootfolder / sub... / file)
+            $display = $username . '_' . $root . '_' . $rest;
         } else {
-            $display = $t;
+            // Fallback: strip "quiz_choices_" and use the remainder
+            $display = substr($t, strlen('quiz_choices_'));
         }
-        $folders['Shared'][] = ['table_name'=>$t, 'display_name'=>$display];
+
+        $folders['Shared'][] = ['table_name' => $t, 'display_name' => $display];
     };
+
+
 
     // 2a) Public shares
     $shares = $conn->query("SELECT table_name, owner FROM shared_tables");
