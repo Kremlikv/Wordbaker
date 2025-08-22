@@ -139,14 +139,39 @@ function wav_decode(string $bytes): array {
 }
 
 // Build a WAV blob from raw PCM + fmt.
+// Build a WAV blob from raw PCM + fmt (recompute rates, add padding if needed).
 function wav_encode(array $fmt, string $pcm): string {
-  $dataLen = strlen($pcm);
-  $fmtBin  = pack('vvVVvv', $fmt['AudioFormat'], $fmt['NumChannels'], $fmt['SampleRate'], $fmt['ByteRate'], $fmt['BlockAlign'], $fmt['BitsPerSample']);
-  $chunks  = 'fmt ' . pack('V', 16) . $fmtBin;
-  $chunks .= 'data' . pack('V', $dataLen) . $pcm;
-  $riffSz  = 4 + strlen($chunks);
-  return 'RIFF' . pack('V',$riffSz) . 'WAVE' . $chunks;
+    $channels = (int)$fmt['NumChannels'];
+    $sr       = (int)$fmt['SampleRate'];
+    $bits     = (int)$fmt['BitsPerSample'];
+
+    // Recompute for consistency
+    $blockAlign = (int)max(1, ($channels * $bits) / 8);
+    $byteRate   = (int)($sr * $blockAlign);
+
+    $dataLen = strlen($pcm);
+    $pad     = ($dataLen % 2) ? "\x00" : "";  // word-align the data chunk
+    $dataLenPadded = $dataLen + strlen($pad);
+
+    // fmt chunk (PCM = 1)
+    $fmtBin  = pack('vvVVvv',
+        1,                // AudioFormat: PCM
+        $channels,        // NumChannels
+        $sr,              // SampleRate
+        $byteRate,        // ByteRate
+        $blockAlign,      // BlockAlign
+        $bits             // BitsPerSample
+    );
+
+    $chunks  = "fmt " . pack('V', 16) . $fmtBin;
+    $chunks .= "data" . pack('V', $dataLen) . $pcm . $pad;
+
+    // RIFF size = 4 (WAVE) + size(chunks)
+    $riffSz  = 4 + strlen($chunks);
+
+    return "RIFF" . pack('V', $riffSz) . "WAVE" . $chunks;
 }
+
 
 // Convert SSML timepoints to PCM byte ranges (exact sample math).
 function timepoints_to_pcm_slices(array $timepoints, int $sampleRate, int $blockAlign, float $trailingBreakSec, int $totalPcmBytes): array {
@@ -287,6 +312,15 @@ if (!is_writable($outDir)) { fail('cache/ directory is not writable.'); }
 
 if ($finalPcm === '') fail('Final PCM empty (no audio assembled).');
 $finalWav = wav_encode($finalFmt, $finalPcm);
+
+// Normalize final fmt before writing, in case upstream header had oddities
+$finalFmt['AudioFormat']   = 1; // PCM
+$finalFmt['NumChannels']   = (int)$finalFmt['NumChannels'];
+$finalFmt['SampleRate']    = (int)$finalFmt['SampleRate'];
+$finalFmt['BitsPerSample'] = (int)$finalFmt['BitsPerSample'];
+// ByteRate / BlockAlign will be recomputed by wav_encode()
+
+
 $outPath  = $outDir . '/' . $table . '.wav';
 file_put_contents($outPath, $finalWav);
 
