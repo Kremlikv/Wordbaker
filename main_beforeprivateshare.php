@@ -33,70 +33,6 @@ function share_owner(mysqli $conn, string $table): ?string {
 }
 
 // -------------------------------------------
-// NEW: Per-user private shares (parallel to shared_tables)
-// -------------------------------------------
-$conn->query("
-CREATE TABLE IF NOT EXISTS shared_tables_private (
-  id BIGINT AUTO_INCREMENT PRIMARY KEY,
-  table_name VARCHAR(255) NOT NULL,
-  owner      VARCHAR(64)  NOT NULL,
-  target_username VARCHAR(64)  DEFAULT NULL,
-  target_email    VARCHAR(255) DEFAULT NULL,
-  shared_at  DATETIME     DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE KEY uniq_share (table_name, owner, target_username, target_email)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-");
-
-// NEW: Add single private share row (idempotent via UNIQUE + INSERT IGNORE)
-function share_private_add(mysqli $conn, string $table, string $owner, ?string $target_username, ?string $target_email): void {
-    $stmt = $conn->prepare("INSERT IGNORE INTO shared_tables_private (table_name, owner, target_username, target_email) VALUES (?, ?, ?, ?)");
-    $stmt->bind_param('ssss', $table, $owner, $target_username, $target_email);
-    $stmt->execute(); $stmt->close();
-}
-// NEW: Remove a specific private share row
-function share_private_remove(mysqli $conn, string $table, string $owner, ?string $target_username, ?string $target_email): void {
-    if ($target_username !== null) {
-        $stmt = $conn->prepare("DELETE FROM shared_tables_private WHERE table_name=? AND owner=? AND target_username=? AND target_email IS NULL");
-        $stmt->bind_param('sss', $table, $owner, $target_username);
-        $stmt->execute(); $stmt->close();
-    }
-    if ($target_email !== null) {
-        $stmt = $conn->prepare("DELETE FROM shared_tables_private WHERE table_name=? AND owner=? AND target_email=? AND target_username IS NULL");
-        $stmt->bind_param('sss', $table, $owner, $target_email);
-        $stmt->execute(); $stmt->close();
-    }
-}
-// NEW: Remove all private share rows for a table (cleanup on delete)
-function share_private_remove_all_for_table(mysqli $conn, string $table): void {
-    $stmt = $conn->prepare("DELETE FROM shared_tables_private WHERE table_name=?");
-    $stmt->bind_param('s', $table);
-    $stmt->execute(); $stmt->close();
-}
-// NEW: Resolve incoming target (username or email) from POST
-function resolve_share_target(string $kind, string $value): array {
-    $value = trim($value);
-    if ($kind === 'email') {
-        return ['username'=>null, 'email'=>mb_strtolower($value)];
-    } else {
-        return ['username'=>$value, 'email'=>null];
-    }
-}
-// NEW: Get current user's email (from session or DB) to show private shares "for me"
-function getCurrentUserEmail(mysqli $conn, string $username): ?string {
-    if ($username === '') return null;
-    if (!empty($_SESSION['email'])) return mb_strtolower($_SESSION['email']);
-    if ($stmt = $conn->prepare("SELECT email FROM users WHERE username=? LIMIT 1")) {
-        $stmt->bind_param('s', $username);
-        if ($stmt->execute()) {
-            $res = $stmt->get_result(); $row = $res ? $res->fetch_assoc() : null;
-            $stmt->close();
-            if (!empty($row['email'])) return mb_strtolower($row['email']);
-        } else { $stmt->close(); }
-    }
-    return null;
-}
-
-// -------------------------------------------
 // Common helpers (declared early on purpose)
 // -------------------------------------------
 function safeTablePart(string $s): string {
@@ -154,8 +90,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_table'])) {
         $conn2->query("DROP TABLE `$tableToDelete`");
         // clean virtual share pointer (if any)
         share_remove($conn2, $tableToDelete);
-        // NEW: clean private share pointers too
-        share_private_remove_all_for_table($conn2, $tableToDelete);
         // remove cached audio
         $audioPath = "cache/$tableToDelete.mp3";
         if (file_exists($audioPath)) { @unlink($audioPath); }
@@ -205,44 +139,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['folder_action'] ?? '') ===
             $t = $row[0];
             if (stripos($t, $username . '_' . $folder . '_') === 0) {
                 if (share_owner($conn, $t) === $username) share_remove($conn, $t);
-            }
-        }
-        header("Location: " . $_SERVER['PHP_SELF']); exit;
-    }
-}
-
-// -------------------------------------------
-// NEW: LEFT PANE: folder Share/Unshare with a specific user (private)
-// -------------------------------------------
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['folder_action'] ?? '') === 'share_folder_private') {
-    $username = strtolower($_SESSION['username'] ?? '');
-    $folder   = safeTablePart($_POST['folder_old'] ?? '');
-    $kind     = $_POST['share_target_kind']  ?? '';
-    $val      = $_POST['share_target_value'] ?? '';
-    if ($username !== '' && $folder !== '' && $kind !== '' && $val !== '') {
-        $target = resolve_share_target($kind, $val);
-        $res = $conn->query("SHOW TABLES");
-        while ($res && ($row = $res->fetch_array())) {
-            $t = $row[0];
-            if (stripos($t, $username . '_' . $folder . '_') === 0) {
-                share_private_add($conn, $t, $username, $target['username'], $target['email']);
-            }
-        }
-        header("Location: " . $_SERVER['PHP_SELF']); exit;
-    }
-}
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['folder_action'] ?? '') === 'unshare_folder_private') {
-    $username = strtolower($_SESSION['username'] ?? '');
-    $folder   = safeTablePart($_POST['folder_old'] ?? '');
-    $kind     = $_POST['share_target_kind']  ?? '';
-    $val      = $_POST['share_target_value'] ?? '';
-    if ($username !== '' && $folder !== '' && $kind !== '' && $val !== '') {
-        $target = resolve_share_target($kind, $val);
-        $res = $conn->query("SHOW TABLES");
-        while ($res && ($row = $res->fetch_array())) {
-            $t = $row[0];
-            if (stripos($t, $username . '_' . $folder . '_') === 0) {
-                share_private_remove($conn, $t, $username, $target['username'], $target['email']);
             }
         }
         header("Location: " . $_SERVER['PHP_SELF']); exit;
@@ -340,48 +236,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['sub_action'] ?? '') === 'u
 }
 
 // -------------------------------------------
-// NEW: RIGHT PANE: SUBFOLDER share/unshare with a specific user (private)
-// -------------------------------------------
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['sub_action'] ?? '') === 'share_subfolder_private') {
-    $username = strtolower($_SESSION['username'] ?? '');
-    $root     = safeTablePart($_POST['root_folder'] ?? '');
-    $subpath  = preg_replace('/[^a-z0-9_]/i', '_', $_POST['subpath'] ?? '');
-    $kind     = $_POST['share_target_kind']  ?? '';
-    $val      = $_POST['share_target_value'] ?? '';
-    if ($username && $root && $subpath && $kind && $val) {
-        $target = resolve_share_target($kind, $val);
-        $prefix = $username . '_' . $root . '_' . $subpath . '_';
-        $res = $conn->query("SHOW TABLES");
-        while ($res && ($row = $res->fetch_array())) {
-            $t = $row[0];
-            if (strpos($t, $prefix) === 0) {
-                share_private_add($conn, $t, $username, $target['username'], $target['email']);
-            }
-        }
-        header("Location: " . $_SERVER['PHP_SELF']); exit;
-    }
-}
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['sub_action'] ?? '') === 'unshare_subfolder_private') {
-    $username = strtolower($_SESSION['username'] ?? '');
-    $root     = safeTablePart($_POST['root_folder'] ?? '');
-    $subpath  = preg_replace('/[^a-z0-9_]/i', '_', $_POST['subpath'] ?? '');
-    $kind     = $_POST['share_target_kind']  ?? '';
-    $val      = $_POST['share_target_value'] ?? '';
-    if ($username && $root && $subpath && $kind && $val) {
-        $target = resolve_share_target($kind, $val);
-        $prefix = $username . '_' . $root . '_' . $subpath . '_';
-        $res = $conn->query("SHOW TABLES");
-        while ($res && ($row = $res->fetch_array())) {
-            $t = $row[0];
-            if (strpos($t, $prefix) === 0) {
-                share_private_remove($conn, $t, $username, $target['username'], $target['email']);
-            }
-        }
-        header("Location: " . $_SERVER['PHP_SELF']); exit;
-    }
-}
-
-// -------------------------------------------
 // RIGHT PANE: SUBFOLDER copy / rename / delete
 // -------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['sub_action'] ?? '') === 'copy_subfolder_local') {
@@ -452,11 +306,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['sub_action'] ?? '') === 'r
                 $stmt = $conn->prepare("UPDATE shared_tables SET table_name=? WHERE table_name=? AND owner=?");
                 foreach ($pairs as $p) { $stmt->bind_param('sss', $p['dst'], $p['src'], $me); $stmt->execute(); }
                 $stmt->close();
-                // NEW: update private shares owned by me
-                $stmt2 = $conn->prepare("UPDATE shared_tables_private SET table_name=? WHERE table_name=? AND owner=?");
-                foreach ($pairs as $p) { $stmt2->bind_param('sss', $p['dst'], $p['src'], $me); $stmt2->execute(); }
-                $stmt2->close();
-
                 header("Location: " . $_SERVER['PHP_SELF']); exit;
             } else {
                 echo "<div class='content' style='color:#b91c1c;background:#fee2e2;border:1px solid #fecaca;padding:10px;border-radius:8px;margin:10px 0;'>Rename failed: "
@@ -481,8 +330,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['sub_action'] ?? '') === 'd
             $tEsc = $conn->real_escape_string($t);
             $conn->query("DROP TABLE `{$tEsc}`");
             share_remove($conn, $t); // clean any share pointer
-            // NEW: clean private share pointers
-            share_private_remove_all_for_table($conn, $t);
             $audio = "cache/$t.mp3"; if (file_exists($audio)) @unlink($audio);
         }
         header("Location: " . $_SERVER['PHP_SELF']); exit;
@@ -551,11 +398,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $stmt = $conn->prepare("UPDATE shared_tables SET table_name=? WHERE table_name=? AND owner=?");
                             foreach ($pairs as $p) { $stmt->bind_param('sss', $p['dst'], $p['src'], $username); $stmt->execute(); }
                             $stmt->close();
-                            // NEW: update private shares you own
-                            $stmt2 = $conn->prepare("UPDATE shared_tables_private SET table_name=? WHERE table_name=? AND owner=?");
-                            foreach ($pairs as $p) { $stmt2->bind_param('sss', $p['dst'], $p['src'], $username); $stmt2->execute(); }
-                            $stmt2->close();
-
                             header("Location: " . $_SERVER['PHP_SELF']); exit;
                         } else {
                             echo "<div class='content' style='color:#b91c1c;background:#fee2e2;border:1px solid #fecaca;padding:10px;border-radius:8px;margin:10px 0;'>".
@@ -575,8 +417,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     foreach ($tables as $t) {
                         $conn->query("DROP TABLE `".$conn->real_escape_string($t)."`");
                         share_remove($conn, $t); // clean any share pointer
-                        // NEW: clean private share pointers
-                        share_private_remove_all_for_table($conn, $t);
                         $audioPath = "cache/$t.mp3";
                         if (file_exists($audioPath)) @unlink($audioPath);
                     }
@@ -639,7 +479,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
 // -------------------------------------------
 // Build folder list for explorer
 // -------------------------------------------
-function getUserFoldersAndTables($conn, $username, $userEmail = null) { // NEW: $userEmail param
+function getUserFoldersAndTables($conn, $username) {
     $all = [];
 
     // User's own tables
@@ -683,51 +523,6 @@ function getUserFoldersAndTables($conn, $username, $userEmail = null) { // NEW: 
         $all['Shared'][] = ['table_name'=>$t, 'display_name'=>$display];
     }
 
-    // NEW: Private shares for me (shared_tables_private)
-    if ($username !== '' || $userEmail) {
-        $seenPrivate = [];
-        if ($userEmail) {
-            $stmt = $conn->prepare("
-                SELECT table_name, owner
-                FROM shared_tables_private
-                WHERE (target_email IS NOT NULL AND LOWER(target_email)=?)
-                   OR (target_username IS NOT NULL AND target_username=?)
-            ");
-            $ue = mb_strtolower($userEmail);
-            $stmt->bind_param('ss', $ue, $username);
-        } else {
-            $stmt = $conn->prepare("
-                SELECT table_name, owner
-                FROM shared_tables_private
-                WHERE (target_username IS NOT NULL AND target_username=?)
-            ");
-            $stmt->bind_param('s', $username);
-        }
-        if ($stmt && $stmt->execute()) {
-            $resP = $stmt->get_result();
-            while ($resP && ($p = $resP->fetch_assoc())) {
-                $t = $p['table_name']; $owner = strtolower($p['owner']);
-                if (isset($seen[$t]) || isset($seenPrivate[$t])) continue; // dedupe
-
-                $exists = $conn->query("SHOW TABLES LIKE '".$conn->real_escape_string($t)."'");
-                if (!$exists || $exists->num_rows === 0) {
-                    // Optional: clean stale private pointer here if desired
-                    continue;
-                }
-                $seenPrivate[$t] = true;
-
-                if (stripos($t, $owner . '_') === 0) {
-                    $suffix  = substr($t, strlen($owner) + 1);
-                    $display = $owner . '_' . $suffix;
-                } else {
-                    $display = $t;
-                }
-                $all['Shared'][] = ['table_name'=>$t, 'display_name'=>$display];
-            }
-            $stmt->close();
-        }
-    }
-
     return $all;
 }
 
@@ -736,11 +531,9 @@ function getUserFoldersAndTables($conn, $username, $userEmail = null) { // NEW: 
 // -------------------------------------------
 $username = strtolower($_SESSION['username'] ?? '');
 $conn->set_charset("utf8mb4");
-// NEW: find user's email for private share resolution
-$userEmail = getCurrentUserEmail($conn, $username);
 
 // Build folder structure (no extra duplicate built-ins here)
-$folders = getUserFoldersAndTables($conn, $username, $userEmail);
+$folders = getUserFoldersAndTables($conn, $username);
 
 // Prepare folder data for JS in file_explorer.php
 $folderData = [];
@@ -820,9 +613,9 @@ if (!empty($selectedFullTable) && $res !== false) {
 
     } else {
         echo "<em>No audio generated yet for this table.</em><br><br>";
-        echo "<a href='generate_mp3_google_ssml.php'><button $buttonStyle>🎧 Create MP3</button></a> ";
+                echo "<a href='generate_mp3_google_ssml.php'><button $buttonStyle>🎧 Create MP3</button></a> ";
         echo "<a href='generate_wav_batched.php'><button $buttonStyle>🎧 Create MP3 (choose voices)</button></a> ";
-    }
+            }
 
     if (!$isSharedTable) {
         echo "<form method='POST' action='update_table.php'>";

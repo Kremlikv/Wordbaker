@@ -91,13 +91,6 @@
 <div id="folderMenu" class="folder-context-menu">
   <button type="button" id="shareFolderBtn">🔗 Share folder…</button>
   <button type="button" id="unshareFolderBtn">🚫 Unshare folder</button>
-
-  <!-- NEW: per-user share actions -->
-  <hr style="border:none;border-top:1px solid #e2e8f0; margin:4px 0;">
-  <button type="button" id="shareFolderToUserBtn">👤 Share folder with user…</button>
-  <button type="button" id="unshareFolderFromUserBtn">🙈 Unshare folder from user…</button>
-
-  <hr style="border:none;border-top:1px solid #e2e8f0; margin:4px 0;">
   <button type="button" id="copyFolderLocalBtn">📄 Copy folder…</button>
   <button type="button" id="renameFolderBtn">✏️ Rename folder…</button>
   <button type="button" id="deleteFolderBtn" style="color:#b91c1c;">🗑️ Delete folder…</button>
@@ -109,9 +102,6 @@
   <input type="hidden" name="confirm_text" value="">
   <input type="hidden" name="dest_folder" value="">
   <input type="hidden" name="overwrite" value="">
-  <!-- NEW: per-user share target -->
-  <input type="hidden" name="share_target_kind" value="">
-  <input type="hidden" name="share_target_value" value="">
 </form>
 
 <!-- Right-pane SUBFOLDER menu + form -->
@@ -119,13 +109,6 @@
   <div style="padding:4px 8px; font-size:12px; color:#64748b;" id="subPathHint"></div>
   <button type="button" id="shareSubBtn">🔗 Share this subfolder…</button>
   <button type="button" id="unshareSubBtn">🚫 Unshare this subfolder</button>
-
-  <!-- NEW: per-user subfolder share actions -->
-  <hr style="border:none;border-top:1px solid #e2e8f0; margin:4px 0;">
-  <button type="button" id="shareSubToUserBtn">👤 Share this subfolder with user…</button>
-  <button type="button" id="unshareSubFromUserBtn">🙈 Unshare this subfolder from user…</button>
-
-  <hr style="border:none;border-top:1px solid #e2e8f0; margin:4px 0;">
   <button type="button" id="copySubBtn">📄 Copy this subfolder…</button>
   <button type="button" id="renameSubBtn">✏️ Rename this subfolder…</button>
   <button type="button" id="deleteSubBtn" style="color:#b91c1c;">🗑️ Delete this subfolder…</button>
@@ -138,9 +121,6 @@
   <input type="hidden" name="dest_folder" value="">
   <input type="hidden" name="overwrite" value="">
   <input type="hidden" name="confirm_text" value="">
-  <!-- NEW: per-user share target -->
-  <input type="hidden" name="share_target_kind" value="">
-  <input type="hidden" name="share_target_value" value="">
 </form>
 
 <div id="fileSelectedMsg" style="display:none;text-align:center;margin-top:10px;font-weight:bold;color:green;"></div>
@@ -280,32 +260,6 @@ function selectTable(fullTableName, displayName) {
     actionForm.submit();
   });
 
-  // NEW: Share folder with a specific user
-  document.getElementById('shareFolderToUserBtn').addEventListener('click', function(){
-    if (!targetFolder) return;
-    const who = prompt('Share folder "'+targetFolder+'" with which user?\nEnter username or email:');
-    if (!who) return;
-    const kind = /\S+@\S+\.\S+/.test(who) ? 'email' : 'username';
-    actionForm.folder_action.value        = 'share_folder_private';
-    actionForm.folder_old.value           = targetFolder;
-    actionForm.share_target_kind.value    = kind;
-    actionForm.share_target_value.value   = who.trim();
-    actionForm.submit();
-  });
-
-  // NEW: Unshare folder from a specific user
-  document.getElementById('unshareFolderFromUserBtn').addEventListener('click', function(){
-    if (!targetFolder) return;
-    const who = prompt('Unshare folder "'+targetFolder+'" from which user?\nEnter username or email:');
-    if (!who) return;
-    const kind = /\S+@\S+\.\S+/.test(who) ? 'email' : 'username';
-    actionForm.folder_action.value        = 'unshare_folder_private';
-    actionForm.folder_old.value           = targetFolder;
-    actionForm.share_target_kind.value    = kind;
-    actionForm.share_target_value.value   = who.trim();
-    actionForm.submit();
-  });
-
   document.getElementById('copyFolderLocalBtn').addEventListener('click', function(){
     if (!targetFolder) return;
     const dest = prompt('Copy folder "'+targetFolder+'" under which DESTINATION folder (same user)?', targetFolder + '_copy');
@@ -375,10 +329,9 @@ document.addEventListener('keydown', (e)=>{ if(e.key==='Escape'){
 
     // under Shared root: disable share/rename/delete (copy allowed; unshare allowed backend will enforce owner)
     const isSharedRoot = (root === 'Shared');
-    document.getElementById('shareSubBtn').disabled      = isSharedRoot;
-    document.getElementById('shareSubToUserBtn').disabled= isSharedRoot; // NEW: disable per-user share under Shared
-    document.getElementById('renameSubBtn').disabled     = isSharedRoot;
-    document.getElementById('deleteSubBtn').disabled     = isSharedRoot;
+    document.getElementById('shareSubBtn').disabled   = isSharedRoot;
+    document.getElementById('renameSubBtn').disabled  = isSharedRoot;
+    document.getElementById('deleteSubBtn').disabled  = isSharedRoot;
     // leave Unshare enabled; server will check ownership
 
     // position and show
@@ -407,37 +360,6 @@ document.addEventListener('keydown', (e)=>{ if(e.key==='Escape'){
     subForm.sub_action.value   = 'unshare_subfolder';
     subForm.root_folder.value  = root;
     subForm.subpath.value      = sub;
-    subForm.submit();
-  });
-
-  // NEW: Share subfolder with a specific user
-  document.getElementById('shareSubToUserBtn').addEventListener('click', function(){
-    if (this.disabled) return;
-    const root = subMenu.dataset.root, sub = subMenu.dataset.subpath;
-    if (!root || !sub) return;
-    const who = prompt('Share "'+root+' / '+sub+'" with which user?\nEnter username or email:');
-    if (!who) return;
-    const kind = /\S+@\S+\.\S+/.test(who) ? 'email' : 'username';
-    subForm.sub_action.value           = 'share_subfolder_private';
-    subForm.root_folder.value          = root;
-    subForm.subpath.value              = sub;
-    subForm.share_target_kind.value    = kind;
-    subForm.share_target_value.value   = who.trim();
-    subForm.submit();
-  });
-
-  // NEW: Unshare subfolder from a specific user
-  document.getElementById('unshareSubFromUserBtn').addEventListener('click', function(){
-    const root = subMenu.dataset.root, sub = subMenu.dataset.subpath;
-    if (!root || !sub) return;
-    const who = prompt('Unshare "'+root+' / '+sub+'" from which user?\nEnter username or email:');
-    if (!who) return;
-    const kind = /\S+@\S+\.\S+/.test(who) ? 'email' : 'username';
-    subForm.sub_action.value           = 'unshare_subfolder_private';
-    subForm.root_folder.value          = root;
-    subForm.subpath.value              = sub;
-    subForm.share_target_kind.value    = kind;
-    subForm.share_target_value.value   = who.trim();
     subForm.submit();
   });
 
