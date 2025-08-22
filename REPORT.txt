@@ -185,4 +185,7 @@ A nice pdf-scan fail log.
 Distrator generation must have no sentences.
 Text going to distrator generation must be proofed against invisible bad //**% characters.
 
+DIFFERENT VOICES 
 
+A Wav logic with generate_mp3_batched.php now works.
+It might allow usage of more voices in SSML.
