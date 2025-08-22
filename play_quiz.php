@@ -52,24 +52,22 @@ if ($freepdHtml !== false) {
 }
 
 // === Quiz File Explorer prep (quiz_choices_username_foldername_filename) ===
+
+// === Quiz File Explorer prep (quiz_choices_username_foldername_filename) ===
 function getQuizFoldersAndFiles(mysqli $conn, string $username): array {
     $folders = [];
+
+    // 1) Own quiz tables
     $res = $conn->query("SHOW TABLES");
     if ($res) {
         while ($row = $res->fetch_array()) {
             $table = $row[0];
-
-            // Only quiz tables
             if (strpos($table, 'quiz_choices_') !== 0) continue;
 
-            // Parse quiz_choices_username_foldername_filename
-            // username and folder are single segments; filename can contain underscores
             if (preg_match('/^quiz_choices_([^_]+)_([^_]+)_(.+)$/', $table, $m)) {
                 $tUser   = strtolower($m[1]);
                 $folder  = $m[2];
                 $file    = $m[3];
-
-                // Only current user's quiz sets
                 if ($tUser !== strtolower($username)) continue;
 
                 $folders[$folder][] = [
@@ -79,13 +77,80 @@ function getQuizFoldersAndFiles(mysqli $conn, string $username): array {
             }
         }
     }
+
+    // 2) Shared quiz tables (public + private for me)
+    $me = strtolower($username);
+    $meEmail = null;
+    // Try to get email from session or users table (optional)
+    if (!empty($_SESSION['email'])) {
+        $meEmail = mb_strtolower($_SESSION['email']);
+    } else if ($stmt = $conn->prepare("SELECT email FROM users WHERE username=? LIMIT 1")) {
+        $stmt->bind_param('s', $me);
+        if ($stmt->execute()) {
+            $resE = $stmt->get_result(); $rowE = $resE ? $resE->fetch_assoc() : null;
+            if (!empty($rowE['email'])) $meEmail = mb_strtolower($rowE['email']);
+        }
+        $stmt->close();
+    }
+
+    // Helper: push a shared row if table exists and is a quiz table
+    $pushShared = function(string $t, string $owner) use (&$folders, $conn) {
+        if (strpos($t, 'quiz_choices_') !== 0) return; // only quiz sets
+        $exists = $conn->query("SHOW TABLES LIKE '".$conn->real_escape_string($t)."'");
+        if (!$exists || $exists->num_rows === 0) return;
+        // Build display "owner_rest"
+        if (stripos($t, $owner . '_') === 0) {
+            $suffix  = substr($t, strlen($owner) + 1);
+            $display = $owner . '_' . $suffix;
+        } else {
+            $display = $t;
+        }
+        $folders['Shared'][] = ['table_name'=>$t, 'display_name'=>$display];
+    };
+
+    // 2a) Public shares
+    $shares = $conn->query("SELECT table_name, owner FROM shared_tables");
+    while ($shares && ($s = $shares->fetch_assoc())) {
+        $pushShared($s['table_name'], strtolower($s['owner']));
+    }
+
+    // 2b) Private shares for me
+    if ($me || $meEmail) {
+        if ($meEmail) {
+            $stmt = $conn->prepare("
+                SELECT table_name, owner
+                  FROM shared_tables_private
+                 WHERE (target_email IS NOT NULL AND LOWER(target_email)=?)
+                    OR (target_username IS NOT NULL AND target_username=?)
+            ");
+            $stmt->bind_param('ss', $meEmail, $me);
+        } else {
+            $stmt = $conn->prepare("
+                SELECT table_name, owner
+                  FROM shared_tables_private
+                 WHERE (target_username IS NOT NULL AND target_username=?)
+            ");
+            $stmt->bind_param('s', $me);
+        }
+        if ($stmt && $stmt->execute()) {
+            $resP = $stmt->get_result();
+            while ($resP && ($p = $resP->fetch_assoc())) {
+                $pushShared($p['table_name'], strtolower($p['owner']));
+            }
+            $stmt->close();
+        }
+    }
+
     // Sort folders and files nicely
-    ksort($folders, SORT_NATURAL | SORT_FLAG_CASE);
-    foreach ($folders as &$list) {
-        usort($list, fn($a,$b)=>strnatcasecmp($a['display_name'], $b['display_name']));
+    if (!empty($folders)) {
+        ksort($folders, SORT_NATURAL | SORT_FLAG_CASE);
+        foreach ($folders as &$list) {
+            usort($list, fn($a,$b)=>strnatcasecmp($a['display_name'], $b['display_name']));
+        }
     }
     return $folders;
 }
+
 
 $username = strtolower($_SESSION['username'] ?? '');
 $conn->set_charset("utf8mb4");
@@ -251,6 +316,8 @@ echo "</head><body>";
     <div style="margin:10px 0 20px;">
         <h2 style="margin:10px 0;">Select quiz set</h2>
         <?php
+
+            $EXPLORER_MODE = 'quiz'; // hide menus; no posting to main.php
             include 'file_explorer.php'; // has its own <form> that sets $_SESSION['quiz_table']
             $currentQuiz = $_SESSION['quiz_table'] ?? '';
             if ($currentQuiz) {

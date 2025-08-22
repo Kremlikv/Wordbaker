@@ -2,11 +2,21 @@
 /**
  * file_explorer.php
  *
+ * Usage:
+ *   // Default (manage mode, with full context menus posting to main.php)
+ *   include 'file_explorer.php';
+ *
+ *   // QUIZ mode (read-only picker, no context menus, no redirects)
+ *   $EXPLORER_MODE = 'quiz';
+ *   include 'file_explorer.php';
+ *
  * Requires:
  *   - $folders           // array: left pane folders => tables
  *   - $folderData        // array: folder => [{ table:"user_folder_sub_file", display:"sub_file" }, ...]
  *   - $selectedFullTable, $column1, $column2
  */
+$__MODE = isset($EXPLORER_MODE) ? strtolower(trim($EXPLORER_MODE)) : 'manage';
+$__QUIET = function_exists('htmlspecialchars');
 ?>
 
 <style>
@@ -38,12 +48,11 @@
 .select-file-btn{ display:inline-block; padding:10px 15px; background:#555; color:#fff; border:none; border-radius:4px; cursor:pointer;}
 .select-file-btn:hover{ background:#777; }
 
-/* Left-pane folder context menu */
+/* Menus (hidden entirely in QUIZ mode) */
 .folder-context-menu{ position:absolute; display:none; z-index:9999; background:#fff; border:1px solid #e2e8f0; border-radius:8px; box-shadow:0 10px 20px rgba(0,0,0,.08); min-width:210px; padding:6px;}
 .folder-context-menu button{ width:100%; border:0; background:transparent; text-align:left; padding:8px 10px; cursor:pointer; border-radius:6px; font-size:14px;}
 .folder-context-menu button:hover{ background:#f1f5f9; }
 
-/* Right-pane subfolder context menu */
 .subfolder-context-menu{ position:absolute; display:none; z-index:9999; background:#fff; border:1px solid #e2e8f0; border-radius:8px; box-shadow:0 10px 20px rgba(0,0,0,.08); min-width:230px; padding:6px;}
 .subfolder-context-menu button{ width:100%; border:0; background:transparent; text-align:left; padding:8px 10px; cursor:pointer; border-radius:6px; font-size:14px;}
 .subfolder-context-menu button:hover{ background:#f1f5f9; }
@@ -51,7 +60,9 @@
 </style>
 
 <div style="text-align:center;">
-  <button type="button" class="select-file-btn" onclick="showFileExplorer()">Select a file</button>
+  <button type="button" class="select-file-btn" onclick="showFileExplorer()">
+    Select a file
+  </button>
 </div>
 
 <form method='POST' action='' id='tableActionForm'>
@@ -87,67 +98,68 @@
   </div>
 </form>
 
-<!-- Left-pane menu -->
-<div id="folderMenu" class="folder-context-menu">
-  <button type="button" id="shareFolderBtn">🔗 Share folder…</button>
-  <button type="button" id="unshareFolderBtn">🚫 Unshare folder</button>
+<?php if ($__MODE !== 'quiz'): ?>
+  <!-- Left-pane menu -->
+  <div id="folderMenu" class="folder-context-menu">
+    <button type="button" id="shareFolderBtn">🔗 Share folder…</button>
+    <button type="button" id="unshareFolderBtn">🚫 Unshare folder</button>
 
-  <!-- NEW: per-user share actions -->
-  <hr style="border:none;border-top:1px solid #e2e8f0; margin:4px 0;">
-  <button type="button" id="shareFolderToUserBtn">👤 Share folder with user…</button>
-  <button type="button" id="unshareFolderFromUserBtn">🙈 Unshare folder from user…</button>
+    <!-- per-user share actions -->
+    <hr style="border:none;border-top:1px solid #e2e8f0; margin:4px 0;">
+    <button type="button" id="shareFolderToUserBtn">👤 Share folder with user…</button>
+    <button type="button" id="unshareFolderFromUserBtn">🙈 Unshare folder from user…</button>
 
-  <hr style="border:none;border-top:1px solid #e2e8f0; margin:4px 0;">
-  <button type="button" id="copyFolderLocalBtn">📄 Copy folder…</button>
-  <button type="button" id="renameFolderBtn">✏️ Rename folder…</button>
-  <button type="button" id="deleteFolderBtn" style="color:#b91c1c;">🗑️ Delete folder…</button>
-</div>
-<form id="folderActionForm" method="post" action="main.php" style="display:none;">
-  <input type="hidden" name="folder_action" value="">
-  <input type="hidden" name="folder_old" value="">
-  <input type="hidden" name="folder_new" value="">
-  <input type="hidden" name="confirm_text" value="">
-  <input type="hidden" name="dest_folder" value="">
-  <input type="hidden" name="overwrite" value="">
-  <!-- NEW: per-user share target -->
-  <input type="hidden" name="share_target_kind" value="">
-  <input type="hidden" name="share_target_value" value="">
-</form>
+    <hr style="border:none;border-top:1px solid #e2e8f0; margin:4px 0;">
+    <button type="button" id="copyFolderLocalBtn">📄 Copy folder…</button>
+    <button type="button" id="renameFolderBtn">✏️ Rename folder…</button>
+    <button type="button" id="deleteFolderBtn" style="color:#b91c1c;">🗑️ Delete folder…</button>
+  </div>
+  <form id="folderActionForm" method="post" action="main.php" style="display:none;">
+    <input type="hidden" name="folder_action" value="">
+    <input type="hidden" name="folder_old" value="">
+    <input type="hidden" name="folder_new" value="">
+    <input type="hidden" name="confirm_text" value="">
+    <input type="hidden" name="dest_folder" value="">
+    <input type="hidden" name="overwrite" value="">
+    <!-- per-user share target -->
+    <input type="hidden" name="share_target_kind" value="">
+    <input type="hidden" name="share_target_value" value="">
+  </form>
 
-<!-- Right-pane SUBFOLDER menu + form -->
-<div id="subfolderMenu" class="subfolder-context-menu">
-  <div style="padding:4px 8px; font-size:12px; color:#64748b;" id="subPathHint"></div>
-  <button type="button" id="shareSubBtn">🔗 Share this subfolder…</button>
-  <button type="button" id="unshareSubBtn">🚫 Unshare this subfolder</button>
+  <!-- Right-pane SUBFOLDER menu + form -->
+  <div id="subfolderMenu" class="subfolder-context-menu">
+    <div style="padding:4px 8px; font-size:12px; color:#64748b;" id="subPathHint"></div>
+    <button type="button" id="shareSubBtn">🔗 Share this subfolder…</button>
+    <button type="button" id="unshareSubBtn">🚫 Unshare this subfolder</button>
 
-  <!-- NEW: per-user subfolder share actions -->
-  <hr style="border:none;border-top:1px solid #e2e8f0; margin:4px 0;">
-  <button type="button" id="shareSubToUserBtn">👤 Share this subfolder with user…</button>
-  <button type="button" id="unshareSubFromUserBtn">🙈 Unshare this subfolder from user…</button>
+    <hr style="border:none;border-top:1px solid #e2e8f0; margin:4px 0;">
+    <button type="button" id="shareSubToUserBtn">👤 Share this subfolder with user…</button>
+    <button type="button" id="unshareSubFromUserBtn">🙈 Unshare this subfolder from user…</button>
 
-  <hr style="border:none;border-top:1px solid #e2e8f0; margin:4px 0;">
-  <button type="button" id="copySubBtn">📄 Copy this subfolder…</button>
-  <button type="button" id="renameSubBtn">✏️ Rename this subfolder…</button>
-  <button type="button" id="deleteSubBtn" style="color:#b91c1c;">🗑️ Delete this subfolder…</button>
-</div>
-<form id="subfolderActionForm" method="post" action="main.php" style="display:none;">
-  <input type="hidden" name="sub_action" value="">
-  <input type="hidden" name="root_folder" value="">
-  <input type="hidden" name="subpath" value="">
-  <input type="hidden" name="new_name" value="">
-  <input type="hidden" name="dest_folder" value="">
-  <input type="hidden" name="overwrite" value="">
-  <input type="hidden" name="confirm_text" value="">
-  <!-- NEW: per-user share target -->
-  <input type="hidden" name="share_target_kind" value="">
-  <input type="hidden" name="share_target_value" value="">
-</form>
+    <hr style="border:none;border-top:1px solid #e2e8f0; margin:4px 0;">
+    <button type="button" id="copySubBtn">📄 Copy this subfolder…</button>
+    <button type="button" id="renameSubBtn">✏️ Rename this subfolder…</button>
+    <button type="button" id="deleteSubBtn" style="color:#b91c1c;">🗑️ Delete this subfolder…</button>
+  </div>
+  <form id="subfolderActionForm" method="post" action="main.php" style="display:none;">
+    <input type="hidden" name="sub_action" value="">
+    <input type="hidden" name="root_folder" value="">
+    <input type="hidden" name="subpath" value="">
+    <input type="hidden" name="new_name" value="">
+    <input type="hidden" name="dest_folder" value="">
+    <input type="hidden" name="overwrite" value="">
+    <input type="hidden" name="confirm_text" value="">
+    <input type="hidden" name="share_target_kind" value="">
+    <input type="hidden" name="share_target_value" value="">
+  </form>
+<?php endif; ?>
 
 <div id="fileSelectedMsg" style="display:none;text-align:center;margin-top:10px;font-weight:bold;color:green;"></div>
 
 <script>
 const folderData = <?php echo json_encode($folderData, JSON_UNESCAPED_UNICODE); ?>;
-const firstFolderName = <?php echo json_encode($firstFolderName); ?>;
+const firstFolderName = <?php echo json_encode($firstFolderName ?? ''); ?>;
+const EXPLORER_MODE = <?php echo json_encode($__MODE); ?>; // 'manage' or 'quiz'
 
 let currentRootFolder = null; // left-pane folder currently open
 
@@ -243,246 +255,261 @@ function selectTable(fullTableName, displayName) {
   document.getElementById("tableActionForm").submit();
 }
 
-/* ----- Left pane folder menu (context) ----- */
-(function(){
-  const menu = document.getElementById('folderMenu');
-  const actionForm = document.getElementById('folderActionForm');
-  let targetFolder = null;
+if (EXPLORER_MODE !== 'quiz') {
+  /* ----- Left pane folder menu (context) ----- */
+  (function(){
+    const menu = document.getElementById('folderMenu');
+    const actionForm = document.getElementById('folderActionForm');
+    let targetFolder = null;
 
-  document.addEventListener('contextmenu', function(e){
-    const item = e.target.closest('.folder-item');
-    if (!item) return;
-    const folder = item.getAttribute('data-folder');
-    if (!folder || folder === 'Shared') return; // no actions on Shared root
-    e.preventDefault();
-    targetFolder = folder;
-    menu.style.display = 'block';
-    const x=e.pageX, y=e.pageY;
-    const maxX = window.scrollX + document.documentElement.clientWidth - menu.offsetWidth - 8;
-    const maxY = window.scrollY + document.documentElement.clientHeight - menu.offsetHeight - 8;
-    menu.style.left = Math.min(x, maxX) + 'px';
-    menu.style.top  = Math.min(y, maxY) + 'px';
+    document.addEventListener('contextmenu', function(e){
+      const item = e.target.closest('.folder-item');
+      if (!item) return;
+      const folder = item.getAttribute('data-folder');
+      if (!folder || folder === 'Shared') return; // no actions on Shared root
+      e.preventDefault();
+      targetFolder = folder;
+      menu.style.display = 'block';
+      const x=e.pageX, y=e.pageY;
+      const maxX = window.scrollX + document.documentElement.clientWidth - menu.offsetWidth - 8;
+      const maxY = window.scrollY + document.documentElement.clientHeight - menu.offsetHeight - 8;
+      menu.style.left = Math.min(x, maxX) + 'px';
+      menu.style.top  = Math.min(y, maxY) + 'px';
+    });
+
+    document.getElementById('shareFolderBtn').addEventListener('click', function(){
+      if (!targetFolder) return;
+      if (!confirm('Share all tables in "'+targetFolder+'"? (virtually visible to everyone under Shared)')) return;
+      actionForm.folder_action.value = 'share_folder';
+      actionForm.folder_old.value    = targetFolder;
+      actionForm.submit();
+    });
+
+    document.getElementById('unshareFolderBtn').addEventListener('click', function(){
+      if (!targetFolder) return;
+      if (!confirm('Stop sharing all tables in "'+targetFolder+'"?')) return;
+      actionForm.folder_action.value = 'unshare_folder';
+      actionForm.folder_old.value    = targetFolder;
+      actionForm.submit();
+    });
+
+    // Share folder with a specific user
+    document.getElementById('shareFolderToUserBtn').addEventListener('click', function(){
+      if (!targetFolder) return;
+      const who = prompt('Share folder "'+targetFolder+'" with which user?\nEnter username or email:');
+      if (!who) return;
+      const kind = /\S+@\S+\.\S+/.test(who) ? 'email' : 'username';
+      actionForm.folder_action.value        = 'share_folder_private';
+      actionForm.folder_old.value           = targetFolder;
+      actionForm.share_target_kind.value    = kind;
+      actionForm.share_target_value.value   = who.trim();
+      actionForm.submit();
+    });
+
+    // Unshare folder from a specific user
+    document.getElementById('unshareFolderFromUserBtn').addEventListener('click', function(){
+      if (!targetFolder) return;
+      const who = prompt('Unshare folder "'+targetFolder+'" from which user?\nEnter username or email:');
+      if (!who) return;
+      const kind = /\S+@\S+\.\S+/.test(who) ? 'email' : 'username';
+      actionForm.folder_action.value        = 'unshare_folder_private';
+      actionForm.folder_old.value           = targetFolder;
+      actionForm.share_target_kind.value    = kind;
+      actionForm.share_target_value.value   = who.trim();
+      actionForm.submit();
+    });
+
+    document.getElementById('copyFolderLocalBtn').addEventListener('click', function(){
+      if (!targetFolder) return;
+      const dest = prompt('Copy folder "'+targetFolder+'" under which DESTINATION folder (same user)?', targetFolder + '_copy');
+      if (!dest) return;
+      if (!/^[a-z0-9_]+$/i.test(dest)) { alert('Use letters, numbers, underscores.'); return; }
+      const overwrite = confirm('Overwrite destination tables if they already exist?');
+      actionForm.folder_action.value = 'copy_folder_local';
+      actionForm.folder_old.value    = targetFolder;
+      actionForm.dest_folder.value   = dest;
+      actionForm.overwrite.value     = overwrite ? '1' : '';
+      actionForm.submit();
+    });
+
+    document.getElementById('renameFolderBtn').addEventListener('click', function(){
+      if (!targetFolder) return;
+      const newName = prompt('Rename folder "'+targetFolder+'" to:', targetFolder);
+      if (!newName || newName === targetFolder) return;
+      if (!/^[a-z0-9_]+$/i.test(newName)) { alert('Use letters, numbers, underscores.'); return; }
+      actionForm.folder_action.value = 'rename_folder';
+      actionForm.folder_old.value    = targetFolder;
+      actionForm.folder_new.value    = newName;
+      actionForm.submit();
+    });
+
+    document.getElementById('deleteFolderBtn').addEventListener('click', function(){
+      if (!targetFolder) return;
+      const confirmText = prompt('Delete ALL tables in folder "'+targetFolder+'"?\n\nType the folder name to confirm:');
+      if (confirmText !== targetFolder) return;
+      actionForm.folder_action.value = 'delete_folder';
+      actionForm.folder_old.value    = targetFolder;
+      actionForm.confirm_text.value  = confirmText;
+      actionForm.submit();
+    });
+  })();
+
+  /* ----- Hide menus on click elsewhere / ESC ----- */
+  document.addEventListener('click', ()=> {
+    const fm = document.getElementById('folderMenu'); if (fm) fm.style.display='none';
+    const sm = document.getElementById('subfolderMenu'); if (sm) sm.style.display='none';
   });
+  document.addEventListener('keydown', (e)=>{ if(e.key==='Escape'){
+    const fm = document.getElementById('folderMenu'); if (fm) fm.style.display='none';
+    const sm = document.getElementById('subfolderMenu'); if (sm) sm.style.display='none';
+  }});
 
-  document.getElementById('shareFolderBtn').addEventListener('click', function(){
-    if (!targetFolder) return;
-    if (!confirm('Share all tables in "'+targetFolder+'"? (virtually visible to everyone under Shared)')) return;
-    actionForm.folder_action.value = 'share_folder';
-    actionForm.folder_old.value    = targetFolder;
-    actionForm.submit();
-  });
+  /* ----- Right pane SUBFOLDER menu (delegated) ----- */
+  (function () {
+    const subMenu = document.getElementById('subfolderMenu');
+    const subForm = document.getElementById('subfolderActionForm');
 
-  document.getElementById('unshareFolderBtn').addEventListener('click', function(){
-    if (!targetFolder) return;
-    if (!confirm('Stop sharing all tables in "'+targetFolder+'"?')) return;
-    actionForm.folder_action.value = 'unshare_folder';
-    actionForm.folder_old.value    = targetFolder;
-    actionForm.submit();
-  });
+    // open on right-click of any .tree-folder (delegated)
+    document.addEventListener('contextmenu', function (e) {
+      const node = e.target.closest('.tree-folder');
+      if (!node) return;
+      e.preventDefault();
 
-  // NEW: Share folder with a specific user
-  document.getElementById('shareFolderToUserBtn').addEventListener('click', function(){
-    if (!targetFolder) return;
-    const who = prompt('Share folder "'+targetFolder+'" with which user?\nEnter username or email:');
-    if (!who) return;
-    const kind = /\S+@\S+\.\S+/.test(who) ? 'email' : 'username';
-    actionForm.folder_action.value        = 'share_folder_private';
-    actionForm.folder_old.value           = targetFolder;
-    actionForm.share_target_kind.value    = kind;
-    actionForm.share_target_value.value   = who.trim();
-    actionForm.submit();
-  });
+      const root = (node.dataset.root || '').trim();
+      const sub  = (node.dataset.subpath || '').trim();
+      if (!root || !sub) return;
 
-  // NEW: Unshare folder from a specific user
-  document.getElementById('unshareFolderFromUserBtn').addEventListener('click', function(){
-    if (!targetFolder) return;
-    const who = prompt('Unshare folder "'+targetFolder+'" from which user?\nEnter username or email:');
-    if (!who) return;
-    const kind = /\S+@\S+\.\S+/.test(who) ? 'email' : 'username';
-    actionForm.folder_action.value        = 'unshare_folder_private';
-    actionForm.folder_old.value           = targetFolder;
-    actionForm.share_target_kind.value    = kind;
-    actionForm.share_target_value.value   = who.trim();
-    actionForm.submit();
-  });
+      // show path hint
+      const hint = document.getElementById('subPathHint');
+      if (hint) hint.textContent = root + ' / ' + sub;
 
-  document.getElementById('copyFolderLocalBtn').addEventListener('click', function(){
-    if (!targetFolder) return;
-    const dest = prompt('Copy folder "'+targetFolder+'" under which DESTINATION folder (same user)?', targetFolder + '_copy');
-    if (!dest) return;
-    if (!/^[a-z0-9_]+$/i.test(dest)) { alert('Use letters, numbers, underscores.'); return; }
-    const overwrite = confirm('Overwrite destination tables if they already exist?');
-    actionForm.folder_action.value = 'copy_folder_local';
-    actionForm.folder_old.value    = targetFolder;
-    actionForm.dest_folder.value   = dest;
-    actionForm.overwrite.value     = overwrite ? '1' : '';
-    actionForm.submit();
-  });
+      // store state
+      subMenu.dataset.root = root;
+      subMenu.dataset.subpath = sub;
 
-  document.getElementById('renameFolderBtn').addEventListener('click', function(){
-    if (!targetFolder) return;
-    const newName = prompt('Rename folder "'+targetFolder+'" to:', targetFolder);
-    if (!newName || newName === targetFolder) return;
-    if (!/^[a-z0-9_]+$/i.test(newName)) { alert('Use letters, numbers, underscores.'); return; }
-    actionForm.folder_action.value = 'rename_folder';
-    actionForm.folder_old.value    = targetFolder;
-    actionForm.folder_new.value    = newName;
-    actionForm.submit();
-  });
+      // under Shared root: disable share/rename/delete (copy allowed; unshare allowed backend will enforce owner)
+      const isSharedRoot = (root === 'Shared');
+      const shareBtn = document.getElementById('shareSubBtn');
+      const shareUserBtn = document.getElementById('shareSubToUserBtn');
+      const renameBtn = document.getElementById('renameSubBtn');
+      const delBtn = document.getElementById('deleteSubBtn');
 
-  document.getElementById('deleteFolderBtn').addEventListener('click', function(){
-    if (!targetFolder) return;
-    const confirmText = prompt('Delete ALL tables in folder "'+targetFolder+'"?\n\nType the folder name to confirm:');
-    if (confirmText !== targetFolder) return;
-    actionForm.folder_action.value = 'delete_folder';
-    actionForm.folder_old.value    = targetFolder;
-    actionForm.confirm_text.value  = confirmText;
-    actionForm.submit();
-  });
-})();
+      if (shareBtn) shareBtn.disabled = isSharedRoot;
+      if (shareUserBtn) shareUserBtn.disabled = isSharedRoot;
+      if (renameBtn) renameBtn.disabled = isSharedRoot;
+      if (delBtn) delBtn.disabled = isSharedRoot;
 
-/* ----- Hide menus on click elsewhere / ESC ----- */
-document.addEventListener('click', ()=> {
-  document.getElementById('folderMenu').style.display='none';
-  document.getElementById('subfolderMenu').style.display='none';
-});
-document.addEventListener('keydown', (e)=>{ if(e.key==='Escape'){
-  document.getElementById('folderMenu').style.display='none';
-  document.getElementById('subfolderMenu').style.display='none';
-}});
+      // position and show
+      subMenu.style.display = 'block';
+      const x = e.pageX, y = e.pageY;
+      const maxX = window.scrollX + document.documentElement.clientWidth - subMenu.offsetWidth - 8;
+      const maxY = window.scrollY + document.documentElement.clientHeight - subMenu.offsetHeight - 8;
+      subMenu.style.left = Math.min(x, maxX) + 'px';
+      subMenu.style.top  = Math.min(y, maxY) + 'px';
+    });
 
-/* ----- Right pane SUBFOLDER menu (delegated) ----- */
-(function () {
-  const subMenu = document.getElementById('subfolderMenu');
-  const subForm = document.getElementById('subfolderActionForm');
+    // actions
+    const shareSubBtn = document.getElementById('shareSubBtn');
+    if (shareSubBtn) shareSubBtn.addEventListener('click', function(){
+      if (this.disabled) return;
+      const root = subMenu.dataset.root, sub = subMenu.dataset.subpath;
+      if (!root || !sub) return;
+      subForm.sub_action.value   = 'share_subfolder';
+      subForm.root_folder.value  = root;
+      subForm.subpath.value      = sub;
+      subForm.submit();
+    });
 
-  // open on right-click of any .tree-folder (delegated)
-  document.addEventListener('contextmenu', function (e) {
-    const node = e.target.closest('.tree-folder');
-    if (!node) return;
-    e.preventDefault();
+    const unshareSubBtn = document.getElementById('unshareSubBtn');
+    if (unshareSubBtn) unshareSubBtn.addEventListener('click', function(){
+      const root = subMenu.dataset.root, sub = subMenu.dataset.subpath;
+      if (!root || !sub) return;
+      subForm.sub_action.value   = 'unshare_subfolder';
+      subForm.root_folder.value  = root;
+      subForm.subpath.value      = sub;
+      subForm.submit();
+    });
 
-    const root = (node.dataset.root || '').trim();
-    const sub  = (node.dataset.subpath || '').trim();
-    if (!root || !sub) return;
+    const shareSubToUserBtn = document.getElementById('shareSubToUserBtn');
+    if (shareSubToUserBtn) shareSubToUserBtn.addEventListener('click', function(){
+      if (this.disabled) return;
+      const root = subMenu.dataset.root, sub = subMenu.dataset.subpath;
+      if (!root || !sub) return;
+      const who = prompt('Share "'+root+' / '+sub+'" with which user?\nEnter username or email:');
+      if (!who) return;
+      const kind = /\S+@\S+\.\S+/.test(who) ? 'email' : 'username';
+      subForm.sub_action.value           = 'share_subfolder_private';
+      subForm.root_folder.value          = root;
+      subForm.subpath.value              = sub;
+      subForm.share_target_kind.value    = kind;
+      subForm.share_target_value.value   = who.trim();
+      subForm.submit();
+    });
 
-    // show path hint
-    document.getElementById('subPathHint').textContent = root + ' / ' + sub;
+    const unshareSubFromUserBtn = document.getElementById('unshareSubFromUserBtn');
+    if (unshareSubFromUserBtn) unshareSubFromUserBtn.addEventListener('click', function(){
+      const root = subMenu.dataset.root, sub = subMenu.dataset.subpath;
+      if (!root || !sub) return;
+      const who = prompt('Unshare "'+root+' / '+sub+'" from which user?\nEnter username or email:');
+      if (!who) return;
+      const kind = /\S+@\S+\.\S+/.test(who) ? 'email' : 'username';
+      subForm.sub_action.value           = 'unshare_subfolder_private';
+      subForm.root_folder.value          = root;
+      subForm.subpath.value              = sub;
+      subForm.share_target_kind.value    = kind;
+      subForm.share_target_value.value   = who.trim();
+      subForm.submit();
+    });
 
-    // store state for actions
-    subMenu.dataset.root = root;
-    subMenu.dataset.subpath = sub;
+    const copySubBtn = document.getElementById('copySubBtn');
+    if (copySubBtn) copySubBtn.addEventListener('click', function(){
+      const root = subMenu.dataset.root, sub = subMenu.dataset.subpath;
+      if (!root || !sub) return;
+      const dest = prompt('Copy "'+root+' / '+sub+'" under which DESTINATION top-level folder (same user)?', root + '_copy');
+      if (!dest) return;
+      if (!/^[a-z0-9_]+$/i.test(dest)) { alert('Use letters, numbers, underscores.'); return; }
+      const overwrite = confirm('Overwrite destination tables if they already exist?');
+      subForm.sub_action.value   = 'copy_subfolder_local';
+      subForm.root_folder.value  = root;
+      subForm.subpath.value      = sub;
+      subForm.dest_folder.value  = dest;
+      subForm.overwrite.value    = overwrite ? '1' : '';
+      subForm.submit();
+    });
 
-    // under Shared root: disable share/rename/delete (copy allowed; unshare allowed backend will enforce owner)
-    const isSharedRoot = (root === 'Shared');
-    document.getElementById('shareSubBtn').disabled      = isSharedRoot;
-    document.getElementById('shareSubToUserBtn').disabled= isSharedRoot; // NEW: disable per-user share under Shared
-    document.getElementById('renameSubBtn').disabled     = isSharedRoot;
-    document.getElementById('deleteSubBtn').disabled     = isSharedRoot;
-    // leave Unshare enabled; server will check ownership
+    const renameSubBtn = document.getElementById('renameSubBtn');
+    if (renameSubBtn) renameSubBtn.addEventListener('click', function(){
+      if (this.disabled) return;
+      const root = subMenu.dataset.root, sub = subMenu.dataset.subpath;
+      if (!root || !sub) return;
+      const parts = sub.split('_');
+      const current = parts[parts.length - 1];
+      const newName = prompt('Rename subfolder "'+current+'" to:', current);
+      if (!newName || newName === current) return;
+      if (!/^[a-z0-9_]+$/i.test(newName)) { alert('Use letters, numbers, underscores.'); return; }
+      subForm.sub_action.value   = 'rename_subfolder';
+      subForm.root_folder.value  = root;
+      subForm.subpath.value      = sub;
+      subForm.new_name.value     = newName;
+      subForm.submit();
+    });
 
-    // position and show
-    subMenu.style.display = 'block';
-    const x = e.pageX, y = e.pageY;
-    const maxX = window.scrollX + document.documentElement.clientWidth - subMenu.offsetWidth - 8;
-    const maxY = window.scrollY + document.documentElement.clientHeight - subMenu.offsetHeight - 8;
-    subMenu.style.left = Math.min(x, maxX) + 'px';
-    subMenu.style.top  = Math.min(y, maxY) + 'px';
-  });
-
-  // actions
-  document.getElementById('shareSubBtn').addEventListener('click', function(){
-    if (this.disabled) return;
-    const root = subMenu.dataset.root, sub = subMenu.dataset.subpath;
-    if (!root || !sub) return;
-    subForm.sub_action.value   = 'share_subfolder';
-    subForm.root_folder.value  = root;
-    subForm.subpath.value      = sub;
-    subForm.submit();
-  });
-
-  document.getElementById('unshareSubBtn').addEventListener('click', function(){
-    const root = subMenu.dataset.root, sub = subMenu.dataset.subpath;
-    if (!root || !sub) return;
-    subForm.sub_action.value   = 'unshare_subfolder';
-    subForm.root_folder.value  = root;
-    subForm.subpath.value      = sub;
-    subForm.submit();
-  });
-
-  // NEW: Share subfolder with a specific user
-  document.getElementById('shareSubToUserBtn').addEventListener('click', function(){
-    if (this.disabled) return;
-    const root = subMenu.dataset.root, sub = subMenu.dataset.subpath;
-    if (!root || !sub) return;
-    const who = prompt('Share "'+root+' / '+sub+'" with which user?\nEnter username or email:');
-    if (!who) return;
-    const kind = /\S+@\S+\.\S+/.test(who) ? 'email' : 'username';
-    subForm.sub_action.value           = 'share_subfolder_private';
-    subForm.root_folder.value          = root;
-    subForm.subpath.value              = sub;
-    subForm.share_target_kind.value    = kind;
-    subForm.share_target_value.value   = who.trim();
-    subForm.submit();
-  });
-
-  // NEW: Unshare subfolder from a specific user
-  document.getElementById('unshareSubFromUserBtn').addEventListener('click', function(){
-    const root = subMenu.dataset.root, sub = subMenu.dataset.subpath;
-    if (!root || !sub) return;
-    const who = prompt('Unshare "'+root+' / '+sub+'" from which user?\nEnter username or email:');
-    if (!who) return;
-    const kind = /\S+@\S+\.\S+/.test(who) ? 'email' : 'username';
-    subForm.sub_action.value           = 'unshare_subfolder_private';
-    subForm.root_folder.value          = root;
-    subForm.subpath.value              = sub;
-    subForm.share_target_kind.value    = kind;
-    subForm.share_target_value.value   = who.trim();
-    subForm.submit();
-  });
-
-  document.getElementById('copySubBtn').addEventListener('click', function(){
-    const root = subMenu.dataset.root, sub = subMenu.dataset.subpath;
-    if (!root || !sub) return;
-    const dest = prompt('Copy "'+root+' / '+sub+'" under which DESTINATION top-level folder (same user)?', root + '_copy');
-    if (!dest) return;
-    if (!/^[a-z0-9_]+$/i.test(dest)) { alert('Use letters, numbers, underscores.'); return; }
-    const overwrite = confirm('Overwrite destination tables if they already exist?');
-    subForm.sub_action.value   = 'copy_subfolder_local';
-    subForm.root_folder.value  = root;
-    subForm.subpath.value      = sub;
-    subForm.dest_folder.value  = dest;
-    subForm.overwrite.value    = overwrite ? '1' : '';
-    subForm.submit();
-  });
-
-  document.getElementById('renameSubBtn').addEventListener('click', function(){
-    if (this.disabled) return;
-    const root = subMenu.dataset.root, sub = subMenu.dataset.subpath;
-    if (!root || !sub) return;
-    const parts = sub.split('_');
-    const current = parts[parts.length - 1];
-    const newName = prompt('Rename subfolder "'+current+'" to:', current);
-    if (!newName || newName === current) return;
-    if (!/^[a-z0-9_]+$/i.test(newName)) { alert('Use letters, numbers, underscores.'); return; }
-    subForm.sub_action.value   = 'rename_subfolder';
-    subForm.root_folder.value  = root;
-    subForm.subpath.value      = sub;
-    subForm.new_name.value     = newName;
-    subForm.submit();
-  });
-
-  document.getElementById('deleteSubBtn').addEventListener('click', function(){
-    if (this.disabled) return;
-    const root = subMenu.dataset.root, sub = subMenu.dataset.subpath;
-    if (!root || !sub) return;
-    const confirmText = prompt('Delete ALL tables under "'+root+' / '+sub+'"?\n\nType the subfolder path to confirm:', sub);
-    if (confirmText !== sub) return;
-    subForm.sub_action.value   = 'delete_subfolder';
-    subForm.root_folder.value  = root;
-    subForm.subpath.value      = sub;
-    subForm.confirm_text.value = confirmText;
-    subForm.submit();
-  });
-})();
+    const deleteSubBtn = document.getElementById('deleteSubBtn');
+    if (deleteSubBtn) deleteSubBtn.addEventListener('click', function(){
+      if (this.disabled) return;
+      const root = subMenu.dataset.root, sub = subMenu.dataset.subpath;
+      if (!root || !sub) return;
+      const confirmText = prompt('Delete ALL tables under "'+root+' / '+sub+'"?\n\nType the subfolder path to confirm:', sub);
+      if (confirmText !== sub) return;
+      subForm.sub_action.value   = 'delete_subfolder';
+      subForm.root_folder.value  = root;
+      subForm.subpath.value      = sub;
+      subForm.confirm_text.value = confirmText;
+      subForm.submit();
+    });
+  })();
+} else {
+  // QUIZ mode: no context menus, no right-click handlers, no posting to main.php
+  // (Selection submit still posts to current page via #tableActionForm)
+}
 </script>
