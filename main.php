@@ -597,9 +597,11 @@ if (!empty($selectedFullTable) && $res !== false) {
     if (file_exists($audioFile)) {
         
         // when file exists:
-        echo "<audio controls src='".htmlspecialchars(\"cache/$selectedFullTable.wav\", ENT_QUOTES)."' style='max-width:100%;'></audio>";
-        echo "<a href='cache/".htmlspecialchars($selectedFullTable, ENT_QUOTES).".wav' download><button $buttonStyle>⇩ Download WAV</button></a>";   
         
+        // when file exists:
+        echo '<audio controls src="cache/' . htmlspecialchars($selectedFullTable, ENT_QUOTES) . '.wav" style="max-width:100%;"></audio>';
+        echo '<a href="cache/' . htmlspecialchars($selectedFullTable, ENT_QUOTES) . '.wav" download><button ' . $buttonStyle . '>⇩ Download WAV</button></a>';
+      
         echo "<audio controls src='".htmlspecialchars($audioFile, ENT_QUOTES)."'></audio><br>";
         echo "<a href='generate_mp3_google_ssml.php'><button $buttonStyle>🎧 Create MP3 (cz,de,gb,fr,it,sp) </button></a> ";
         echo "<a href='generate_mp3_batched.php'><button $buttonStyle>🎧 Create MP3 (batched, WaveNet)</button></a> ";
