@@ -1,15 +1,14 @@
 <?php
 /**
- * generate_wav_batched.php — Bilingual TTS (batched, WAV‑precise) with tracing + VOICE PICKER
+ * generate_mp3_batched.php — Bilingual TTS (batched, WAV‑precise) with tracing
  * https://cloud.google.com/text-to-speech/docs/list-voices-and-types
  *
  * - Google Cloud TTS v1beta1 + SSML <mark/> timepoints
  * - Synthesizes TWO big WAV/LINEAR16 blobs per batch (col1 + col2)
- * - Slices by exact PCM samples; assembles L1 → gap → L2 → (gap) per pair
- * - Supports: cs / en / de / fr / it / es  (WaveNet first, fallback to Standard)
- * - Lets the user CHOOSE voices via a small form (fetched from v1/voices)
+ * - Slices by exact PCM samples; assembles L1 → gap → L2 → gap for each row
+ * - Supports: cs / en / de / fr / it / es (WaveNet first, fallback to Standard)
  * - Writes cache/<table>.wav and redirects to main.php
- * - ?debug=1 shows progress; always logs to log_batched.txt
+ * - Add ?debug=1 to see a live progress report; always logs to log_batched.txt
  */
 
 // ---- Debug controls ----
@@ -50,7 +49,6 @@ $TAIL_PAD_MS     = 120;        // small pad to avoid truncating the very last it
 $MAX_SSML_BYTES  = 4600;       // stay safely below ~5000 bytes
 $BATCH_MIN       = 20;         // min items per batch before splitting
 
-// Preferred voices (fallback if list-voices fails)
 $VOICE_PREFS = [
   'czech'   => [ ['name' => 'cs-CZ-Wavenet-A', 'code' => 'cs-CZ'], ['name' => 'cs-CZ-Standard-B', 'code' => 'cs-CZ'] ],
   'english' => [ ['name' => 'en-GB-Wavenet-B', 'code' => 'en-GB'], ['name' => 'en-GB-Standard-O', 'code' => 'en-GB'] ],
@@ -60,78 +58,20 @@ $VOICE_PREFS = [
   'spanish' => [ ['name' => 'es-ES-Wavenet-A', 'code' => 'es-ES'], ['name' => 'es-ES-Standard-G', 'code' => 'es-ES'] ],
 ];
 
-// Column label → language key/code
-$LANG_KEYS = [
-  'czech'   => 'cs-CZ',
-  'english' => 'en-GB',
-  'german'  => 'de-DE',
-  'french'  => 'fr-FR',
-  'italian' => 'it-IT',
-  'spanish' => 'es-ES',
-];
-
 // ---- Inputs from session ----
 $table = $_SESSION['table'] ?? '';
 $col1  = $_SESSION['col1'] ?? '';
 $col2  = $_SESSION['col2'] ?? '';
 if ($table === '' || $col1 === '' || $col2 === '') fail('Missing session info (table/col1/col2).');
 
-$srcKey  = strtolower($col1);
-$tgtKey  = strtolower($col2);
-if (!isset($LANG_KEYS[$srcKey], $LANG_KEYS[$tgtKey])) { fail("Unsupported language columns: $col1 / $col2"); }
-$srcCode = $LANG_KEYS[$srcKey];
-$tgtCode = $LANG_KEYS[$tgtKey];
+$srcKey = strtolower($col1);
+$tgtKey = strtolower($col2);
+if (!isset($VOICE_PREFS[$srcKey], $VOICE_PREFS[$tgtKey])) { fail("Unsupported language columns: $col1 / $col2"); }
 
-say("Start: table={$table}, col1={$col1} ({$srcCode}), col2={$col2} ({$tgtCode})");
+say("Start: table={$table}, col1={$col1}, col2={$col2}");
 
 // ---- Helpers ----
 function ssml_escape(string $s): string { return htmlspecialchars($s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); }
-
-// Fetch all voices for a language (v1 API). Returns array of voice name strings.
-function list_voices_for_language(string $apiKey, string $languageCode): array {
-  $url = 'https://texttospeech.googleapis.com/v1/voices?languageCode=' . urlencode($languageCode) . '&key=' . urlencode($apiKey);
-  $ch = curl_init($url);
-  curl_setopt_array($ch, [
-    CURLOPT_RETURNTRANSFER => true,
-    CURLOPT_HTTPGET        => true,
-    CURLOPT_HTTPHEADER     => ['Accept: application/json'],
-    CURLOPT_TIMEOUT        => 20
-  ]);
-  $res  = curl_exec($ch);
-  $err  = curl_error($ch);
-  $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-  curl_close($ch);
-
-  if ($res === false || $code !== 200) {
-    TRACE("list_voices FAILED for $languageCode: HTTP $code, err=$err, body=$res");
-    return [];
-  }
-  $j = json_decode($res, true);
-  if (!isset($j['voices']) || !is_array($j['voices'])) return [];
-
-  // Collect unique names; keep a stable sort: Studio/Neural2/WaveNet/Standard
-  $names = [];
-  foreach ($j['voices'] as $v) {
-    if (!empty($v['name'])) $names[$v['name']] = true;
-  }
-  $names = array_keys($names);
-
-  usort($names, function($a,$b) {
-    $rank = function($n) {
-      $n = strtolower($n);
-      if (str_contains($n, 'studio'))  return 0;
-      if (str_contains($n, 'neural2')) return 1;
-      if (str_contains($n, 'wavenet')) return 2;
-      if (str_contains($n, 'polyglot'))return 3;
-      return 4; // standard
-    };
-    $ra = $rank($a); $rb = $rank($b);
-    if ($ra !== $rb) return $ra <=> $rb;
-    return strcmp($a, $b);
-  });
-
-  return $names;
-}
 
 function tts_google_wav(string $apiKey, string $voiceName, string $langCode, string $ssml, int $sampleRate, bool $wantMarks = false): array {
   $payload = [
@@ -174,7 +114,7 @@ function synth_blob_with_fallback(array $voicePrefs, string $apiKey, string $ssm
   fail('No voice available');
 }
 
-// Parse WAV header → [fmt] + PCM bytes.
+// Parse a minimal WAV header and return [fmt] + PCM bytes.
 function wav_decode(string $bytes): array {
   if (substr($bytes,0,4)!=="RIFF" || substr($bytes,8,4)!=="WAVE") { throw new RuntimeException('Not a WAV file'); }
   $pos = 12; $len = strlen($bytes);
@@ -195,21 +135,35 @@ function wav_decode(string $bytes): array {
   return [$fmt, $pcm];
 }
 
-// Build WAV from raw PCM (recompute rates, pad if needed)
+// Build a WAV blob from raw PCM + fmt (recompute rates, add padding if needed).
 function wav_encode(array $fmt, string $pcm): string {
   $channels = (int)$fmt['NumChannels'];
   $sr       = (int)$fmt['SampleRate'];
   $bits     = (int)$fmt['BitsPerSample'];
+
+  // Recompute for consistency
   $blockAlign = (int)max(1, ($channels * $bits) / 8);
   $byteRate   = (int)($sr * $blockAlign);
 
   $dataLen = strlen($pcm);
-  $pad     = ($dataLen % 2) ? "\x00" : "";
+  $pad     = ($dataLen % 2) ? "\x00" : "";  // word-align the data chunk
 
-  $fmtBin  = pack('vvVVvv', 1, $channels, $sr, $byteRate, $blockAlign, $bits);
+  // fmt chunk (PCM = 1)
+  $fmtBin  = pack('vvVVvv',
+      1,                // AudioFormat: PCM
+      $channels,        // NumChannels
+      $sr,              // SampleRate
+      $byteRate,        // ByteRate
+      $blockAlign,      // BlockAlign
+      $bits             // BitsPerSample
+  );
+
   $chunks  = "fmt " . pack('V', 16) . $fmtBin;
   $chunks .= "data" . pack('V', $dataLen) . $pcm . $pad;
+
+  // RIFF size = 4 (WAVE) + size(chunks)
   $riffSz  = 4 + strlen($chunks);
+
   return "RIFF" . pack('V', $riffSz) . "WAVE" . $chunks;
 }
 
@@ -222,9 +176,9 @@ function timepoints_to_pcm_slices(
   int $sampleRate,
   int $blockAlign,
   float $defaultTrailingBreakSec,
-  float $totalSecondsExact,
-  int $totalPcmBytes,
-  float $tailPadSec
+  float $totalSecondsExact,    // total duration of the synthesized blob (from PCM)
+  int $totalPcmBytes,          // total PCM bytes
+  float $tailPadSec            // extra pad at the very end
 ): array {
   $n = count($timepoints); $slices = [];
   for ($i=0; $i<$n; $i++) {
@@ -232,6 +186,7 @@ function timepoints_to_pcm_slices(
     if ($i + 1 < $n) {
       $tEnd = (float)$timepoints[$i+1]['timeSeconds'];
     } else {
+      // last item: use real end, not just mark + break
       $tEnd = $totalSecondsExact + $tailPadSec;
     }
     $sStart = (int)floor($tStart * $sampleRate);
@@ -244,7 +199,7 @@ function timepoints_to_pcm_slices(
   return $slices;
 }
 
-// Build batches of indexes to stay under SSML size
+// Build batches of item indexes so each SSML stays under MAX_SSML_BYTES
 function build_batches(array $rows, int $maxSsmlBytes, int $minPerBatch, int $itemBreakMs): array {
   $batches = []; $cur = []; $curLen = strlen('<speak></speak>');
   foreach ($rows as $idx => $pair) {
@@ -257,68 +212,6 @@ function build_batches(array $rows, int $maxSsmlBytes, int $minPerBatch, int $it
   }
   if (!empty($cur)) $batches[] = $cur; return $batches;
 }
-
-// ------------------- Voice Picker UI -------------------
-function render_voice_picker(string $table, string $srcKey, string $srcCode, string $tgtKey, string $tgtCode, array $names1, array $names2, array $VOICE_PREFS) {
-  // Defaults from VOICE_PREFS if present
-  $def1 = $VOICE_PREFS[$srcKey][0]['name'] ?? '';
-  $def2 = $VOICE_PREFS[$tgtKey][0]['name'] ?? '';
-
-  // If names list empty (API failed), seed from VOICE_PREFS to avoid empty UI
-  if (empty($names1)) $names1 = array_values(array_unique(array_map(fn($v)=>$v['name'], $VOICE_PREFS[$srcKey] ?? [])));
-  if (empty($names2)) $names2 = array_values(array_unique(array_map(fn($v)=>$v['name'], $VOICE_PREFS[$tgtKey] ?? [])));
-
-  echo "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>Pick Voices</title>";
-  echo "<style>body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;padding:20px;} label{display:block;margin:12px 0 6px;} select,input,button{font-size:14px;padding:8px;} .card{max-width:560px;border:1px solid #e5e7eb;border-radius:10px;padding:18px;} .muted{color:#64748b;font-size:12px;} .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;} .lang{font-weight:600;}</style>";
-  echo "</head><body>";
-  echo "<div class='card'>";
-  echo "<h2>Choose voices for <code>".htmlspecialchars($table)."</code></h2>";
-  echo "<div class='muted'>Language 1: <span class='lang'>".htmlspecialchars($srcKey)." (".$srcCode.")</span> &nbsp; | &nbsp; Language 2: <span class='lang'>".htmlspecialchars($tgtKey)." (".$tgtCode.")</span></div>";
-  echo "<form method='post' action=''>";
-
-  echo "<label>Voice for ".htmlspecialchars($srcKey)." (".$srcCode.")</label>";
-  echo "<select name='voice1' required>";
-  foreach ($names1 as $n) {
-    $sel = ($n === $def1) ? " selected" : "";
-    echo "<option value='".htmlspecialchars($n,ENT_QUOTES)."'$sel>".htmlspecialchars($n)."</option>";
-  }
-  echo "</select>";
-
-  echo "<label>Voice for ".htmlspecialchars($tgtKey)." (".$tgtCode.")</label>";
-  echo "<select name='voice2' required>";
-  foreach ($names2 as $n) {
-    $sel = ($n === $def2) ? " selected" : "";
-    echo "<option value='".htmlspecialchars($n,ENT_QUOTES)."'$sel>".htmlspecialchars($n)."</option>";
-  }
-  echo "</select>";
-
-  echo "<div class='row' style='margin-top:14px;'>";
-  echo "<button type='submit'>🎧 Generate WAV</button>";
-  echo "<a href='main.php?table=".urlencode($table)."' style='text-decoration:none;padding:8px 12px;border:1px solid #e5e7eb;border-radius:8px;'>Cancel</a>";
-  echo "</div>";
-
-  echo "<div class='muted' style='margin-top:10px;'>Tip: Studio/Neural2/WaveNet use the 1M chars/month free tier (combined).</div>";
-  echo "</form></div></body></html>";
-  exit;
-}
-
-// If no POSTed selection yet, show the picker (unless explicitly bypassed)
-if (!isset($_POST['voice1'], $_POST['voice2'])) {
-  // Optional opt-in via ?pick=1 OR show picker by default. If you want to require ?pick=1, uncomment:
-  // if (!isset($_GET['pick'])) { /* skip picker */ } else { /* show picker */ }
-  $names1 = list_voices_for_language($GOOGLE_API_KEY, $srcCode);
-  $names2 = list_voices_for_language($GOOGLE_API_KEY, $tgtCode);
-  render_voice_picker($table, $srcKey, $srcCode, $tgtKey, $tgtCode, $names1, $names2, $VOICE_PREFS);
-}
-
-// ------------------- Proceed with synthesis -------------------
-
-// Use selected voices; still keep fallback to VOICE_PREFS if the exact name fails
-$selectedVoice1 = trim($_POST['voice1'] ?? '');
-$selectedVoice2 = trim($_POST['voice2'] ?? '');
-if ($selectedVoice1 === '' || $selectedVoice2 === '') fail('Please select both voices.');
-
-say("Chosen voices: L1={$selectedVoice1} | L2={$selectedVoice2}");
 
 // ---- Load data ----
 $conn->set_charset('utf8mb4');
@@ -348,13 +241,7 @@ if (empty($batches)) fail('Batch builder produced 0 batches.');
 
 // ---- Prepare reusable GAP WAV once ----
 $gapSSML = '<speak><break time="'.$PAIR_GAP_MS.'ms"/></speak>';
-// First try chosen L1 voice for gap; if it fails, fall back to VOICE_PREFS list
-try {
-  [$gapBytes,] = tts_google_wav($GOOGLE_API_KEY, $selectedVoice1, $srcCode, $gapSSML, $SAMPLE_RATE_HZ, false);
-} catch (Throwable $e) {
-  TRACE("Gap synth with selected L1 failed: ".$e->getMessage()." — falling back.");
-  [$gapBytes,] = synth_blob_with_fallback($VOICE_PREFS[$srcKey], $GOOGLE_API_KEY, $gapSSML, $SAMPLE_RATE_HZ, false);
-}
+[$gapBytes,] = synth_blob_with_fallback($VOICE_PREFS[$srcKey], $GOOGLE_API_KEY, $gapSSML, $SAMPLE_RATE_HZ, false);
 [$gapFmt, $gapPcm] = wav_decode($gapBytes);
 say('Gap clip: bytes='.strlen($gapBytes));
 
@@ -379,20 +266,11 @@ foreach ($batches as $batch) {
 
   say('Batch size='.count($batch).' | SSML1='.strlen($ssml1).' | SSML2='.strlen($ssml2));
 
-  // Synthesize both with timepoints using selected voices (fallback to prefs on failure)
+  // Synthesize both with timepoints
   try {
-    [$wav1, $marks1] = tts_google_wav($GOOGLE_API_KEY, $selectedVoice1, $srcCode, $ssml1, $SAMPLE_RATE_HZ, true);
-  } catch (Throwable $e) {
-    TRACE("Selected L1 voice failed: ".$e->getMessage()." — falling back.");
     [$wav1, $marks1] = synth_blob_with_fallback($VOICE_PREFS[$srcKey], $GOOGLE_API_KEY, $ssml1, $SAMPLE_RATE_HZ, true);
-  }
-
-  try {
-    [$wav2, $marks2] = tts_google_wav($GOOGLE_API_KEY, $selectedVoice2, $tgtCode, $ssml2, $SAMPLE_RATE_HZ, true);
-  } catch (Throwable $e) {
-    TRACE("Selected L2 voice failed: ".$e->getMessage()." — falling back.");
     [$wav2, $marks2] = synth_blob_with_fallback($VOICE_PREFS[$tgtKey], $GOOGLE_API_KEY, $ssml2, $SAMPLE_RATE_HZ, true);
-  }
+  } catch (Throwable $e) { fail('Synthesis failed: '.$e->getMessage()); }
 
   say('Synth L1: wav='.strlen($wav1).' bytes, marks='.count($marks1));
   say('Synth L2: wav='.strlen($wav2).' bytes, marks='.count($marks2));
