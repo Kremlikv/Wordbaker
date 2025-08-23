@@ -689,10 +689,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
 // -------------------------------------------
 // Build folder list for explorer
 // -------------------------------------------
-function getUserFoldersAndTables($conn, $username, $userEmail = null) { // NEW: $userEmail param
+// -------------------------------------------
+// Build folder list for explorer (MAIN UI)
+// - Shows ONLY normal (non-quiz) tables in Shared
+// -------------------------------------------
+function getUserFoldersAndTables(mysqli $conn, string $username): array {
     $all = [];
 
-    // User's own tables
+    // 1) User's own tables (normal namespace: <username>_folder_file...)
     $res = $conn->query("SHOW TABLES");
     while ($res && ($row = $res->fetch_array())) {
         $t = $row[0];
@@ -706,73 +710,95 @@ function getUserFoldersAndTables($conn, $username, $userEmail = null) { // NEW: 
         }
     }
 
-    // Built-ins in Shared
+    // 2) Built-ins in Shared
     $all['Shared'][] = ['table_name'=>'difficult_words', 'display_name'=>'Difficult Words'];
     $all['Shared'][] = ['table_name'=>'mastered_words',  'display_name'=>'Mastered Words'];
 
-    // Virtual shares (shared_tables)
-    $seen = [];
-    $shares = $conn->query("SELECT table_name, owner FROM shared_tables");
-    while ($shares && ($s = $shares->fetch_assoc())) {
-        $t = $s['table_name'];  $owner = strtolower($s['owner']);
+    // Helper to add a non-quiz shared table into Shared (owner_prefix formatting)
+    $addShared = function(string $t, string $owner) use (&$all, $conn) {
+        // Only NON-quiz tables here
+        if (strpos($t, 'quiz_choices_') === 0) return;
 
-        if (isset($seen[$t])) continue;                 // dedupe
+        // ensure table exists; auto-clean dead pointers
         $exists = $conn->query("SHOW TABLES LIKE '".$conn->real_escape_string($t)."'");
-        if (!$exists || $exists->num_rows === 0) {       // auto-clean dead pointers
-            share_remove($conn, $t);
-            continue;
+        if (!$exists || $exists->num_rows === 0) {
+            // clean both public & private pointers for good measure
+            if ($stmt = $conn->prepare("DELETE FROM shared_tables WHERE table_name=?")) {
+                $stmt->bind_param('s', $t); $stmt->execute(); $stmt->close();
+            }
+            if ($conn->query("SHOW TABLES LIKE 'shared_tables_private'") && $conn->affected_rows > -INF) {
+                if ($stmt = $conn->prepare("DELETE FROM shared_tables_private WHERE table_name=?")) {
+                    $stmt->bind_param('s', $t); $stmt->execute(); $stmt->close();
+                }
+            }
+            return;
         }
-        $seen[$t] = true;
 
+        // display as "owner_suffix"
         if (stripos($t, $owner . '_') === 0) {
-            $suffix = substr($t, strlen($owner) + 1);   // folder_sub_file
-            $display = $owner . '_' . $suffix;          // show owner at top in Shared
+            $suffix  = substr($t, strlen($owner) + 1);   // folder_sub_file
+            $display = $owner . '_' . $suffix;
         } else {
             $display = $t;
         }
         $all['Shared'][] = ['table_name'=>$t, 'display_name'=>$display];
+    };
+
+    // 3) Public shares (non-quiz only)
+    $seen = [];
+    $shares = $conn->query("SELECT table_name, owner FROM shared_tables");
+    while ($shares && ($s = $shares->fetch_assoc())) {
+        $t = $s['table_name']; $owner = strtolower($s['owner']);
+        if (isset($seen[$t])) continue;
+        $seen[$t] = true;
+        $addShared($t, $owner);
     }
 
-    // NEW: Private shares for me (shared_tables_private)
-    if ($username !== '' || $userEmail) {
-        $seenPrivate = [];
-        if ($userEmail) {
+    // 4) Private shares for me (non-quiz only), if table exists and we know my identity
+    $me = strtolower($username);
+    $myEmail = null;
+    if (!empty($_SESSION['email'])) {
+        $myEmail = strtolower($_SESSION['email']);
+    } else {
+        if ($stmt = $conn->prepare("SELECT email FROM users WHERE username=? LIMIT 1")) {
+            $stmt->bind_param('s', $me);
+            if ($stmt->execute()) {
+                $r = $stmt->get_result(); $row = $r ? $r->fetch_assoc() : null;
+                if (!empty($row['email'])) $myEmail = strtolower($row['email']);
+            }
+            $stmt->close();
+        }
+    }
+
+    // Only run if the private-share table exists
+    $hasPrivate = false;
+    $chk = $conn->query("SHOW TABLES LIKE 'shared_tables_private'");
+    if ($chk && $chk->num_rows > 0) $hasPrivate = true;
+
+    if ($hasPrivate && ($me || $myEmail)) {
+        if ($myEmail) {
             $stmt = $conn->prepare("
                 SELECT table_name, owner
-                FROM shared_tables_private
-                WHERE (target_email IS NOT NULL AND LOWER(target_email)=?)
-                   OR (target_username IS NOT NULL AND target_username=?)
+                  FROM shared_tables_private
+                 WHERE (target_email IS NOT NULL AND LOWER(target_email)=?)
+                    OR (target_username IS NOT NULL AND target_username=?)
             ");
-            $ue = mb_strtolower($userEmail);
-            $stmt->bind_param('ss', $ue, $username);
+            $stmt->bind_param('ss', $myEmail, $me);
         } else {
             $stmt = $conn->prepare("
                 SELECT table_name, owner
-                FROM shared_tables_private
-                WHERE (target_username IS NOT NULL AND target_username=?)
+                  FROM shared_tables_private
+                 WHERE (target_username IS NOT NULL AND target_username=?)
             ");
-            $stmt->bind_param('s', $username);
+            $stmt->bind_param('s', $me);
         }
         if ($stmt && $stmt->execute()) {
-            $resP = $stmt->get_result();
-            while ($resP && ($p = $resP->fetch_assoc())) {
+            $rp = $stmt->get_result();
+            while ($rp && ($p = $rp->fetch_assoc())) {
                 $t = $p['table_name']; $owner = strtolower($p['owner']);
-                if (isset($seen[$t]) || isset($seenPrivate[$t])) continue; // dedupe
-
-                $exists = $conn->query("SHOW TABLES LIKE '".$conn->real_escape_string($t)."'");
-                if (!$exists || $exists->num_rows === 0) {
-                    // Optional: clean stale private pointer here if desired
-                    continue;
-                }
-                $seenPrivate[$t] = true;
-
-                if (stripos($t, $owner . '_') === 0) {
-                    $suffix  = substr($t, strlen($owner) + 1);
-                    $display = $owner . '_' . $suffix;
-                } else {
-                    $display = $t;
-                }
-                $all['Shared'][] = ['table_name'=>$t, 'display_name'=>$display];
+                if (isset($seen[$t])) continue;
+                $seen[$t] = true;
+                $addShared($t, $owner);
             }
             $stmt->close();
         }
@@ -780,6 +806,7 @@ function getUserFoldersAndTables($conn, $username, $userEmail = null) { // NEW: 
 
     return $all;
 }
+
 
 // -------------------------------------------
 // Page state & render
@@ -871,7 +898,7 @@ if (!empty($selectedFullTable) && $res !== false) {
     } else {
         echo "<em>No audio generated yet for this table.</em><br><br>";
         echo "<a href='generate_mp3_google_ssml.php'><button $buttonStyle>🎧 Create MP3</button></a> ";
-        echo "<a href='generate_wav_batched.php'><button $buttonStyle>🎧 Create MP3 (choose voices)</button></a> ";
+        // echo "<a href='generate_wav_batched.php'><button $buttonStyle>🎧 Create MP3 (choose voices)</button></a> ";
     }
 
     if (!$isSharedTable) {
