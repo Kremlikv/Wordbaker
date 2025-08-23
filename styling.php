@@ -457,15 +457,13 @@ ul ul.open {
           <li><a href="upload.php">📝 Upload</a></li>
           <li><a href="create_table.php">📝 Create Table</a></li>
           <li><a href="translator.php">🌐 Translate</a></li>
-          <li><a href="pdf_scan.php">📄 PDF-to-text</a></li>
-          <li><a href="generate_quiz_choices.php">🎯 Make Quiz</a></li>
+          <li><a href="pdf_scan.php">📄 PDF-to-text</a></li>        
         </ul>
       </li>
       <li class="dropdown">
         <a href="#">📚 Study</a>
         <ul class="submenu">
-          <li><a href="flashcards.php">📘 Flashcards</a></li>
-          <li><a href="play_quiz.php">🎯 Play Quiz</a></li>
+          <li><a href="flashcards.php">📘 Flashcards</a></li>          
           <li><a href="review_difficult.php">🧠 Difficult</a></li>
           <li><a href="mastered.php">🌟 Mastered</a></li>
         </ul>
