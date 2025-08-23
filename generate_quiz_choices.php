@@ -124,7 +124,7 @@ if ($selectedTable !== '') {
             foreach ($editedRows as $r) {
                 $q = $r['question'];
                 $c = $r['correct'];
-                $stmt->bind_param('sssss', $q, $c, $autoSourceLang, $autoTargetLang);
+                $stmt->bind_param('ssss', $q, $c, $autoSourceLang, $autoTargetLang);
                 $stmt->execute();
             }
 
