@@ -1,212 +1,240 @@
 <?php
-// generate_quiz_choices.php — MANUAL distractors version (no AI)
-
-// Keeps: File explorer, folder system, image_url column, quiz table generation
-// Removes: AI calls, daily usage tracking, candidate validation
-
+session_start();
 ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
 require_once 'db.php';
 require_once 'session.php';
-include 'styling.php';
 
-$conn->set_charset('utf8mb4');
-
-// ====== Helpers ======
-function quizTableExists($conn, $table) {
-    $quizTable = (strpos($table, 'quiz_choices_') === 0) ? $table : "quiz_choices_" . $table;
-    $res = $conn->query("SHOW TABLES LIKE '" . $conn->real_escape_string($quizTable) . "'");
+// --- Helpers ---
+function safeTablePart(string $s): string {
+    $s = mb_strtolower($s, 'UTF-8');
+    $s = preg_replace('/[^a-z0-9_]+/u', '_', $s);
+    $s = preg_replace('/_+/', '_', $s);
+    return trim($s, '_');
+}
+function tableExists(mysqli $conn, string $t): bool {
+    $res = $conn->query("SHOW TABLES LIKE '".$conn->real_escape_string($t)."'");
     return $res && $res->num_rows > 0;
 }
 
-// ====== PRE-EXPLORER LOGIC ======
-$username = strtolower($_SESSION['username'] ?? '');
-
-function getUserFoldersAndTables($conn, $username) {
-    $allTables = [];
-    $result = $conn->query('SHOW TABLES');
-    if ($result) {
-        while ($row = $result->fetch_array()) {
-            $table = $row[0];
-            if (strpos($table, 'quiz_choices_') === 0) continue; // skip quiz tables
-            if (stripos($table, $username . '_') === 0) {
-                $suffix = substr($table, strlen($username) + 1);
-                $suffix = preg_replace('/_+/', '_', $suffix);
-                $parts = explode('_', $suffix, 2);
-                if (count($parts) === 2 && trim($parts[0]) !== '') { $folder = $parts[0]; $file = $parts[1]; }
-                else { $folder = 'Uncategorized'; $file = $suffix; }
-                $allTables[$folder][] = [ 'table_name' => $table, 'display_name' => $file ];
-            }
-        }
-    }
-    return $allTables;
+// Quiz table schema (choices)
+function ensureQuizChoicesTable(mysqli $conn, string $table): bool {
+    $esc = $conn->real_escape_string($table);
+    if (tableExists($conn, $table)) return true;
+    $sql = "CREATE TABLE `{$esc}` (
+        id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        question TEXT NOT NULL,
+        correct_answer TEXT NOT NULL,
+        wrong1 TEXT NULL,
+        wrong2 TEXT NULL,
+        wrong3 TEXT NULL,
+        image_url TEXT NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
+    return (bool)$conn->query($sql);
 }
 
-$folders = getUserFoldersAndTables($conn, $username);
-$folders['Shared'][] = ['table_name' => 'difficult_words', 'display_name' => 'Difficult Words'];
-$folders['Shared'][] = ['table_name' => 'mastered_words', 'display_name' => 'Mastered Words'];
+// ---------- Handle SAVE ----------
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_quiz') {
+    $conn->set_charset('utf8mb4');
+    $username   = strtolower($_SESSION['username'] ?? 'user');
+    $folder     = safeTablePart($_POST['save_folder'] ?? '');
+    $name       = safeTablePart($_POST['save_name'] ?? '');
+    $overwrite  = !empty($_POST['save_overwrite']);
+    $rows       = $_POST['rows'] ?? [];
 
-$folderData = [];
-foreach ($folders as $folder => $tableList) {
-    foreach ($tableList as $entry) {
-        $folderData[$folder][] = [ 'table' => $entry['table_name'], 'display' => $entry['display_name'] ];
-    }
-}
+    if ($folder === '' || $name === '') {
+        $err = "Please enter both Folder and Name.";
+    } else {
+        $quizTable = "quiz_choices_{$username}_{$folder}_{$name}";
 
-// Determine selected table
-$selectedTable = $_POST['table'] ?? $_GET['table'] ?? '';
-$selectedTable = is_string($selectedTable) ? trim($selectedTable) : '';
-
-// Infer language labels
-$autoSourceLang = '';
-$autoTargetLang = '';
-if ($selectedTable !== '') {
-    $columnsRes = $conn->query("SHOW COLUMNS FROM `$selectedTable`");
-    if ($columnsRes && $columnsRes->num_rows >= 2) {
-        $cols = $columnsRes->fetch_all(MYSQLI_ASSOC);
-        $autoSourceLang = ucfirst($cols[0]['Field']);
-        $autoTargetLang = ucfirst($cols[1]['Field']);
-    }
-}
-
-// ====== UI Header ======
-echo "<div class='content'>👤 Logged in as ".htmlspecialchars($_SESSION['username'] ?? '')." | <a href='logout.php'>Logout</a></div>";
-echo "<h2 style='text-align:center;'>Generate Quiz Choices (Manual)</h2>";
-echo "<p style='text-align:center;'>Now you must manually fill in the wrong answers (distractors).</p>";
-
-// ====== File Explorer ======
-include 'file_explorer.php';
-
-// ====== EDIT-FIRST WORKFLOW ======
-$generatedTable = '';
-
-if ($selectedTable !== '') {
-    $stage = $_POST['stage'] ?? 'edit';
-
-    if ($stage === 'generate' && !empty($_POST['items']) && is_array($_POST['items'])) {
-        $editedRows = [];
-        foreach ($_POST['items'] as $idx => $item) {
-            $q   = trim($item['q'] ?? '');
-            $c   = trim($item['c'] ?? '');
-            $del = isset($item['del']) && $item['del'] === '1';
-            if ($del || $q === '' || $c === '') continue;
-            $editedRows[] = ['question' => $q, 'correct' => $c];
+        // Overwrite support
+        if ($overwrite && tableExists($conn, $quizTable)) {
+            $conn->query("DROP TABLE `".$conn->real_escape_string($quizTable)."`");
         }
 
-        if (empty($editedRows)) {
-            echo "<div class='content' style='color:#b91c1c;background:#fee2e2;border:1px solid #fecaca;padding:10px;border-radius:8px;margin:10px 0;'>
-                    Nothing to generate.
-                  </div>";
-            $stage = 'edit';
+        if (!ensureQuizChoicesTable($conn, $quizTable)) {
+            $err = "Could not create quiz table: ".htmlspecialchars($conn->error);
         } else {
-            $quizTable = 'quiz_choices_' . $selectedTable;
+            // Insert rows (skip completely empty lines)
+            $sql = "INSERT INTO `".$conn->real_escape_string($quizTable)."`
+                    (question, correct_answer, wrong1, wrong2, wrong3, image_url)
+                    VALUES (?, ?, ?, ?, ?, ?)";
+            $stmt = $conn->prepare($sql);
+            if (!$stmt) {
+                $err = "Prepare failed: ".htmlspecialchars($conn->error);
+            } else {
+                foreach ($rows as $r) {
+                    $q   = trim($r['question'] ?? '');
+                    $cor = trim($r['correct'] ?? '');
+                    $w1  = trim($r['wrong1'] ?? '');
+                    $w2  = trim($r['wrong2'] ?? '');
+                    $w3  = trim($r['wrong3'] ?? '');
+                    $img = trim($r['image_url'] ?? '');
 
-            if (!quizTableExists($conn, $selectedTable)) {
-                $conn->query("CREATE TABLE `$quizTable` (
-                    id INT AUTO_INCREMENT PRIMARY KEY,
-                    question TEXT,
-                    correct_answer TEXT,
-                    wrong1 TEXT,
-                    wrong2 TEXT,
-                    wrong3 TEXT,
-                    source_lang VARCHAR(50),
-                    target_lang VARCHAR(50),
-                    image_url TEXT
-                )");
-            }
+                    // require at least a question+correct to insert
+                    if ($q === '' || $cor === '') continue;
 
-            $stmt = $conn->prepare("INSERT INTO `$quizTable`
-                (question, correct_answer, wrong1, wrong2, wrong3, source_lang, target_lang)
-                VALUES (?, ?, '', '', '', ?, ?)");
+                    $stmt->bind_param('ssssss', $q, $cor, $w1, $w2, $w3, $img);
+                    if (!$stmt->execute()) {
+                        $err = "Insert failed: ".htmlspecialchars($stmt->error);
+                        break;
+                    }
+                }
+                $stmt->close();
 
-            foreach ($editedRows as $r) {
-                $q = $r['question'];
-                $c = $r['correct'];
-                $stmt->bind_param('ssss', $q, $c, $autoSourceLang, $autoTargetLang);
-                $stmt->execute();
-            }
-
-            $stmt->close();
-            $generatedTable = $quizTable;
-        }
-    }
-
-    if ($stage === 'edit') {
-        // Load source table
-        $rows = [];
-        $col1 = $col2 = '';
-        $columnsRes = $conn->query("SHOW COLUMNS FROM `$selectedTable`");
-        if ($columnsRes && $columnsRes->num_rows >= 2) {
-            $cols = $columnsRes->fetch_all(MYSQLI_ASSOC);
-            $col1 = $cols[0]['Field'];
-            $col2 = $cols[1]['Field'];
-            $res2 = $conn->query("SELECT `$col1` AS q, `$col2` AS c FROM `$selectedTable`");
-            while ($r = $res2->fetch_assoc()) {
-                $q = trim($r['q']); $c = trim($r['c']);
-                if ($q === '' || $c === '') continue;
-                $rows[] = ['q' => $q, 'c' => $c];
+                if (!isset($err)) {
+                    // redirect to play_quiz or back to main with the new table selected
+                    header("Location: play_quiz.php?table=" . urlencode($quizTable));
+                    exit;
+                }
             }
         }
-
-        echo "<h3 style='text-align:center;'>Review & Edit: <code>".htmlspecialchars($selectedTable)."</code></h3>";
-        echo "<form method='post' style='margin:10px 0;'>";
-        echo "<input type='hidden' name='table' value='".htmlspecialchars($selectedTable, ENT_QUOTES)."'>";
-        echo "<input type='hidden' name='stage' value='generate'>";
-
-        echo "<div style='overflow-x:auto;'>";
-        echo "<table border='1' style='width:100%; border-collapse:collapse;'>";
-        $ansHeader = htmlspecialchars($autoTargetLang ?: 'Answer');
-        echo "<tr><th>Delete</th><th>Czech</th><th>{$ansHeader}</th></tr>";
-
-        foreach ($rows as $i => $r) {
-            $q = htmlspecialchars($r['q'], ENT_QUOTES);
-            $c = htmlspecialchars($r['c'], ENT_QUOTES);
-            echo "<tr>
-                    <td style='text-align:center;'>
-                        <input type='checkbox' name='items[$i][del]' value='1'>
-                    </td>
-                    <td>
-                        <input type='text' name='items[$i][q]' value='$q' style='width:100%; padding:6px;'>
-                    </td>
-                    <td>
-                        <input type='text' name='items[$i][c]' value='$c' style='width:100%; padding:6px;'>
-                    </td>
-                  </tr>";
-        }
-        echo "</table></div>";
-
-        echo "<div style='text-align:center; margin:14px 0;'>
-                <button type='submit' style='padding:10px 14px; background:#4CAF50; color:#fff; border:none; border-radius:6px;'>
-                    ▶ Create Quiz Table (manual distractors)
-                </button>
-              </div>";
-
-        echo "</form>";
     }
 }
 
-// ====== Preview if generated ======
-if (!empty($generatedTable)) {
-    echo "<h3 style='text-align:center;'>Preview: <code>".htmlspecialchars($generatedTable)."</code></h3>";
-    echo "<div style='overflow-x:auto;'><table border='1' style='width:100%; border-collapse:collapse;'>
-            <tr><th>Czech</th><th>Correct</th><th>Wrong 1</th><th>Wrong 2</th><th>Wrong 3</th></tr>";
-    $res = $conn->query("SELECT * FROM `$generatedTable` LIMIT 20");
-    if ($res) {
-        while ($row = $res->fetch_assoc()) {
-            echo "<tr>
-                    <td>".htmlspecialchars($row['question'])."</td>
-                    <td>".htmlspecialchars($row['correct_answer'])."</td>
-                    <td>".htmlspecialchars($row['wrong1'])."</td>
-                    <td>".htmlspecialchars($row['wrong2'])."</td>
-                    <td>".htmlspecialchars($row['wrong3'])."</td>
-                  </tr>";
+// ---------- Load SOURCE immediately to editable form ----------
+$conn->set_charset('utf8mb4');
+$sourceTable = $_POST['source_table'] ?? $_GET['table'] ?? '';
+$col1 = '';
+$col2 = '';
+$sourceRows = [];
+
+if ($sourceTable !== '') {
+    // find first two columns as question/correct
+    $colsRes = $conn->query("SHOW COLUMNS FROM `".$conn->real_escape_string($sourceTable)."`");
+    if ($colsRes && $colsRes->num_rows >= 2) {
+        $cols = $colsRes->fetch_all(MYSQLI_ASSOC);
+        $col1 = $cols[0]['Field'];
+        $col2 = $cols[1]['Field'];
+
+        // load data
+        $dataRes = $conn->query("SELECT `".$conn->real_escape_string($col1)."` AS q, `".$conn->real_escape_string($col2)."` AS c FROM `".$conn->real_escape_string($sourceTable)."`");
+        if ($dataRes) {
+            while ($row = $dataRes->fetch_assoc()) {
+                $sourceRows[] = [
+                    'question' => $row['q'],
+                    'correct'  => $row['c'],
+                    'wrong1'   => '',
+                    'wrong2'   => '',
+                    'wrong3'   => '',
+                    'image_url'=> ''
+                ];
+            }
         }
     }
-    echo "</table></div><br>";
-    echo "<div style='text-align:center;'>
-            <a href='quiz_edit.php?table=".urlencode($generatedTable)."' style='padding:10px; background:#4CAF50; color:#fff; text-decoration:none;'>✏ Edit</a>
-          </div>";
 }
-?>
+
+// ---------- Output ----------
+echo "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>Create Quiz (Choices)</title>";
+include 'styling.php';
+echo "<style>
+  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 16px; }
+  table.quiz { width:100%; border-collapse: collapse; }
+  table.quiz th, table.quiz td { border:1px solid #e5e7eb; padding:6px; vertical-align:top; }
+  table.quiz th { background:#f8fafc; position:sticky; top:0; z-index:1; }
+  textarea { width:100%; min-height:44px; resize:vertical; padding:6px; }
+  input[type=text], input[type=url] { width:100%; padding:6px; }
+  .controls { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:14px 0; }
+  .hint { color:#475569; font-size:12px; }
+  .error { color:#b91c1c; background:#fee2e2; border:1px solid #fecaca; padding:8px 10px; border-radius:6px; margin:12px 0; }
+  .ok { color:#065f46; background:#d1fae5; border:1px solid #a7f3d0; padding:8px 10px; border-radius:6px; margin:12px 0; }
+  .btn { padding:8px 12px; border:0; border-radius:6px; background:#2563eb; color:#fff; cursor:pointer; }
+  .btn.gray { background:#475569; }
+</style>";
+echo "</head><body><div class='wrap'>";
+
+echo "<div style='margin-bottom:10px;'>
+        👤 Logged in as ".htmlspecialchars($_SESSION['username'] ?? '')." | <a href='logout.php'>Logout</a>
+      </div>";
+
+echo "<h2>🧩 Create Quiz (Multiple Choice)</h2>";
+
+if (isset($err)) {
+    echo "<div class='error'>".$err."</div>";
+}
+
+// Source selector (optional helper)
+echo "<form method='GET' style='margin-bottom:12px; display:flex; gap:8px; align-items:center; flex-wrap:wrap;'>
+        <label>Source table:
+          <input type='text' name='table' placeholder='e.g. johndoe_animals_de_en' value='".htmlspecialchars($sourceTable)."'>
+        </label>
+        <button class='btn gray' type='submit'>Load</button>
+        <div class='hint'>Takes the first two columns as Question & Correct Answer.</div>
+      </form>";
+
+if ($sourceTable === '') {
+    echo "<div class='hint'>Pick a source table (from your explorer or enter it above) to start building a quiz. The first two columns will be used as Question and Correct Answer. The three Wrong Answer fields will be empty for you to fill.</div>";
+} else {
+    echo "<div class='ok'>Source <code>".htmlspecialchars($sourceTable)."</code> loaded. First two columns detected as: <code>".htmlspecialchars($col1)."</code> → Question, <code>".htmlspecialchars($col2)."</code> → Correct Answer.</div>";
+
+    // Editable grid immediately (no read-only preview)
+    echo "<form method='POST' action=''>
+            <input type='hidden' name='action' value='save_quiz'>
+            <div class='controls'>
+              <strong>Save As…</strong>
+              <label>Folder: <input type='text' name='save_folder' placeholder='e.g., animals'></label>
+              <label>Name: <input type='text' name='save_name' placeholder='e.g., de_en_2025'></label>
+              <label title='If checked and quiz table exists, it will be replaced'><input type='checkbox' name='save_overwrite' value='1'> Overwrite if exists</label>
+            </div>
+            <div class='hint' style='margin-top:-8px;margin-bottom:10px;'>Will create <code>quiz_choices_".htmlspecialchars(strtolower($_SESSION['username'] ?? 'user'))."_FOLDER_NAME_FILE_NAME</code></div>";
+
+    echo "<div style='max-height:65vh; overflow:auto; border:1px solid #e5e7eb; border-radius:8px;'>
+            <table class='quiz'>
+              <thead>
+                <tr>
+                  <th style='width:26%;'>Question</th>
+                  <th style='width:26%;'>Correct Answer</th>
+                  <th style='width:16%;'>Wrong 1</th>
+                  <th style='width:16%;'>Wrong 2</th>
+                  <th style='width:16%;'>Wrong 3</th>
+                  <th style='width:22%;'>Image URL (optional)</th>
+                </tr>
+              </thead>
+              <tbody>";
+    if (empty($sourceRows)) {
+        echo "<tr><td colspan='6'><em>No rows found in the source table.</em></td></tr>";
+    } else {
+        foreach ($sourceRows as $i => $r) {
+            echo "<tr>
+                    <td><textarea name='rows[$i][question]' oninput='autoResize(this)'>".htmlspecialchars($r['question'])."</textarea></td>
+                    <td><textarea name='rows[$i][correct]'  oninput='autoResize(this)'>".htmlspecialchars($r['correct'])."</textarea></td>
+                    <td><textarea name='rows[$i][wrong1]'   oninput='autoResize(this)'></textarea></td>
+                    <td><textarea name='rows[$i][wrong2]'   oninput='autoResize(this)'></textarea></td>
+                    <td><textarea name='rows[$i][wrong3]'   oninput='autoResize(this)'></textarea></td>
+                    <td><input type='url' name='rows[$i][image_url]' placeholder='https://...'></td>
+                  </tr>";
+        }
+        // plus one empty row for convenience
+        $i = count($sourceRows);
+        echo "<tr>
+                <td><textarea name='rows[$i][question]' oninput='autoResize(this)'></textarea></td>
+                <td><textarea name='rows[$i][correct]'  oninput='autoResize(this)'></textarea></td>
+                <td><textarea name='rows[$i][wrong1]'   oninput='autoResize(this)'></textarea></td>
+                <td><textarea name='rows[$i][wrong2]'   oninput='autoResize(this)'></textarea></td>
+                <td><textarea name='rows[$i][wrong3]'   oninput='autoResize(this)'></textarea></td>
+                <td><input type='url' name='rows[$i][image_url]' placeholder='https://...'></td>
+              </tr>";
+    }
+    echo "    </tbody>
+            </table>
+          </div>
+          <div style='margin-top:12px;'>
+            <button class='btn' type='submit'>💾 Save Quiz</button>
+          </div>
+        </form>";
+}
+
+echo "</div>
+<script>
+function autoResize(t){
+  t.style.height='auto';
+  t.style.overflow='hidden';
+  t.style.height=t.scrollHeight+'px';
+}
+document.addEventListener('DOMContentLoaded',function(){
+  document.querySelectorAll('textarea').forEach(autoResize);
+});
+</script>
+</body></html>";
