@@ -454,8 +454,8 @@ ul ul.open {
       <li class="dropdown">
         <a href="#">➕ Nový</a>
         <ul class="submenu">
-          <li><a href="upload.php">📝 Nahrát tabulku</a></li>
-          <li><a href="create_table.php">📝 Vytvořit tabulku</a></li>
+          <li><a href="upload.php">📝 Nahrát slovníček</a></li>
+          <li><a href="create_table.php">📝 Vytvořit slovníček</a></li>
           <li><a href="translator.php">🌐 Přeložit</a></li>
           <li><a href="pdf_scan.php">📄 Převod PDF na text</a></li>        
         </ul>

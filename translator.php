@@ -297,13 +297,14 @@ document.addEventListener("DOMContentLoaded", function () {
 <body>
 <div class='content'>
   👤 Přihlášený uživatel: <?= htmlspecialchars($username_raw) ?> | <a href='logout.php'>Odhlásit</a>
-</div>
+
 
 <h2>🌍 Překlad frází do slovníčku </h2>
+</div>
 
 <form method="POST" onsubmit="return validateLangSelection(event)">
   <label>Název nového slovníčku:
-    <input type="text" name="new_table_name" id="new_table_name" value="<?= htmlspecialchars($tableNameInput ?: 'folder_table') ?>" required oninput="checkTableName()">
+    <input type="text" name="new_table_name" id="new_table_name" value="<?= htmlspecialchars($tableNameInput ?: 'adresář_soubor') ?>" required oninput="checkTableName()">
   </label>
   <div class="hint" id="finalNamePreview" style="margin-top:4px;"></div>
   <div id="tableWarning" data-valid="false" style="font-weight: bold; margin: 8px 0 10px;"></div>
@@ -311,7 +312,7 @@ document.addEventListener("DOMContentLoaded", function () {
   <label>Zkopírujte a/nebo zkontrolujte řádky:<br>
   <p>Jeden překlad smí mít max 500 znaků.</p></label><br>
   <textarea name="text_lines" id="text_lines" rows="10"><?= htmlspecialchars($text_lines) ?></textarea><br>
-  <button type="button" onclick="breakSentences()">✂️ Break into Sentences</button><br><br>
+  <button type="button" onclick="breakSentences()">✂️ Rozdělit do vět</button><br><br>
 
   <label>Zdrojový jazyk:
     <select name="sourceLang" id="sourceLang">
@@ -341,9 +342,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
   <div class="engine-badge">
     <?php
-      if (!empty($GOOGLE_API_KEY))          echo "Configured engine priority: Google → LibreTranslate → MyMemory";
-      elseif (!empty($LIBRETRANSLATE_URL))  echo "Configured engine priority: LibreTranslate → MyMemory";
-      else                                  echo "Configured engine: MyMemory (free; may be creative)";
+      if (!empty($GOOGLE_API_KEY))          echo "Překladové programy dle priority: Google → LibreTranslate → MyMemory";
+      elseif (!empty($LIBRETRANSLATE_URL))  echo "Překladové programy dle priority: LibreTranslate → MyMemory";
+      else                                  echo "Překladové programy: MyMemory (zdarma, nepřesné)";
     ?>
   </div>
 

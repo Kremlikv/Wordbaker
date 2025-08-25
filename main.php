@@ -860,8 +860,8 @@ include 'styling.php';
 echo "</head><body>";
 
 echo "<div class='content'>";
-echo "👤 Logged in as " . htmlspecialchars($_SESSION['username'] ?? '') . " | <a href='logout.php'>Logout</a><br><br>";
-echo "<h2> View and edit your tables </h2>";
+echo "👤 Přihlášený uživatel " . htmlspecialchars($_SESSION['username'] ?? '') . " | <a href='logout.php'>Odhlásit</a><br><br>";
+echo "<h2> Čtení a editace slovníčků </h2>";
 
 // Include the reusable file explorer
 include 'file_explorer.php';
@@ -896,7 +896,7 @@ if (!empty($selectedFullTable) && $res !== false) {
         echo "</form><br><br>";
 
     } else {
-        echo "<em>No audio generated yet for this table.</em><br><br>";
+        echo "<em>Pro tento slovníček zatím není audio nahrávka.</em><br><br>";
         echo "<a href='generate_mp3_google_ssml.php'><button $buttonStyle>🎧 Vytvořit MP3</button></a> ";
         // echo "<a href='generate_wav_batched.php'><button $buttonStyle>🎧 Vytvořit MP3 (vyber hlasy)</button></a> ";
     }

@@ -62,7 +62,7 @@ $__POST_TARGET = ($__MODE === 'quiz') ? '' : 'main.php'; // '' => current page
 </style>
 
 <div style="text-align:center;">
-  <button type="button" class="select-file-btn" onclick="showFileExplorer()">Select a file</button>
+  <button type="button" class="select-file-btn" onclick="showFileExplorer()">Vyberte soubor</button>
 </div>
 
 <form method='POST' action='' id='tableActionForm'>
@@ -92,7 +92,7 @@ $__POST_TARGET = ($__MODE === 'quiz') ? '' : 'main.php'; // '' => current page
       </div>
 
       <div class='file-panel' id='filePanel'>
-        <em style="padding:8px;display:block;">Select a folder to view its tables</em>
+        <em style="padding:8px;display:block;">Vyberte adresář a uvidíte jeho soubory</em>
       </div>
     </div>
   </div>
@@ -100,17 +100,17 @@ $__POST_TARGET = ($__MODE === 'quiz') ? '' : 'main.php'; // '' => current page
 
 <!-- Left-pane menu (identical UI; target differs by mode) -->
 <div id="folderMenu" class="folder-context-menu">
-  <button type="button" id="shareFolderBtn">🔗 Share folder…</button>
-  <button type="button" id="unshareFolderBtn">🚫 Unshare folder</button>
+  <button type="button" id="shareFolderBtn">🔗 Sdílet adresář…</button>
+  <button type="button" id="unshareFolderBtn">🚫 Přestat sdílet adresář</button>
 
   <hr style="border:none;border-top:1px solid #e2e8f0; margin:4px 0;">
-  <button type="button" id="shareFolderToUserBtn">👤 Share folder with user…</button>
-  <button type="button" id="unshareFolderFromUserBtn">🙈 Unshare folder from user…</button>
+  <button type="button" id="shareFolderToUserBtn">👤 Sdílet adresář s uživatelem…</button>
+  <button type="button" id="unshareFolderFromUserBtn">🙈 Přestat sdílet adresář s uživatelem…</button>
 
   <hr style="border:none;border-top:1px solid #e2e8f0; margin:4px 0;">
-  <button type="button" id="copyFolderLocalBtn">📄 Copy folder…</button>
-  <button type="button" id="renameFolderBtn">✏️ Rename folder…</button>
-  <button type="button" id="deleteFolderBtn" style="color:#b91c1c;">🗑️ Delete folder…</button>
+  <button type="button" id="copyFolderLocalBtn">📄 Kopírovat adresář…</button>
+  <button type="button" id="renameFolderBtn">✏️ Přejmenovat adresář…</button>
+  <button type="button" id="deleteFolderBtn" style="color:#b91c1c;">🗑️ Smazat adresář…</button>
 </div>
 <form id="folderActionForm" method="post" action="<?php echo htmlspecialchars($__POST_TARGET); ?>" style="display:none;">
   <input type="hidden" name="folder_action" value="">
@@ -126,17 +126,17 @@ $__POST_TARGET = ($__MODE === 'quiz') ? '' : 'main.php'; // '' => current page
 <!-- Right-pane SUBFOLDER menu + form (identical UI; target differs by mode) -->
 <div id="subfolderMenu" class="subfolder-context-menu">
   <div style="padding:4px 8px; font-size:12px; color:#64748b;" id="subPathHint"></div>
-  <button type="button" id="shareSubBtn">🔗 Share this subfolder…</button>
-  <button type="button" id="unshareSubBtn">🚫 Unshare this subfolder</button>
+  <button type="button" id="shareSubBtn">🔗 Sdílet tento podadresář…</button>
+  <button type="button" id="unshareSubBtn">🚫 Přestat sdílet tento podadresář</button>
 
   <hr style="border:none;border-top:1px solid #e2e8f0; margin:4px 0;">
-  <button type="button" id="shareSubToUserBtn">👤 Share this subfolder with user…</button>
-  <button type="button" id="unshareSubFromUserBtn">🙈 Unshare this subfolder from user…</button>
+  <button type="button" id="shareSubToUserBtn">👤 Sdílet tento podadresář s uživatelem…</button>
+  <button type="button" id="unshareSubFromUserBtn">🙈 Přestat sdílet tento podadresář s uživatelem…</button>
 
   <hr style="border:none;border-top:1px solid #e2e8f0; margin:4px 0;">
-  <button type="button" id="copySubBtn">📄 Copy this subfolder…</button>
-  <button type="button" id="renameSubBtn">✏️ Rename this subfolder…</button>
-  <button type="button" id="deleteSubBtn" style="color:#b91c1c;">🗑️ Delete this subfolder…</button>
+  <button type="button" id="copySubBtn">📄 Kopírovat tento podadresář…</button>
+  <button type="button" id="renameSubBtn">✏️ Přejmenovat tento podadresář…</button>
+  <button type="button" id="deleteSubBtn" style="color:#b91c1c;">🗑️ Smazat tento podadresář…</button>
 </div>
 <form id="subfolderActionForm" method="post" action="<?php echo htmlspecialchars($__POST_TARGET); ?>" style="display:none;">
   <input type="hidden" name="sub_action" value="">
