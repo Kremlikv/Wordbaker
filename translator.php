@@ -296,73 +296,74 @@ document.addEventListener("DOMContentLoaded", function () {
 </head>
 <body>
 <div class='content'>
-  👤 Logged in as <?= htmlspecialchars($username_raw) ?> | <a href='logout.php'>Logout</a>
+  👤 Přihlášený uživatel: <?= htmlspecialchars($username_raw) ?> | <a href='logout.php'>Odhlásit</a>
+
+
+<h2>🌍 Překlad frází do slovníčku </h2>
 </div>
 
-<h2>🌍 Translate Sentences to Table</h2>
-
 <form method="POST" onsubmit="return validateLangSelection(event)">
-  <label>New Table Name:
-    <input type="text" name="new_table_name" id="new_table_name" value="<?= htmlspecialchars($tableNameInput ?: 'folder_table') ?>" required oninput="checkTableName()">
+  <label>Název nového slovníčku:
+    <input type="text" name="new_table_name" id="new_table_name" value="<?= htmlspecialchars($tableNameInput ?: 'adresář_soubor') ?>" required oninput="checkTableName()">
   </label>
   <div class="hint" id="finalNamePreview" style="margin-top:4px;"></div>
   <div id="tableWarning" data-valid="false" style="font-weight: bold; margin: 8px 0 10px;"></div>
 
-  <label>Paste or review lines:<br>
-  <p>One translation request max 500 characters.</p></label><br>
+  <label>Zkopírujte a/nebo zkontrolujte řádky:<br>
+  <p>Jeden překlad smí mít max 500 znaků.</p></label><br>
   <textarea name="text_lines" id="text_lines" rows="10"><?= htmlspecialchars($text_lines) ?></textarea><br>
-  <button type="button" onclick="breakSentences()">✂️ Break into Sentences</button><br><br>
+  <button type="button" onclick="breakSentences()">✂️ Rozdělit do vět</button><br><br>
 
-  <label>Source Language:
+  <label>Zdrojový jazyk:
     <select name="sourceLang" id="sourceLang">
-      <option value="" disabled selected>Select source language</option>
-      <option value="auto" <?= $sourceLang === 'auto' ? 'selected' : '' ?>>Auto Detect</option>
-      <option value="en" <?= $sourceLang === 'en' ? 'selected' : '' ?>>English</option>
-      <option value="de" <?= $sourceLang === 'de' ? 'selected' : '' ?>>German</option>
-      <option value="fr" <?= $sourceLang === 'fr' ? 'selected' : '' ?>>French</option>
-      <option value="it" <?= $sourceLang === 'it' ? 'selected' : '' ?>>Italian</option>
-      <option value="es" <?= $sourceLang === 'es' ? 'selected' : '' ?>>Spanish</option>
-      <option value="cs" <?= $sourceLang === 'cs' ? 'selected' : '' ?>>Czech</option>
+      <option value="" disabled selected>Vyberte zdrojový jazyk</option>
+      <option value="auto" <?= $sourceLang === 'auto' ? 'selected' : '' ?>>Automaticky</option>
+      <option value="en" <?= $sourceLang === 'en' ? 'selected' : '' ?>>Anglicky</option>
+      <option value="de" <?= $sourceLang === 'de' ? 'selected' : '' ?>>Německy</option>
+      <option value="fr" <?= $sourceLang === 'fr' ? 'selected' : '' ?>>Francouzsky</option>
+      <option value="it" <?= $sourceLang === 'it' ? 'selected' : '' ?>>Italsky</option>
+      <option value="es" <?= $sourceLang === 'es' ? 'selected' : '' ?>>Španělsky</option>
+      <option value="cs" <?= $sourceLang === 'cs' ? 'selected' : '' ?>>Česky</option>
     </select>
   </label>
 
-  <label>Target Language:
+  <label>Cílový jazyk:
     <select name="targetLang" id="targetLang">
-      <option value="" disabled selected>Select target language</option>
-      <option value="cs" <?= $targetLang === 'cs' ? 'selected' : '' ?>>Czech</option>
-      <option value="en" <?= $targetLang === 'en' ? 'selected' : '' ?>>English</option>
-      <option value="de" <?= $targetLang === 'de' ? 'selected' : '' ?>>German</option>
-      <option value="fr" <?= $targetLang === 'fr' ? 'selected' : '' ?>>French</option>
-      <option value="it" <?= $targetLang === 'it' ? 'selected' : '' ?>>Italian</option>
-      <option value="es" <?= $targetLang === 'es' ? 'selected' : '' ?>>Spanish</option>
-      <option value="cs" <?= $targetLang === 'cs' ? 'selected' : '' ?>>Czech</option>
+      <option value="" disabled selected>Vyberte cílový jazyk</option>
+      <option value="cs" <?= $targetLang === 'cs' ? 'selected' : '' ?>>Česky</option>
+      <option value="en" <?= $targetLang === 'en' ? 'selected' : '' ?>>Anglicky</option>
+      <option value="de" <?= $targetLang === 'de' ? 'selected' : '' ?>>Německy</option>
+      <option value="fr" <?= $targetLang === 'fr' ? 'selected' : '' ?>>Francouszky</option>
+      <option value="it" <?= $targetLang === 'it' ? 'selected' : '' ?>>Italsky</option>
+      <option value="es" <?= $targetLang === 'es' ? 'selected' : '' ?>>Španělsky</option>
+      <option value="cs" <?= $targetLang === 'cs' ? 'selected' : '' ?>>Česky</option>
     </select>
   </label><br><br>
 
   <div class="engine-badge">
     <?php
-      if (!empty($GOOGLE_API_KEY))          echo "Configured engine priority: Google → LibreTranslate → MyMemory";
-      elseif (!empty($LIBRETRANSLATE_URL))  echo "Configured engine priority: LibreTranslate → MyMemory";
-      else                                  echo "Configured engine: MyMemory (free; may be creative)";
+      if (!empty($GOOGLE_API_KEY))          echo "Překladové programy dle priority: Google → LibreTranslate → MyMemory";
+      elseif (!empty($LIBRETRANSLATE_URL))  echo "Překladové programy dle priority: LibreTranslate → MyMemory";
+      else                                  echo "Překladové programy: MyMemory (zdarma, nepřesné)";
     ?>
   </div>
 
   <input type="hidden" name="delete_pdf_path" value="<?= htmlspecialchars($deletePdfPath) ?>">
 
-  <button type="submit">🌐 Translate</button>
+  <button type="submit">🌐 Přeložit</button>
 </form>
 
 <?php if (!empty($translated)): ?>
   <div class="engine-badge" style="text-align:center; margin-top:10px;">
-    Engine used for this preview: <strong><?= htmlspecialchars($engineUsed ?: 'Unknown') ?></strong>
+    Program použitý k tomuto překladu: <strong><?= htmlspecialchars($engineUsed ?: 'Unknown') ?></strong>
   </div>
 
   <form method="POST">
-    <h3>Translated Preview</h3>
+    <h3>Náhled překladu</h3>
     <table>
       <thead>
         <tr>
-          <th>Czech</th>
+          <th>Česky</th>
           <th><?= htmlspecialchars(($sourceLang === 'cs') ? ($langLabels[$targetLang] ?? 'Foreign') : ($langLabels[$sourceLang] ?? 'Foreign')) ?></th>
         </tr>
       </thead>
@@ -381,7 +382,7 @@ document.addEventListener("DOMContentLoaded", function () {
     <input type="hidden" name="sourceLang" value="<?= htmlspecialchars($sourceLang) ?>">
     <input type="hidden" name="targetLang" value="<?= htmlspecialchars($targetLang) ?>">
 
-    <button type="submit">💾 Save Table to Database</button>
+    <button type="submit">💾 Uložit slovníček do databáze</button>
   </form>
 <?php endif; ?>
 </body>
