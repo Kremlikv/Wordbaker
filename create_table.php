@@ -153,7 +153,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' &&
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Create New Table</title>
+    <title>Vytvořit novou tabulku</title>
     <style>
         body { font-family: sans-serif; margin: 0; }
         label { display: block; margin-top: 1em; }
@@ -172,25 +172,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' &&
 </head>
 <body>
     <div class='content'>
-        <p>👤Logged in as: <strong><?= htmlspecialchars($_SESSION['username'] ?? '') ?></strong> | <a href='logout.php'>Logout</a></p>
+        <p>👤Přihlášený uživatel: <strong><?= htmlspecialchars($_SESSION['username'] ?? '') ?></strong> | <a href='logout.php'>Odhlásit</a></p>
 
-        <h2>Create New Table</h2>
+        <h2>Vytvořit novou tabulku</h2>
         <form method="POST">
-            <label>Folder Name (e.g., <em>Animals</em>):</label>
+            <label>Jméno adresáře (např. <em>Zvířata</em>):</label>
             <input type="text" name="folder" required>
 
-            <label>File Name (e.g., <em>Birds</em>):</label>
+            <label>Jméno souboru (např. <em>Vodní</em>):</label>
             <input type="text" name="filename" required>
 
-            <label>Second Language Column (e.g., <em>German</em>, <em>English</em>, etc.):</label>
+            <label>Druhý jazykový sloupec (např. <em>German</em>, <em>English</em>, atd.):</label>
             <input type="text" name="second_language" required>
 
             <fieldset>
-                <legend>Optional: Import cards (copy and paste)</legend>
+                <legend>Volitelné: Importovat karty (vystřihnout a vlepit)</legend>
 
-                <label><input type="checkbox" name="do_import" id="do_import"> Import pasted text into the new table</label>
+                <label><input type="checkbox" name="do_import" id="do_import"> Importovat vystřižený text do nové tabulky</label>
 
-                <label for="bulk">Paste cards (Term + Definition)</label>
+                <label for="bulk">Vlepit kartičky (Termín + Definice)</label>
                 <textarea id="bulk" name="bulk" placeholder="děkuji<TAB>thank you
 kočka<TAB>cat
 &quot;chléb, rohlík&quot;<TAB>bread
@@ -200,29 +200,29 @@ děkuji, thank you; kočka, cat; &quot;chléb, rohlík&quot;, bread;"></textarea
 
                 <div class="row">
                     <div>
-                        <label>Between term and definition</label>
-                        <label><input type="radio" name="field_sep" value="tab" checked> Tab</label>
-                        <label><input type="radio" name="field_sep" value="comma"> Comma</label>
-                        <small>Quotes supported: <code>"kočka, malá"</code> is one field.</small>
+                        <label>Mezi termínem a jeho definicí</label>
+                        <label><input type="radio" name="field_sep" value="tab" checked> Tabulátor</label>
+                        <label><input type="radio" name="field_sep" value="comma"> Čárka</label>
+                        <small>Podporované uvozovky: <code>"kočka, malá"</code> v jednom poli.</small>
                     </div>
                     <div>
-                        <label>Between rows</label>
+                        <label>Mezi řádky</label>
                         <label><input type="radio" name="row_sep" value="newline" checked> New line</label>
-                        <label><input type="radio" name="row_sep" value="semicolon"> Semicolon (;)</label>
-                        <small>When semicolon is chosen, multiple cards can be on one line.</small>
+                        <label><input type="radio" name="row_sep" value="semicolon"> Středník (;)</label>
+                        <small>Když zvolíte středník, může být více karet na jednom řádku.</small>
                     </div>
                     <div>
-                        <label>Which side is Czech?</label>
+                        <label>Na které straně je čeština?</label>
                         <select name="cz_side">
-                            <option value="left" selected>Left (Term)</option>
-                            <option value="right">Right (Definition)</option>
+                            <option value="left" selected>Levá (otázka)</option>
+                            <option value="right">Pravá (odpověď)</option>
                         </select>
-                        <small>DB left column is <b>Czech</b> by default; this maps pasted data correctly.</small>
+                        <small>Levý sloupec musí být <b>čeština</b> , aby se text zapsal do souboru správně.</small>
                     </div>
                 </div>
             </fieldset>
 
-            <button type="submit">➕ Create Table (and import if checked)</button>
+            <button type="submit">➕ Vytvořit tabulku (a importovat text, je-li to zaškrtnuto)</button>
         </form>
 
         <?php if (isset($message)): ?>
@@ -233,7 +233,7 @@ děkuji, thank you; kočka, cat; &quot;chléb, rohlík&quot;, bread;"></textarea
         <?php endif; ?>
 
         <br>
-        <a href="upload.php">⬅ Back to Upload</a>
+        <a href="upload.php">⬅ Zpět k nahrávání</a>
     </div>
 
 <script>

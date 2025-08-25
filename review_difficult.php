@@ -79,7 +79,7 @@ $result = $stmt->get_result();
 
 <!-- Login info -->
 <?php echo "<div class='content'>";
-echo "👤 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Logout</a>"; ?>
+echo "👤 Přihlášený uživatel " . $_SESSION['username'] . " | <a href='logout.php'>Odhlásit</a>"; ?>
 
 <h2>🌟 Co ještě neumím: <?php echo htmlspecialchars($username); ?></h2>
 <?php echo $feedback; ?>
@@ -103,7 +103,7 @@ echo "👤 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Log
         <form method="POST" style="display:inline;">
           <input type="hidden" name="source_word" value="<?php echo htmlspecialchars($row['source_word']); ?>">
           <input type="hidden" name="target_word" value="<?php echo htmlspecialchars($row['target_word']); ?>">
-          <button type="submit" name="unmark" onclick="return confirm('Mark this word as mastered?')">✅ I know this</button>
+          <button type="submit" name="unmark" onclick="return confirm('Mark this word as mastered?')">✅ To umím</button>
         </form>
       </td>
       <td><?php echo htmlspecialchars($row['language']); ?></td>

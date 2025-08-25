@@ -377,11 +377,11 @@ echo "👤 Přihlášený uživatel " . htmlspecialchars($_SESSION['username'] ?
 
     <?php if ($preflightInfo): ?>
       <div class="file-badge">
-        <strong>File:</strong> <?php echo htmlspecialchars($preflightInfo['filename']); ?> ·
-        <strong>Size:</strong> <?php echo htmlspecialchars($preflightInfo['size_h']); ?> ·
-        <strong>Encrypted:</strong> <?php echo $preflightInfo['encrypted'] ? 'Yes' : 'No'; ?>
+        <strong>Soubor:</strong> <?php echo htmlspecialchars($preflightInfo['filename']); ?> ·
+        <strong>Velikost:</strong> <?php echo htmlspecialchars($preflightInfo['size_h']); ?> ·
+        <strong>Zašifrováno:</strong> <?php echo $preflightInfo['encrypted'] ? 'Ano' : 'Ne'; ?>
         <?php if (!$preflightInfo['ok'] && $preflightInfo['reason']): ?>
-          · <strong>Status:</strong> <?php echo htmlspecialchars($preflightInfo['reason']); ?>
+          · <strong>Stav:</strong> <?php echo htmlspecialchars($preflightInfo['reason']); ?>
         <?php endif; ?>
       </div>
     <?php endif; ?>
@@ -392,7 +392,7 @@ echo "👤 Přihlášený uživatel " . htmlspecialchars($_SESSION['username'] ?
     </label>
 
     <label>Rozsah stránek (volitelné):
-      <input type="text" name="page_range" placeholder="e.g. 1-3 or 2,4,6">
+      <input type="text" name="page_range" placeholder="např. 1-3 či 2,4,6">
     </label>
 
     <label>Používáme: https://github.com/smalot/pdfparser</label><br><br>
@@ -400,9 +400,9 @@ echo "👤 Přihlášený uživatel " . htmlspecialchars($_SESSION['username'] ?
 <?php else: ?>
   <?php if ($preflightInfo): ?>
     <div class="file-badge" style="max-width:800px; margin:0 auto 10px auto;">
-      <strong>Original PDF:</strong> <?php echo htmlspecialchars($preflightInfo['filename']); ?> ·
-      <strong>Size:</strong> <?php echo htmlspecialchars($preflightInfo['size_h']); ?> ·
-      <strong>Encrypted:</strong> <?php echo $preflightInfo['encrypted'] ? 'Yes' : 'No'; ?>
+      <strong>Původní PDF:</strong> <?php echo htmlspecialchars($preflightInfo['filename']); ?> ·
+      <strong>Velikost:</strong> <?php echo htmlspecialchars($preflightInfo['size_h']); ?> ·
+      <strong>Zašifrováno:</strong> <?php echo $preflightInfo['encrypted'] ? 'Ano' : 'Ne'; ?>
     </div>
   <?php endif; ?>
 
@@ -463,7 +463,7 @@ echo "👤 Přihlášený uživatel " . htmlspecialchars($_SESSION['username'] ?
       <textarea id="textArea" name="text_lines" spellcheck="false"><?php echo htmlspecialchars($extractedText); ?></textarea>
     </label>
 
-    <button type="button" onclick="cleanWithAI()">🧠 Clean Text with AI</button>
+    <button type="button" onclick="cleanWithAI()">🧠 Vyčistit text pomocí umělé inteligence</button>
 
     <label> OpenRouter.ai za den provede max 50 požadavků na čištění textu zdarma </label><br>
     <p>Jeden překlad smí mít max 500 znaků.</p><br>

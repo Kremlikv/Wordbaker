@@ -9,15 +9,15 @@ if (!$username) {
     exit;
 }
 
-echo "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>Upload CSV</title>";
+echo "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>Nahrát CSV</title>";
 include 'styling.php';
 echo "</head><body>";
 
 echo "<div class='content'>";
-echo "👤 Logged in as " . htmlspecialchars($username) . " | <a href='logout.php'>Logout</a><br><br>";
+echo "👤 Přihlášený uživatel " . htmlspecialchars($username) . " | <a href='logout.php'>Odhlásit</a><br><br>";
 
 if (!empty($_SESSION['uploaded_tables'])) {
-    echo "<div style='color: green; font-weight: bold;'>✅ Upload successful:</div><ul>";
+    echo "<div style='color: green; font-weight: bold;'>✅ Úspěšně nahráno:</div><ul>";
     foreach ($_SESSION['uploaded_tables'] as $message) {
         echo "<li>📄 " . htmlspecialchars($message) . "</li>";
     }
@@ -27,7 +27,7 @@ if (!empty($_SESSION['uploaded_tables'])) {
 
 
 if (!empty($_SESSION['uploaded_filename'])) {
-    echo "<p style='color: green;'>✅ File uploaded: " . htmlspecialchars($_SESSION['uploaded_filename']) . "</p>";
+    echo "<p style='color: green;'>✅ Soubor nahrán: " . htmlspecialchars($_SESSION['uploaded_filename']) . "</p>";
     unset($_SESSION['uploaded_filename']);
 }
 
@@ -38,7 +38,7 @@ echo <<<HTML
   <label>Vyberte CSV soubory:</label>
   <input type="file" name="csv_files[]" accept=".csv" multiple required><br><br>
 
-  <label><strong>Select CSV File:</strong></label><br>
+  <label><strong>Vyberte CSV soubor:</strong></label><br>
  
   <p style="font-size: 0.9em; color: gray;">
     ➤ Váš slovníček bude uložen jako <strong>[uživatel]_adresář_soubor</strong><br>
