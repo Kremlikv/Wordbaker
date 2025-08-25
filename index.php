@@ -37,14 +37,16 @@
   <div class="row">
 
     <div class="content">
-      <h1>Cook your own dictionary</h1>
-            <p><b>Scan text from PDF and have it translated to create a mini-dictionary.</b><br>
-            <i> <br>            
-            Use Artificial Intelligence to create voice audio and quizes.<br>
+      <h1>Upečte si svůj vlastní slovníček</h1>
+            <p><b>Naskenujte si text z PDF, nechte s ho automatem přeložit po větách.</b><br>
             <br>
-            Study flashcards, listen to mp3, play quizes, review difficult words.<br>
-            <br>          
-            Choose the voices, colours, music.<br>
+            Nebo nahrajte své vlastní poznámky z hodin angličtiny - těžká slovíčka a správný překlad.
+            <br>            
+            Pomocí umělé inteligence si vytvořte audio nahrávky.<br>
+            <br>
+            Studujte jazykové kartičky, poslouchejte v autě MP3,  <br>
+            <br>
+            V přehledech vidíte, která slova jste který měsíc označili jako těžká a která jako už zvládnutá.
             <br>                       
 
     </div> 
