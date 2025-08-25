@@ -37,21 +37,21 @@ $sourceLang = norm_lang($sourceLang);
 $targetLang = norm_lang($targetLang);
 
 $langLabels = [
-    'en'   => 'English',
-    'de'   => 'German',
-    'fr'   => 'French',
-    'it'   => 'Italian',
-    'es'   => 'Spanish',
-    'cs'   => 'Czech',
+    'en' => 'English',
+    'de' => 'German',
+    'fr' => 'French',
+    'it' => 'Italian',
+    'es' => 'Spanish',
+    'cs' => 'Czech',
     'auto' => 'Auto Detect',
-    ''     => 'Foreign'
+    '' => 'Foreign'
 ];
 
 $sourceLabel = $langLabels[$sourceLang] ?? 'Foreign';
 $targetLabel = $langLabels[$targetLang] ?? 'Czech';
 
 $tableNameInput = $_POST['new_table_name'] ?? '';
-$deletePdfPath  = $_POST['delete_pdf_path'] ?? '';
+$deletePdfPath = $_POST['delete_pdf_path'] ?? '';
 
 /* ---------- HTTP helpers ---------- */
 function http_post_json($url, $payloadArr, $headers = []) {
@@ -92,7 +92,7 @@ function translate_libre($text, $source, $target) {
     global $LIBRETRANSLATE_URL;
     if (empty($LIBRETRANSLATE_URL)) return null;
     $payload = [
-        'q'      => $text,
+        'q' => $text,
         'source' => ($source && $source !== 'auto') ? $source : 'auto',
         'target' => $target ?: 'cs',
         'format' => 'text'
@@ -122,35 +122,25 @@ function translate_text_with_engine($text, $source, $target) {
 /* ---------- Build rows: Czech ALWAYS left ---------- */
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['text_lines'])) {
     $text_lines = trim($_POST['text_lines']);
-
-    // Merge lines into one string, normalize whitespace
     $mergedText = preg_replace("/\s+\n\s+|\n+/", ' ', $text_lines);
-
-    // Unicode-aware sentence split: break after . ! ? : when followed by an uppercase letter
-    // \p{Lu} = any uppercase letter, 'u' = unicode mode
-    $lines = preg_split('/(?<=[.!?:])\s+(?=\p{Lu})/u', $mergedText);
-    $lines = array_values(array_filter(array_map('trim', $lines)));
+    $sentences = preg_split('/(?<=[.!?:])\s+(?=[A-Z\xC0-\xFF])/', $mergedText);
+    $lines = array_filter(array_map('trim', $sentences));
 
     foreach ($lines as $line) {
         if ($sourceLang === 'cs') {
-            // Input is Czech; translate to chosen target (default empty => engine default)
-            list($translatedText, $engine) = translate_text_with_engine($line, $sourceLang, $targetLang ?: '');
+            list($foreign, $eng) = translate_text_with_engine($line, $sourceLang, $targetLang ?: '');
             $cz = $line;
-            $foreign = $translatedText;
         } else {
-            // Input is foreign; translate to Czech
-            list($cz, $engine) = translate_text_with_engine($line, $sourceLang ?: 'auto', 'cs');
+            list($cz, $eng) = translate_text_with_engine($line, $sourceLang ?: 'auto', 'cs');
             $foreign = $line;
         }
-        if ($engineUsed === null) $engineUsed = $engine;
+        if ($engineUsed === null) $engineUsed = $eng;
         $translated[] = ['cz' => $cz, 'foreign' => $foreign];
-
-        // gentle pacing
         usleep(500000);
     }
 
     if ($deletePdfPath && file_exists($deletePdfPath)) {
-        @unlink($deletePdfPath);
+        unlink($deletePdfPath);
     }
 }
 
@@ -159,13 +149,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['table_data'])) {
     $post_source = norm_lang($_POST['sourceLang'] ?? '');
     $post_target = norm_lang($_POST['targetLang'] ?? '');
 
-    $col1 = 'Czech'; // always left
+    $col1 = 'Czech';
     $col2 = ($post_source === 'cs')
         ? ($langLabels[$post_target] ?? 'Foreign')
         : ($langLabels[$post_source] ?? 'Foreign');
 
     // Raw user input name (from preview form)
-    $rawInputName   = $_POST['new_table_name'] ?? '';
+    $rawInputName = $_POST['new_table_name'] ?? '';
     $finalTableName = prefixed_table_name($username_raw, $rawInputName);
 
     $tableData = $_POST['table_data'];
@@ -208,10 +198,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['table_data'])) {
 }
 ?>
 <!DOCTYPE html>
-<html lang="cs">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Překlad a import slovníčku</title>
+<title>Translate and Import Table</title>
 <style>
 textarea { width: 90%; font-size: 1em; margin-top: 10px; overflow: hidden; resize: vertical; }
 table { margin-top: 20px; border-collapse: collapse; width: 90%; margin: auto; }
@@ -240,7 +230,7 @@ function checkTableName() {
 
   const typed = tableInput.value.trim();
   if (!typed) {
-    warning.textContent = "⚠️ Zadejte prosím název slovníčku.";
+    warning.textContent = "⚠️ Please enter a table name.";
     warning.style.color = "red";
     warning.setAttribute("data-valid", "false");
     preview.textContent = "";
@@ -248,37 +238,37 @@ function checkTableName() {
   }
 
   const finalName = makeFinalName(typed);
-  preview.textContent = "Bude uloženo jako: " + finalName;
+  preview.textContent = "Will be saved as: " + finalName;
 
   fetch("check_table_name.php?name=" + encodeURIComponent(finalName))
     .then(res => res.json())
     .then(data => {
       if (data.exists) {
-        warning.textContent = "❌ Tabulka '" + finalName + "' už existuje.";
+        warning.textContent = "❌ Table '" + finalName + "' already exists.";
         warning.style.color = "red";
         warning.setAttribute("data-valid", "false");
       } else {
-        warning.textContent = "✅ Název je volný.";
+        warning.textContent = "✅ Table name is available.";
         warning.style.color = "green";
         warning.setAttribute("data-valid", "true");
       }
     })
-  .catch(() => {
-    warning.textContent = "⚠️ Nelze ověřit název tabulky.";
-    warning.style.color = "orange";
-    warning.setAttribute("data-valid", "false");
-  });
+    .catch(() => {
+      warning.textContent = "⚠️ Could not verify table name.";
+      warning.style.color = "orange";
+      warning.setAttribute("data-valid", "false");
+    });
 }
 function validateLangSelection(event) {
   const source = document.getElementById("sourceLang").value;
   const target = document.getElementById("targetLang").value;
   const tableOk = document.getElementById("tableWarning").getAttribute("data-valid") === "true";
   if (!source || !target) {
-    alert("⚠️ Vyberte prosím zdrojový i cílový jazyk.");
+    alert("⚠️ Please select both source and target languages.");
     event.preventDefault(); return false;
   }
   if (!tableOk) {
-    alert("❌ Název tabulky je již použit (nebo nebyl ověřen). Zvolte jiný.");
+    alert("❌ Table name is already used (or not verified). Please choose another.");
     event.preventDefault(); return false;
   }
   return true;
@@ -287,8 +277,7 @@ function breakSentences() {
   const textarea = document.getElementById("text_lines");
   let text = textarea.value;
   text = text.replace(/\s+\n\s+|\n+/g, ' ');
-  // Unicode-aware: split when next char is an uppercase letter
-  text = text.replace(/([.!?:])\s+(?=\p{Lu})/gu, "$1\n");
+  text = text.replace(/([.!?:])\s+(?=[A-Z\xC0-\xFF])/g, "$1\n");
   textarea.value = text;
   autoResize(textarea);
 }
@@ -307,74 +296,73 @@ document.addEventListener("DOMContentLoaded", function () {
 </head>
 <body>
 <div class='content'>
-  👤 Přihlášený uživatel: <?= htmlspecialchars($username_raw) ?> | <a href='logout.php'>Odhlásit</a>
-  <h2>🌍 Překlad frází do slovníčku</h2>
+  👤 Logged in as <?= htmlspecialchars($username_raw) ?> | <a href='logout.php'>Logout</a>
 </div>
 
+<h2>🌍 Translate Sentences to Table</h2>
+
 <form method="POST" onsubmit="return validateLangSelection(event)">
-  <label>Název nového slovníčku:
-    <input type="text" name="new_table_name" id="new_table_name"
-           value="<?= htmlspecialchars($tableNameInput ?: 'adresář_soubor') ?>"
-           required oninput="checkTableName()">
+  <label>New Table Name:
+    <input type="text" name="new_table_name" id="new_table_name" value="<?= htmlspecialchars($tableNameInput ?: 'folder_table') ?>" required oninput="checkTableName()">
   </label>
   <div class="hint" id="finalNamePreview" style="margin-top:4px;"></div>
   <div id="tableWarning" data-valid="false" style="font-weight: bold; margin: 8px 0 10px;"></div>
 
-  <label>Zkopírujte a/nebo zkontrolujte řádky:<br>
-    <p>Jeden překlad smí mít max 500 znaků.</p>
-  </label><br>
+  <label>Paste or review lines:<br>
+  <p>One translation request max 500 characters.</p></label><br>
   <textarea name="text_lines" id="text_lines" rows="10"><?= htmlspecialchars($text_lines) ?></textarea><br>
-  <button type="button" onclick="breakSentences()">✂️ Rozdělit do vět</button><br><br>
+  <button type="button" onclick="breakSentences()">✂️ Break into Sentences</button><br><br>
 
-  <label>Zdrojový jazyk:
+  <label>Source Language:
     <select name="sourceLang" id="sourceLang">
-      <option value="" disabled <?= $sourceLang === '' ? 'selected' : '' ?>>Vyberte zdrojový jazyk</option>
-      <option value="auto" <?= $sourceLang === 'auto' ? 'selected' : '' ?>>Automaticky</option>
-      <option value="en"   <?= $sourceLang === 'en'   ? 'selected' : '' ?>>Anglicky</option>
-      <option value="de"   <?= $sourceLang === 'de'   ? 'selected' : '' ?>>Německy</option>
-      <option value="fr"   <?= $sourceLang === 'fr'   ? 'selected' : '' ?>>Francouzsky</option>
-      <option value="it"   <?= $sourceLang === 'it'   ? 'selected' : '' ?>>Italsky</option>
-      <option value="es"   <?= $sourceLang === 'es'   ? 'selected' : '' ?>>Španělsky</option>
-      <option value="cs"   <?= $sourceLang === 'cs'   ? 'selected' : '' ?>>Česky</option>
+      <option value="" disabled selected>Select source language</option>
+      <option value="auto" <?= $sourceLang === 'auto' ? 'selected' : '' ?>>Auto Detect</option>
+      <option value="en" <?= $sourceLang === 'en' ? 'selected' : '' ?>>English</option>
+      <option value="de" <?= $sourceLang === 'de' ? 'selected' : '' ?>>German</option>
+      <option value="fr" <?= $sourceLang === 'fr' ? 'selected' : '' ?>>French</option>
+      <option value="it" <?= $sourceLang === 'it' ? 'selected' : '' ?>>Italian</option>
+      <option value="es" <?= $sourceLang === 'es' ? 'selected' : '' ?>>Spanish</option>
+      <option value="cs" <?= $sourceLang === 'cs' ? 'selected' : '' ?>>Czech</option>
     </select>
   </label>
 
-  <label>Cílový jazyk:
+  <label>Target Language:
     <select name="targetLang" id="targetLang">
-      <option value="" disabled <?= $targetLang === '' ? 'selected' : '' ?>>Vyberte cílový jazyk</option>
-      <option value="cs"   <?= $targetLang === 'cs'   ? 'selected' : '' ?>>Česky</option>
-      <option value="en"   <?= $targetLang === 'en'   ? 'selected' : '' ?>>Anglicky</option>
-      <option value="de"   <?= $targetLang === 'de'   ? 'selected' : '' ?>>Německy</option>
-      <option value="fr"   <?= $targetLang === 'fr'   ? 'selected' : '' ?>>Francouzsky</option>
-      <option value="it"   <?= $targetLang === 'it'   ? 'selected' : '' ?>>Italsky</option>
-      <option value="es"   <?= $targetLang === 'es'   ? 'selected' : '' ?>>Španělsky</option>
+      <option value="" disabled selected>Select target language</option>
+      <option value="cs" <?= $targetLang === 'cs' ? 'selected' : '' ?>>Czech</option>
+      <option value="en" <?= $targetLang === 'en' ? 'selected' : '' ?>>English</option>
+      <option value="de" <?= $targetLang === 'de' ? 'selected' : '' ?>>German</option>
+      <option value="fr" <?= $targetLang === 'fr' ? 'selected' : '' ?>>French</option>
+      <option value="it" <?= $targetLang === 'it' ? 'selected' : '' ?>>Italian</option>
+      <option value="es" <?= $targetLang === 'es' ? 'selected' : '' ?>>Spanish</option>
+      <option value="cs" <?= $targetLang === 'cs' ? 'selected' : '' ?>>Czech</option>
     </select>
   </label><br><br>
 
   <div class="engine-badge">
     <?php
-      if (!empty($GOOGLE_API_KEY))          echo "Překladové programy dle priority: Google → LibreTranslate → MyMemory";
-      elseif (!empty($LIBRETRANSLATE_URL))  echo "Překladové programy dle priority: LibreTranslate → MyMemory";
-      else                                  echo "Překladové programy: MyMemory (zdarma, nepřesné)";
+      if (!empty($GOOGLE_API_KEY))          echo "Configured engine priority: Google → LibreTranslate → MyMemory";
+      elseif (!empty($LIBRETRANSLATE_URL))  echo "Configured engine priority: LibreTranslate → MyMemory";
+      else                                  echo "Configured engine: MyMemory (free; may be creative)";
     ?>
   </div>
 
   <input type="hidden" name="delete_pdf_path" value="<?= htmlspecialchars($deletePdfPath) ?>">
 
-  <button type="submit">🌐 Přeložit</button>
+  <button type="submit">🌐 Translate</button>
 </form>
 
 <?php if (!empty($translated)): ?>
   <div class="engine-badge" style="text-align:center; margin-top:10px;">
-    Program použitý k tomuto překladu: <strong><?= htmlspecialchars($engineUsed ?: 'Unknown') ?></strong>
+    Engine used for this preview: <strong><?= htmlspecialchars($engineUsed ?: 'Unknown') ?></strong>
   </div>
 
   <form method="POST">
-    <h3>Náhled překladu</h3>
+    <h3>Translated Preview</h3>
     <table>
       <thead>
         <tr>
-          <th>Česky</th>
+          <th>Czech</th>
           <th><?= htmlspecialchars(($sourceLang === 'cs') ? ($langLabels[$targetLang] ?? 'Foreign') : ($langLabels[$sourceLang] ?? 'Foreign')) ?></th>
         </tr>
       </thead>
@@ -393,7 +381,7 @@ document.addEventListener("DOMContentLoaded", function () {
     <input type="hidden" name="sourceLang" value="<?= htmlspecialchars($sourceLang) ?>">
     <input type="hidden" name="targetLang" value="<?= htmlspecialchars($targetLang) ?>">
 
-    <button type="submit">💾 Uložit slovníček do databáze</button>
+    <button type="submit">💾 Save Table to Database</button>
   </form>
 <?php endif; ?>
 </body>
