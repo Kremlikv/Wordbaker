@@ -141,7 +141,7 @@ $result = $stmt->get_result();
 echo "👤 Přihlášený uživatel " . $_SESSION['username'] . " | <a href='logout.php'>Odhlásit</a>"; ?>
 
 
-<h2>🌟 Co ještě neumím: <?php echo htmlspecialchars($username); ?></h2>
+<h2>🌟 Co ještě neumím:</h2>
 <?php echo $feedback; ?>
 
 <?php if ($result->num_rows > 0): ?>

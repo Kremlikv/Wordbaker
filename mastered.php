@@ -155,7 +155,7 @@ $rowCount = $result->num_rows;
 <?php echo "<div class='content'>";
 echo "👤 Přihlášený uživatel " . $_SESSION['username'] . " | <a href='logout.php'>Odhlásit</a>"; ?>
 
-<h2>🌟 Umím: <?php echo htmlspecialchars($username); ?></h2>
+<h2>🌟 Co už umím:</h2>
 <?php echo $feedback; ?>
 
 <?php if ($rowCount > 0): ?>
