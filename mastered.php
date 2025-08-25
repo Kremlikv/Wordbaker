@@ -151,11 +151,9 @@ $rowCount = $result->num_rows;
 //echo "</div>";
 // ?>
 
-<?php
-echo "<div class='content'>";
-echo "<p>👤 Přihlášený uživatel: <strong><?= htmlspecialchars($_SESSION['username']) ?></strong> | <a href='logout.php'>Odhlásit</a></p>";
-echo "</div>";
-?>
+<!-- Login info -->
+<?php echo "<div class='content'>";
+echo "👤 Přihlášený uživatel " . $_SESSION['username'] . " | <a href='logout.php'>Odhlásit</a>"; ?>
 
 <h2>🌟 Umím: <?php echo htmlspecialchars($username); ?></h2>
 <?php echo $feedback; ?>
