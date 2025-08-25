@@ -452,20 +452,20 @@ ul ul.open {
   <nav>
     <ul class="main-menu">
       <li class="dropdown">
-        <a href="#">➕ New</a>
+        <a href="#">➕ Nový</a>
         <ul class="submenu">
-          <li><a href="upload.php">📝 Upload</a></li>
-          <li><a href="create_table.php">📝 Create Table</a></li>
-          <li><a href="translator.php">🌐 Translate</a></li>
-          <li><a href="pdf_scan.php">📄 PDF-to-text</a></li>        
+          <li><a href="upload.php">📝 Nahrát tabulku</a></li>
+          <li><a href="create_table.php">📝 Vytvořit tabulku</a></li>
+          <li><a href="translator.php">🌐 Přeložit</a></li>
+          <li><a href="pdf_scan.php">📄 Převod PDF na text</a></li>        
         </ul>
       </li>
       <li class="dropdown">
-        <a href="#">📚 Study</a>
+        <a href="#">📚 Studovat</a>
         <ul class="submenu">
-          <li><a href="flashcards.php">📘 Flashcards</a></li>          
-          <li><a href="review_difficult.php">🧠 Difficult</a></li>
-          <li><a href="mastered.php">🌟 Mastered</a></li>
+          <li><a href="flashcards.php">📘 Kartičky</a></li>          
+          <li><a href="review_difficult.php">🧠 Neumím</a></li>
+          <li><a href="mastered.php">🌟 Umím</a></li>
         </ul>
     </ul>
   </nav>

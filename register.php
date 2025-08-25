@@ -35,10 +35,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
 <!DOCTYPE html>
 <html>
-<head><meta charset="UTF-8"><title>Register</title></head>
+<head><meta charset="UTF-8"><title>Registrace</title></head>
 <body>
 <div class='content'>
-<h2>Register</h2>
+<h2>Registrace</h2>
 </body>
 </php>
 
@@ -46,10 +46,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
 <?php if ($show_form): ?>
 <form method="POST">
-    Username: <input name="username" required><br>
-    Password: <input type="password" name="password" required><br>
+    Jméno: <input name="username" required><br>
+    Heslo: <input type="password" name="password" required><br>
     Email: <input name="email" required><br>
-    <button type="submit">Register</button>
+    <button type="submit">Registrace</button>
 </form>
 <?php endif; ?>
 </div>

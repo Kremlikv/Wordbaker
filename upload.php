@@ -32,26 +32,26 @@ if (!empty($_SESSION['uploaded_filename'])) {
 }
 
 echo <<<HTML
-<h2>📤 Upload New Table</h2>
+<h2>📤 Nahrát slovníček</h2>
 
 <form method="POST" action="upload_handler.php" enctype="multipart/form-data">
-  <label>Select CSV Files:</label>
+  <label>Vyberte CSV soubory:</label>
   <input type="file" name="csv_files[]" accept=".csv" multiple required><br><br>
 
   <label><strong>Select CSV File:</strong></label><br>
  
   <p style="font-size: 0.9em; color: gray;">
-    ➤ Your table will be saved as <strong>[username]_foldername_tablename</strong><br>
-    ➤ CSV must include a <strong>“Czech”</strong> column and at least one foreign language column.<br>
-    ➤ Encoding must be <strong>UTF-8</strong> without BOM.<br>
-    ➤ Use only letters, digits, or underscores in the table name.
+    ➤ Váš slovníček bude uložen jako <strong>[uživatel]_adresář_soubor</strong><br>
+    ➤ CSV musí mít jeden sloupec v <strong>"češtině"</strong>  a jedne sloupec v cizím jazyce.<br>
+    ➤ Nutné je české kódování znaků <strong>UTF-8</strong> bez značek BOM.<br>
+    ➤ V názvech používejte jen písmena, číslice nebo podtržítko.
   </p>
 
-  <button type="submit">📥 Upload</button>
+  <button type="submit">📥 Nahrát</button>
   <br><br>
 
  <a href="foldername_filename.csv" download>
-  <button type="button">Download a sample CSV file</button>
+  <button type="button">Stáhněte si správně naformátovaný vzorový CSV soubor.</button>
 </a>
 </form>
 

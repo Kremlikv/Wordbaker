@@ -67,7 +67,7 @@ $result = $stmt->get_result();
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Your Difficult Words</title>
+  <title>Neumím</title>
   <style>
     body { font-family: Arial; padding: 0px; }
     table { border-collapse: collapse; width: 90%; margin: auto; }
@@ -81,7 +81,7 @@ $result = $stmt->get_result();
 <?php echo "<div class='content'>";
 echo "👤 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Logout</a>"; ?>
 
-<h2>🌟 Difficult Words for: <?php echo htmlspecialchars($username); ?></h2>
+<h2>🌟 Co ještě neumím: <?php echo htmlspecialchars($username); ?></h2>
 <?php echo $feedback; ?>
 
 <?php if ($result->num_rows > 0): ?>
@@ -89,11 +89,11 @@ echo "👤 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Log
 
 <table>
   <tr>
-    <th>Czech</th>
-    <th>Foreign</th>
-    <th>Actions</th>
-    <th>Language</th>
-    <th>Last Seen</th>
+    <th>Český jazyk</th>
+    <th>Cizí jazyk</th>
+    <th>Akce</th>
+    <th>Jazyk</th>
+    <th>Poslední pokus</th>
   </tr>
   <?php while ($row = $result->fetch_assoc()): ?>
     <tr>
@@ -116,7 +116,7 @@ echo "👤 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Log
 
 
 <?php else: ?>
-  <p style="text-align:center;">You haven't marked any difficult words yet. ✅</p>
+  <p style="text-align:center;">Ještě jste neoznačili žádná slova jako "neumím". ✅</p>
 <?php endif; ?>
 
 </body>

@@ -56,18 +56,18 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Login</title>
+    <title>Přihlášení</title>
 </head>
 <body>
 <div class='content'>
-    <h2>Login</h2>
+    <h2>Přihlášení</h2>
 
     <?php if (isset($error)) echo "<p style='color:red;'>$error</p>"; ?>
 
     <form method="POST">
-        Username: <input name="username" required><br>
-        Password: <input type="password" name="password" required><br>
-        <button type="submit">Login</button>
+        Jméno: <input name="username" required><br>
+        Heslo: <input type="password" name="password" required><br>
+        <button type="submit">Přihlášení</button>
     </form>
 </div>
 </body>

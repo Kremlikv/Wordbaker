@@ -339,8 +339,8 @@ ul ul.open {
     <h1>WordBaker</h1>
     <nav>
       <ul>
-        <li><a href="register.php">🔒Register</a></li>
-        <li><a href="login.php">🔑Login</a></li>
+        <li><a href="register.php">🔒Registrace</a></li>
+        <li><a href="login.php">🔑Přihlášení</a></li>
       </ul>
     </nav>
   </header> 

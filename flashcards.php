@@ -172,9 +172,9 @@ $conn->close();
 <body>
 
 <div class='content'>
-<p>👤 Logged in as: <strong><?= htmlspecialchars($_SESSION['username']) ?></strong> | <a href='logout.php'>Logout</a></p>
+<p>👤 Přihlášený uživatel: <strong><?= htmlspecialchars($_SESSION['username']) ?></strong> | <a href='logout.php'>Odhlásit</a></p>
 
-<h2>Flashcards for Table: <?= htmlspecialchars($selectedTable) ?></h2>
+<h2>Kartičky pro slovníček: <?= htmlspecialchars($selectedTable) ?></h2>
 
 <!-- Include the reusable file explorer -->
 <?php include 'file_explorer.php'; ?>
@@ -182,19 +182,19 @@ $conn->close();
 <?php if (!empty($selectedTable)): ?>
 <form method="GET" style="margin: 20px 0;">
   <input type="hidden" name="table" value="<?= htmlspecialchars($selectedTable) ?>">
-  <label><input type="checkbox" name="difficult_only" value="1" <?= $difficultOnly ? 'checked' : '' ?>> Show only my difficult words</label>
-  <button type="submit">Apply</button>
+  <label><input type="checkbox" name="difficult_only" value="1" <?= $difficultOnly ? 'checked' : '' ?>> Zobraz jen to, co neumím</label>
+  <button type="submit">Zapnuto</button>
 </form>
 
 <div id="card" class="card" onclick="flipCard()"></div>
 <div class="controls">
-  <button type="button" onclick="prevCard()">⬅️ Previous</button>
-  <button type="button" onclick="markMastered()">✅ Mastered</button>
-  <button type="button" onclick="markDifficult()">❌ Study more</button>
-  <button type="button" onclick="nextCard()">Next ➡️</button><br><br>
-  🔊 Czech Audio: <input type="checkbox" id="toggleCz" checked onchange="toggleTTS('cz')">
-  🔊 Foreign Audio: <input type="checkbox" id="toggleForeign" checked onchange="toggleTTS('foreign')"><br><br>
-  <button type="button" onclick="toggleAutoPlay()" id="autoPlayBtn">🔁 Auto Play All</button>
+  <button type="button" onclick="prevCard()">⬅️ Zpět</button>
+  <button type="button" onclick="markMastered()">✅ Umím</button>
+  <button type="button" onclick="markDifficult()">❌ Neumím</button>
+  <button type="button" onclick="nextCard()">Další ➡️</button><br><br>
+  🔊 Český jazyk: <input type="checkbox" id="toggleCz" checked onchange="toggleTTS('cz')">
+  🔊 Cizí jazyk: <input type="checkbox" id="toggleForeign" checked onchange="toggleTTS('foreign')"><br><br>
+  <button type="button" onclick="toggleAutoPlay()" id="autoPlayBtn">🔁 Přehraj vše automaticky</button>
 </div>
 
 <audio id="ttsAudio" src="" hidden></audio>

@@ -887,18 +887,18 @@ if (!empty($selectedFullTable) && $res !== false) {
 
         echo '<audio controls src="' . htmlspecialchars($src, ENT_QUOTES) . '" style="max-width:100%;"></audio><br>';
 
-        echo "<a href='" . htmlspecialchars($src, ENT_QUOTES) . "' download><button $buttonStyle>⇩ Download " .
+        echo "<a href='" . htmlspecialchars($src, ENT_QUOTES) . "' download><button $buttonStyle>⇩ Stáhnout audio " .
             (substr($src, -4) === '.mp3' ? 'MP3' : 'WAV') . "</button></a> | ";
 
         echo "<form method='POST' action='' style='display:inline;' onsubmit=\"return confirm('Really delete the audio file for this table?');\">";
         echo "  <input type='hidden' name='delete_audio_file' value='" . htmlspecialchars($selectedFullTable) . "'>";
-        echo "  <button type='submit' $buttonStyle>🗑️ Delete Audio</button>";
+        echo "  <button type='submit' $buttonStyle>🗑️ Smazat audio</button>";
         echo "</form><br><br>";
 
     } else {
         echo "<em>No audio generated yet for this table.</em><br><br>";
-        echo "<a href='generate_mp3_google_ssml.php'><button $buttonStyle>🎧 Create MP3</button></a> ";
-        // echo "<a href='generate_wav_batched.php'><button $buttonStyle>🎧 Create MP3 (choose voices)</button></a> ";
+        echo "<a href='generate_mp3_google_ssml.php'><button $buttonStyle>🎧 Vytvořit MP3</button></a> ";
+        // echo "<a href='generate_wav_batched.php'><button $buttonStyle>🎧 Vytvořit MP3 (vyber hlasy)</button></a> ";
     }
 
     if (!$isSharedTable) {
@@ -923,7 +923,7 @@ if (!empty($selectedFullTable) && $res !== false) {
         echo "<tr><td><textarea name='new_row[col1]' placeholder='New " . htmlspecialchars($heading1) . "' oninput='autoResize(this)'></textarea></td>";
         echo "<td><textarea name='new_row[col2]' placeholder='New " . htmlspecialchars($heading2) . "' oninput='autoResize(this)'></textarea></td><td></td></tr>";
         echo "</table><br>";
-        echo "<button type='submit'>💾 Save Changes</button>";
+        echo "<button type='submit'>💾 Uložit změny</button>";
 
         // Save As UI
         echo "<div style='margin-top:12px; padding:10px; border:1px solid #e2e8f0; border-radius:8px;'>";
@@ -933,19 +933,19 @@ if (!empty($selectedFullTable) && $res !== false) {
         echo "  <label>New name: <input type='text' name='saveas_name' placeholder='e.g., de_en_small' style='padding:6px;'></label>";
         echo "  <label title='If checked and table exists, it will be replaced'><input type='checkbox' name='saveas_overwrite' value='1'> Overwrite if exists</label>";
         echo "  <button type='submit' name='action' value='save_as' formaction='main.php' formmethod='post' ".
-             "style='padding:8px 12px; background:#2563eb; color:#fff; border:none; border-radius:6px;'>Save As</button>";
+             "style='padding:8px 12px; background:#2563eb; color:#fff; border:none; border-radius:6px;'>Uložit jako</button>";
         echo "</div>";
         echo "<div style='font-size:12px; color:#475569; margin-top:6px;'>";
-        echo "  Will create <code>".htmlspecialchars(strtolower($_SESSION['username'] ?? 'user'))."_FOLDER_NAME_FILE_NAME</code>";
+        echo "  Will create <code>".htmlspecialchars(strtolower($_SESSION['username'] ?? 'user'))."_ADRESÁŘ_SOUBOR</code>";
         echo "</div>";
         echo "</div>";
 
         echo "</form><br>";
 
         if (!in_array($selectedFullTable, ['difficult_words', 'mastered_words', 'users'], true)) {
-            echo "<form method='POST' action='' onsubmit=\"return confirm('Really delete the table: ".htmlspecialchars($selectedFullTable)." ?');\">";
+            echo "<form method='POST' action='' onsubmit=\"return confirm('Opravdu smazat tabulku: ".htmlspecialchars($selectedFullTable)." ?');\">";
             echo "<input type='hidden' name='delete_table' value='" . htmlspecialchars($selectedFullTable) . "'>";
-            echo "<button type='submit' class='delete-button'>🗑️ Delete This Table</button>";
+            echo "<button type='submit' class='delete-button'>🗑️ Smazat tabulku</button>";
             echo "</form><br>";
         }
     } else {
@@ -958,7 +958,7 @@ if (!empty($selectedFullTable) && $res !== false) {
             echo "<td>" . htmlspecialchars($row[$column2]) . "</td>";
             echo "</tr>";
         }
-        echo "</table><br><em>This table is read-only.</em><br><br>";
+        echo "</table><br><em>Tato tabulku je jen ke čtení.</em><br><br>";
     }
 }
 

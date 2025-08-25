@@ -74,7 +74,7 @@ $debugCount = $result->num_rows;
 <?php echo "<div class='content'>";
 echo "👤 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Logout</a>"; ?>
 
-<h2>🌟 Mastered Words for: <?php echo htmlspecialchars($username); ?></h2>
+<h2>🌟 Umím: <?php echo htmlspecialchars($username); ?></h2>
 <?php echo $feedback; ?>
 <!-- <p style="text-align:center; font-style:italic; color:gray;">(Found <?php echo $debugCount; ?> mastered words)</p>  -->
 
@@ -82,11 +82,11 @@ echo "👤 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Log
 
 <table>
   <tr>
-    <th>Czech</th>
-    <th>Foreign</th>
-    <th>Actions</th>
-    <th>Language</th>
-    <th>Last Seen</th>
+    <th>Český jazyk</th>
+    <th>Cizí jazyk</th>
+    <th>Akce</th>
+    <th>Jazyk</th>
+    <th>Poslední pokus</th>
   </tr>
   <?php while ($row = $result->fetch_assoc()): ?>
     <tr>
@@ -108,7 +108,7 @@ echo "👤 Logged in as " . $_SESSION['username'] . " | <a href='logout.php'>Log
 
 
 <?php else: ?>
-  <p style="text-align:center;">You haven't mastered any words yet. Keep going! ✅</p>
+  <p style="text-align:center;">Zatím jste neoznačili žádná slova jako "umím". ✅</p>
 <?php endif; ?>
 
 </body>

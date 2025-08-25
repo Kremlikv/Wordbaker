@@ -211,7 +211,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['pdf_file'])) {
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>PDF Scan and Translate</title>
+  <title>Sken a překlad z PDF</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 0px; }
     form { max-width: 800px; margin: auto; }
@@ -309,11 +309,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['pdf_file'])) {
       const originalText = textArea.value;
 
       if (!originalText.trim()) {
-        alert("Nothing to clean.");
+        alert("Není co čistit.");
         return;
       }
 
-      textArea.value = "⏳ Cleaning with AI...";
+      textArea.value = "⏳ Čištění pomocí AI...";
       fetch("ai_cleaner.php", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -324,13 +324,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['pdf_file'])) {
         if (data.cleaned) {
           textArea.value = data.cleaned.trim();
         } else {
-          alert("AI cleanup failed.");
+          alert("Čištění selhalo.");
           textArea.value = originalText;
         }
       })
       .catch(err => {
         console.error(err);
-        alert("Error connecting to AI cleaner.");
+        alert("Chyba v připojení k čistícímu programu.");
         textArea.value = originalText;
       });
     }
@@ -338,7 +338,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['pdf_file'])) {
     function countCharacters() {
       const textArea = document.getElementById("textArea");
       const count = textArea.value.length;
-      document.getElementById("charCountDisplay").textContent = "Character count: " + count;
+      document.getElementById("charCountDisplay").textContent = "Počet znaků: " + count;
     }
 
     function copyText() {
@@ -346,7 +346,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['pdf_file'])) {
       textArea.select();
       textArea.setSelectionRange(0, 99999);
       document.execCommand("copy");
-      alert("Text copied to clipboard.");
+      alert("Text zkopírován do schránky.");
     }
 
     window.addEventListener('DOMContentLoaded', updateLabels);
@@ -356,10 +356,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['pdf_file'])) {
 
 <?php
 echo "<div class='content'>";
-echo "👤 Logged in as " . htmlspecialchars($_SESSION['username'] ?? 'guest') . " | <a href='logout.php'>Logout</a>";
+echo "👤 Přihlášený uživatel " . htmlspecialchars($_SESSION['username'] ?? 'guest') . " | <a href='logout.php'>Odhlásit</a>";
 ?>
 
-<h2 style="text-align:center;">📄 Scan PDF → Review → Translate</h2>
+<h2 style="text-align:center;">📄 Sken PDF → Kontrola → Překlad</h2>
 
 <?php if ($error): ?>
   <p style="color: red; text-align:center;">
@@ -369,11 +369,11 @@ echo "👤 Logged in as " . htmlspecialchars($_SESSION['username'] ?? 'guest') .
 
 <?php if (!$extractedText): ?>
   <form method="POST" enctype="multipart/form-data">
-    <label>Select PDF File:
+    <label>Zvolte PDF soubor:
       <input type="file" name="pdf_file" accept=".pdf" required>
     </label>
 
-    <button type="submit">📤 Extract Text</button>
+    <button type="submit">📤 Extrahovat text</button>
 
     <?php if ($preflightInfo): ?>
       <div class="file-badge">
@@ -386,16 +386,16 @@ echo "👤 Logged in as " . htmlspecialchars($_SESSION['username'] ?? 'guest') .
       </div>
     <?php endif; ?>
 
-    <label>It is recommended to upload only small PDF files.<br><br>
-      You can split PDF files with tools like https://www.ilovepdf.com/split_pdf
+    <label>Doporučuje se nahrávat jen malé PDF soubory.<br><br>
+      PDF soubory lze rozdělit na menší pomocí nástrojů jako https://www.ilovepdf.com/split_pdf
       <br><br>
     </label>
 
-    <label>Page Range (optional):
+    <label>Rozsah stránek (volitelné):
       <input type="text" name="page_range" placeholder="e.g. 1-3 or 2,4,6">
     </label>
 
-    <label>using: https://github.com/smalot/pdfparser</label><br><br>
+    <label>Používáme: https://github.com/smalot/pdfparser</label><br><br>
   </form>
 <?php else: ?>
   <?php if ($preflightInfo): ?>
@@ -407,31 +407,31 @@ echo "👤 Logged in as " . htmlspecialchars($_SESSION['username'] ?? 'guest') .
   <?php endif; ?>
 
   <form method="POST" action="translator.php" onsubmit="return validateLangSelection(event)">
-    <label>New Table Name:
+    <label>Název nového slovníčku:
       <input type="text" name="new_table_name" value="<?php echo htmlspecialchars($defaultTableName); ?>" required>
     </label>
 
-    <label>Source Language:
+    <label>Zdrojový jazyk:
       <select name="sourceLang" id="sourceLang" onchange="updateLabels()" required>
-        <option value="" disabled selected>Select source language</option>
-        <option value="cs">Czech</option>
-        <option value="en">English</option>
-        <option value="de">German</option>
-        <option value="fr">French</option>
-        <option value="es">Spanish</option>
-        <option value="it">Italian</option>
+        <option value="" disabled selected>Vyberte zdrojový jazyk</option>
+        <option value="cs">Česky</option>
+        <option value="en">Anglicky</option>
+        <option value="de">Německy</option>
+        <option value="fr">Francouzsky</option>
+        <option value="es">Španělsky</option>
+        <option value="it">Italsky</option>
       </select>
     </label>
 
-    <label>Target Language:
+    <label>Cílový jazyk:
       <select name="targetLang" id="targetLang" onchange="updateLabels()" required>
-        <option value="" disabled selected>Select target language</option>
-        <option value="cs">Czech</option>
-        <option value="en">English</option>
-        <option value="de">German</option>
-        <option value="fr">French</option>
-        <option value="es">Spanish</option>
-        <option value="it">Italian</option>
+        <option value="" disabled selected>Vyberte cílový jazyk</option>
+        <option value="cs">Česky</option>
+        <option value="en">Anglicky</option>
+        <option value="de">Německy</option>
+        <option value="fr">Francouzsky</option>
+        <option value="es">Španělsky</option>
+        <option value="it">Italsky</option>
       </select>
     </label>
 
@@ -439,46 +439,46 @@ echo "👤 Logged in as " . htmlspecialchars($_SESSION['username'] ?? 'guest') .
     <input type="hidden" name="target_lang_label" id="targetLabel" value="">
     <input type="hidden" name="delete_pdf_path" value="<?php echo htmlspecialchars($uploadedPdf); ?>">
 
-    <label>Font Size:
+    <label>Velikot písma:
       <select id="fontSizeSelect" onchange="updateFontSize()">
-        <option value="14px">Small</option>
-        <option value="18px" selected>Medium</option>
-        <option value="24px">Large</option>
+        <option value="14px">Malá</option>
+        <option value="18px" selected>Střední</option>
+        <option value="24px">Velká</option>
       </select>
     </label>
 
-    <label>Spellcheck Language:
+    <label>Jazyk kontroly pravopisu:
       <select id="spellLangSelect" onchange="updateSpellLang()">
-        <option value="cs">Czech</option>
-        <option value="">Disable</option>
-        <option value="en">English</option>
-        <option value="de">German</option>
-        <option value="fr">French</option>
-        <option value="es">Spanish</option>
-        <option value="it">Italian</option>
+        <option value="cs">Česky</option>
+        <option value="">Vypnuto</option>
+        <option value="en">Anglicky</option>
+        <option value="de">Německy</option>
+        <option value="fr">Francouzsky</option>
+        <option value="es">Španělsky</option>
+        <option value="it">Italsky</option>
       </select>
     </label>
 
-    <label>Review or edit extracted text:
+    <label>Kontrola či úpravy extrahovaného textu:
       <textarea id="textArea" name="text_lines" spellcheck="false"><?php echo htmlspecialchars($extractedText); ?></textarea>
     </label>
 
     <button type="button" onclick="cleanWithAI()">🧠 Clean Text with AI</button>
 
-    <label> OpenRouter.ai has 50 free requests a day for text-cleaning </label><br>
-    <p>One translation request max 500 characters.</p><br>
+    <label> OpenRouter.ai za den provede max 50 požadavků na čištění textu zdarma </label><br>
+    <p>Jeden překlad smí mít max 500 znaků.</p><br>
 
-    <button type="button" onclick="countCharacters()">🔢 Character Count</button>
+    <button type="button" onclick="countCharacters()">🔢 Počet znaků</button>
     <div id="charCountDisplay" style="margin-top:5px; font-weight:bold;"></div>
 
     <br>
-    <button type="button" onclick="copyText()">📋 Copy Text</button>
-    <button type="submit">🌍 Translate</button>
+    <button type="button" onclick="copyText()">📋 Zkopírovat</button>
+    <button type="submit">🌍 Překlad</button>
   </form>
 
   <!-- Original PDF preview (optional) -->
   <details style="margin-top: 10px;">
-    <summary style="cursor: pointer; font-weight: bold;">🗂️ View Original PDF</summary>
+    <summary style="cursor: pointer; font-weight: bold;">🗂️ Původní PDF</summary>
     <iframe src="<?= htmlspecialchars($pdfPreviewPath) ?>" style="width:100%; height:400px; border: 1px solid #aaa; margin-top:10px;"></iframe>
   </details>
 <?php endif; ?>
