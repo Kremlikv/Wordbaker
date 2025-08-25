@@ -144,9 +144,16 @@ $rowCount = $result->num_rows;
 </head>
 <body>
 
+
+// <?php
+//echo "<div class='content loginbar'>";
+// echo "👤 Přihlášený dduživatel " . htmlspecialchars($_SESSION['username']) . " | <a href='logout.php'>Odhlásit</a>";
+//echo "</div>";
+// ?>
+
 <?php
-echo "<div class='content loginbar'>";
-echo "👤 Přihlášený uživatel " . htmlspecialchars($_SESSION['username']) . " | <a href='logout.php'>Odhlásit</a>";
+echo "<div class='content'>";
+echo "<p>👤 Přihlášený uživatel: <strong><?= htmlspecialchars($_SESSION['username']) ?></strong> | <a href='logout.php'>Odhlásit</a></p>";
 echo "</div>";
 ?>
 
