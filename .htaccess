@@ -1,0 +1,7 @@
+# .htaccess at /wordbaker.cz/htdocs
+RewriteEngine On
+
+# Do NOT force HTTPS here when Cloudflare is in Flexible.
+# (Optional) make PHP/CMS think it's HTTPS when coming via Cloudflare:
+RewriteCond %{HTTP:X-Forwarded-Proto} =https
+RewriteRule .* - [E=HTTPS:on]

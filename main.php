@@ -870,7 +870,7 @@ echo "<br><br>";
 
 // Table editing logic
 if (!empty($selectedFullTable) && $res !== false) {
-    echo "<h3>Selected Table: " . htmlspecialchars($selectedFullTable) . "</h3>";
+    echo "<h3>Vybraný slovníček: " . htmlspecialchars($selectedFullTable) . "</h3>";
 
     $builtInReadOnly = in_array($selectedFullTable, ['difficult_words', 'mastered_words'], true);
     $ownerOfShare    = share_owner($conn, $selectedFullTable);
@@ -907,14 +907,14 @@ if (!empty($selectedFullTable) && $res !== false) {
         echo "<input type='hidden' name='col1' value='" . htmlspecialchars($column1) . "'>";
         echo "<input type='hidden' name='col2' value='" . htmlspecialchars($column2) . "'>";
         echo "<table border='1' cellpadding='5' cellspacing='0'>";
-        echo "<tr><th>" . htmlspecialchars($heading1) . "</th><th>" . htmlspecialchars($heading2) . "</th><th>Action</th></tr>";
+        echo "<tr><th>" . htmlspecialchars($heading1) . "</th><th>" . htmlspecialchars($heading2) . "</th><th>Akce</th></tr>";
         $res->data_seek(0);
         $i = 0;
         while ($res && ($row = $res->fetch_assoc())) {
             echo "<tr>";
             echo "<td><textarea name='rows[$i][col1]' oninput='autoResize(this)'>" . htmlspecialchars($row[$column1]) . "</textarea></td>";
             echo "<td><textarea name='rows[$i][col2]' oninput='autoResize(this)'>" . htmlspecialchars($row[$column2]) . "</textarea></td>";
-            echo "<td><input type='checkbox' name='rows[$i][delete]'> Delete</td>";
+            echo "<td><input type='checkbox' name='rows[$i][delete]'> Smazat</td>";
             echo "<input type='hidden' name='rows[$i][orig_col1]' value='" . htmlspecialchars($row[$column1]) . "'>";
             echo "<input type='hidden' name='rows[$i][orig_col2]' value='" . htmlspecialchars($row[$column2]) . "'>";
             echo "</tr>";
@@ -929,14 +929,14 @@ if (!empty($selectedFullTable) && $res !== false) {
         echo "<div style='margin-top:12px; padding:10px; border:1px solid #e2e8f0; border-radius:8px;'>";
         echo "<strong>Save As…</strong>";
         echo "<div style='display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:6px;'>";
-        echo "  <label>Folder: <input type='text' name='saveas_folder' placeholder='e.g., animals' style='padding:6px;'></label>";
-        echo "  <label>New name: <input type='text' name='saveas_name' placeholder='e.g., de_en_small' style='padding:6px;'></label>";
-        echo "  <label title='If checked and table exists, it will be replaced'><input type='checkbox' name='saveas_overwrite' value='1'> Overwrite if exists</label>";
+        echo "  <label>Adresář: <input type='text' name='saveas_folder' placeholder='např. Zvířata' style='padding:6px;'></label>";
+        echo "  <label>Nové jméno: <input type='text' name='saveas_name' placeholder='např. Vodní' style='padding:6px;'></label>";
+        echo "  <label title='If checked and table exists, it will be replaced'><input type='checkbox' name='saveas_overwrite' value='1'> Pokud už existuje, přepsat.</label>";
         echo "  <button type='submit' name='action' value='save_as' formaction='main.php' formmethod='post' ".
              "style='padding:8px 12px; background:#2563eb; color:#fff; border:none; border-radius:6px;'>Uložit jako</button>";
         echo "</div>";
         echo "<div style='font-size:12px; color:#475569; margin-top:6px;'>";
-        echo "  Will create <code>".htmlspecialchars(strtolower($_SESSION['username'] ?? 'user'))."_ADRESÁŘ_SOUBOR</code>";
+        echo "  Vytvoří: <code>".htmlspecialchars(strtolower($_SESSION['username'] ?? 'user'))."_ADRESÁŘ_SOUBOR</code>";
         echo "</div>";
         echo "</div>";
 

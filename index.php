@@ -38,9 +38,9 @@
 
     <div class="content">
       <h1>Upečte si svůj vlastní slovníček</h1>
-            <p><b>Naskenujte si text z PDF, nechte s ho automatem přeložit po větách.</b><br>
+            <p>Naskenujte si text z PDF, nechte s ho automatem přeložit po větách.<br>
             <br>
-            Nebo nahrajte své vlastní poznámky z hodin angličtiny - těžká slovíčka a správný překlad.
+            Nebo nahrajte své vlastní poznámky z hodin angličtiny - těžká slovíčka a správný překlad.<br>
             <br>            
             Pomocí umělé inteligence si vytvořte audio nahrávky.<br>
             <br>
