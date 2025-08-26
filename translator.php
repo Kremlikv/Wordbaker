@@ -1,4 +1,22 @@
 <?php
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
+// also log to a file next to the script (make writable by PHP)
+ini_set('log_errors', 1);
+ini_set('error_log', __DIR__ . '/translator_error.log');
+
+// catch fatal errors on shutdown
+register_shutdown_function(function () {
+  $e = error_get_last();
+  if ($e && in_array($e['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR])) {
+    error_log("FATAL: {$e['message']} in {$e['file']}:{$e['line']}");
+  }
+});
+
+
+
 require_once 'session.php';
 require_once 'config.php'; // expects $GOOGLE_API_KEY (and optional $LIBRETRANSLATE_URL)
 include 'styling.php';
