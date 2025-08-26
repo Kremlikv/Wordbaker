@@ -7,7 +7,7 @@ echo "<!-- PDF Scan Start with OCR fallback -->";
 
 require_once 'session.php';
 include 'styling.php';
-require_once 'config.php';// <- API klíče (OCRSPACE_API_KEY)
+require_once '.config.php'; // <- contains: define('OCRSPACE_API_KEY', '...');
 
 use Smalot\PdfParser\Parser;
 
@@ -15,16 +15,16 @@ use Smalot\PdfParser\Parser;
    CONFIG
    ========================== */
 
-/** OCR.Space API klíč z .config.php */
+/** OCR.Space API key from .config.php */
 $OCRSPACE_API_KEY = defined('OCRSPACE_API_KEY') ? OCRSPACE_API_KEY : '';
 
-/** Max PDF velikost pro OCR (OCR.Space free okolo 20 MB) */
+/** Max PDF size for OCR (OCR.Space free ~20 MB) */
 const OCR_MAX_SIZE_BYTES = 20 * 1024 * 1024;
 
-/** Výchozí OCR jazyk (OCR.Space kódy: eng, deu, fra, spa, ita, ces …) */
+/** Default OCR language (OCR.Space codes: eng, deu, fra, spa, ita, ces …) */
 const OCR_DEFAULT_LANG = 'eng';
 
-/** Mapování UI kódů -> OCR.Space kódy */
+/** Map UI codes -> OCR.Space language codes */
 function ocrspace_lang_from_ui($ui) {
     $map = [
         'cs' => 'ces',
@@ -47,7 +47,7 @@ function human_filesize(int $bytes, int $decimals = 1): string {
 }
 
 /**
- * Rychlý preflight PDF
+ * Quick preflight of a PDF
  * Returns ['ok'=>bool, 'reason'=>string|null, 'size'=>int|null, 'encrypted'=>bool]
  */
 function pdf_preflight(string $path): array {
@@ -76,7 +76,7 @@ function pdf_preflight(string $path): array {
 }
 
 /**
- * Smalot parse s guardrails + volitelným rozsahem
+ * Smalot parse with guardrails and optional page range
  * Returns:
  *  - ['success'=>true, 'text'=>string]
  *  - ['success'=>false, 'error'=>'code', 'detail'=>'message (optional)']
@@ -87,7 +87,7 @@ function parse_pdf_with_guardrails(string $path, ?string $pageRangeInput = null)
         return ['success' => false, 'error' => $check['reason'] ?? 'unknown'];
     }
 
-    // Limity podle velikosti
+    // Limits by size
     $size = $check['size'] ?? 0;
     if ($size > 10 * 1024 * 1024) { // >10 MB
         @ini_set('memory_limit', '1024M');
@@ -154,12 +154,10 @@ function parse_pdf_with_guardrails(string $path, ?string $pageRangeInput = null)
 }
 
 /* ==========================
-   OCR: OCR.Space (bez parametru `pages`)
+   OCR: OCR.Space (no 'pages' param)
    ========================== */
 
-/**
- * Stáhne soubor z URL do cílové cesty (cURL)
- */
+/** Download URL to local file (cURL) */
 function download_url_to_file(string $url, string $destPath): bool {
     $fp = @fopen($destPath, 'wb');
     if (!$fp) return false;
@@ -175,7 +173,7 @@ function download_url_to_file(string $url, string $destPath): bool {
     fclose($fp);
 
     if ($ok === false || $http < 200 || $http >= 300) {
-        error_log("[pdf_scan.php] download_url_to_file error: HTTP $http $err");
+        error_log("[scan_pdf.php] download_url_to_file error: HTTP $http $err");
         @unlink($destPath);
         return false;
     }
@@ -183,7 +181,7 @@ function download_url_to_file(string $url, string $destPath): bool {
 }
 
 /**
- * OCR přes OCR.Space
+ * OCR via OCR.Space
  * @return array ['ok'=>bool, 'text'=>?string, 'error'=>?string, 'raw'=>mixed, 'searchable_local'=>?string]
  */
 function ocrspace_pdf(string $pdfPath, string $language, string $apiKey): array {
@@ -201,11 +199,12 @@ function ocrspace_pdf(string $pdfPath, string $language, string $apiKey): array 
     $endpoint = 'https://api.ocr.space/parse/image';
     $cfile = new CURLFile($pdfPath, 'application/pdf', basename($pdfPath));
 
-    // ⚠️ Neposíláme 'pages' – endpoint /parse/image ho nezná
+    // No 'pages' here – endpoint does not support it
     $post = [
-        'language'                      => $language,   // eng/deu/fra/spa/ita/ces...
+        'language'                      => $language,  // eng/deu/fra/spa/ita/ces...
+        'filetype'                      => 'pdf',
         'isOverlayRequired'             => 'false',
-        'isCreateSearchablePdf'         => 'true',      // zkusí vrátit searchable PDF
+        'isCreateSearchablePdf'         => 'true',
         'isSearchablePdfHideTextLayer'  => 'false',
         'scale'                         => 'true',
         'detectOrientation'             => 'true',
@@ -214,9 +213,7 @@ function ocrspace_pdf(string $pdfPath, string $language, string $apiKey): array 
         'file'                          => $cfile,
     ];
 
-    $headers = [
-        'apikey: ' . $apiKey,
-    ];
+    $headers = [ 'apikey: ' . $apiKey ];
 
     $ch = curl_init();
     curl_setopt($ch, CURLOPT_URL, $endpoint);
@@ -242,7 +239,7 @@ function ocrspace_pdf(string $pdfPath, string $language, string $apiKey): array 
     }
 
     if ($http >= 200 && $http < 300 && ($json['IsErroredOnProcessing'] ?? null) === false) {
-        // 1) Sloučit rozpoznaný text
+        // Combine recognized text
         $combined = [];
         if (!empty($json['ParsedResults']) && is_array($json['ParsedResults'])) {
             foreach ($json['ParsedResults'] as $r) {
@@ -253,7 +250,7 @@ function ocrspace_pdf(string $pdfPath, string $language, string $apiKey): array 
         }
         $text = trim(implode("\n", $combined));
 
-        // 2) Pokus o uložení 'searchable PDF' lokálně
+        // Try saving searchable PDF locally if provided
         $localSearchable = null;
         $searchableUrl = $json['SearchablePDFURL'] ?? null;
         if ($searchableUrl && is_string($searchableUrl)) {
@@ -262,7 +259,7 @@ function ocrspace_pdf(string $pdfPath, string $language, string $apiKey): array 
             $localName = 'ocr_' . time() . '.pdf';
             $localPath = $uploads . $localName;
             if (download_url_to_file($searchableUrl, $localPath)) {
-                $localSearchable = 'uploads/' . $localName; // web cesta pro UI
+                $localSearchable = 'uploads/' . $localName; // web path for UI
             }
         }
 
@@ -277,14 +274,15 @@ function ocrspace_pdf(string $pdfPath, string $language, string $apiKey): array 
 /* -------------------------
    Controller
    ------------------------- */
-$extractedText    = '';
-$error            = '';
-$pdfPreviewPath   = '';
-$searchableLocal  = ''; // cesta k uloženému searchable PDF, pokud vznikne
-$defaultTableName = 'pdf_imported_' . date('Ymd_His');
-$uploadedPdf      = '';
-$preflightInfo    = null;
-$uploadedFilename = '';
+$extractedText     = '';
+$error             = '';
+$parserDetail      = '';
+$pdfPreviewPath    = '';
+$searchableLocal   = '';
+$defaultTableName  = 'pdf_imported_' . date('Ymd_His');
+$uploadedPdf       = '';
+$preflightInfo     = null;
+$uploadedFilename  = '';
 
 $selectedOcrUiLang = isset($_POST['ocr_ui_lang']) ? $_POST['ocr_ui_lang'] : '';
 
@@ -319,61 +317,82 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['pdf_file'])) {
             $uploadedPdf    = $fullPath;
 
             $pageRangeInput = $_POST['page_range'] ?? '';
+            $forceOcr = isset($_POST['force_ocr']) && $_POST['force_ocr'] === '1';
 
-            // 1) Smalot nejdřív
-            $result = parse_pdf_with_guardrails($fullPath, $pageRangeInput);
+            $shouldTryOcr = false;
 
-            if ($result['success']) {
-                $text = preg_replace('/\s+/', ' ', $result['text']);
-                $sentences = preg_split('/(?<=[.?!])\s+/', $text);
-                $lines = array_filter(array_map('trim', $sentences));
-                $lines = array_slice($lines, 0, 100); // prvních 100 vět
-                $extractedText = implode("\n", $lines);
+            if ($forceOcr) {
+                $shouldTryOcr = true; // user forced OCR
             } else {
-                // 2) OCR fallback pro skeny
-                if (($result['error'] ?? '') === 'no_text_layer') {
-                    $ocrLang = ocrspace_lang_from_ui($selectedOcrUiLang ?: 'en');
+                // Try Smalot first
+                $result = parse_pdf_with_guardrails($fullPath, $pageRangeInput);
 
-                    if ($OCRSPACE_API_KEY === '') {
-                        $error = "🖼️ PDF vypadá jako sken (bez textové vrstvy) a vyžaduje OCR, ale chybí API klíč v .config.php (OCRSPACE_API_KEY).";
-                    } else {
-                        // Pozn.: OCR.Space /parse/image nepodporuje page_range => ignorováno
-                        if (!empty($pageRangeInput)) {
-                            error_log('[pdf_scan.php] Info: OCR fallback ignoruje page_range (omezení API).');
-                        }
+                if (!empty($result['detail'])) {
+                    $parserDetail = $result['detail'];
+                }
 
-                        $ocr = ocrspace_pdf($fullPath, $ocrLang, $OCRSPACE_API_KEY);
-                        if ($ocr['ok'] && is_string($ocr['text']) && trim($ocr['text']) !== '') {
-                            $text = preg_replace('/\s+/', ' ', $ocr['text']);
-                            $sentences = preg_split('/(?<=[.?!])\s+/', $text);
-                            $lines = array_filter(array_map('trim', $sentences));
-                            $lines = array_slice($lines, 0, 100);
-                            $extractedText = implode("\n", $lines);
-
-                            if (!empty($ocr['searchable_local'])) {
-                                $searchableLocal = $ocr['searchable_local'];
-                            }
-                        } else {
-                            $why = $ocr['error'] ?? 'OCR se nezdařilo.';
-                            $error = "🖼️ Tento PDF je sken a parsování selhalo. OCR také selhalo: " . htmlspecialchars($why);
-                        }
-                    }
+                if (!empty($result['success']) && $result['success'] === true) {
+                    $text = preg_replace('/\s+/', ' ', $result['text']);
+                    $sentences = preg_split('/(?<=[.?!])\s+/', $text);
+                    $lines = array_filter(array_map('trim', $sentences));
+                    $lines = array_slice($lines, 0, 100);
+                    $extractedText = implode("\n", $lines);
                 } else {
-                    $map = [
-                        'encrypted'     => '🔒 This PDF appears to be password-protected. Please upload an unencrypted copy.',
-                        'memory_limit'  => '💾 The PDF is too large/complex for current memory limits. Try splitting it into smaller parts.',
-                        'timeout'       => '⏱️ Parsing timed out. Try a smaller page range or split the file.',
-                        'no_text_layer' => '🖼️ The PDF seems to be a scan (no selectable text). OCR is required.',
-                        'not_pdf'       => '📄 The file does not appear to be a valid PDF.',
-                        'not_found'     => '❌ File not found after upload.',
-                        'unreadable'    => '❌ The file could not be read by PHP.',
-                        'unknown'       => '❌ Could not parse this PDF (unknown parser error).'
-                    ];
-                    $error = $map[$result['error']] ?? '❌ PDF parsing failed.';
-                    if (!empty($result['detail'])) {
-                        error_log('[pdf_scan.php] parser detail: ' . $result['detail']);
+                    // Smalot failed — decide if we should OCR anyway
+                    $err = $result['error'] ?? 'unknown';
+                    $fatal = in_array($err, ['encrypted','not_found','unreadable'], true);
+                    if (!$fatal) {
+                        $shouldTryOcr = true;
+                    } else {
+                        // Keep mapped message for fatal cases
+                        $map = [
+                            'encrypted'     => '🔒 This PDF appears to be password-protected. Please upload an unencrypted copy.',
+                            'memory_limit'  => '💾 The PDF is too large/complex for current memory limits. Try splitting it into smaller parts.',
+                            'timeout'       => '⏱️ Parsing timed out. Try a smaller page range or split the file.',
+                            'no_text_layer' => '🖼️ The PDF seems to be a scan (no selectable text). OCR is required.',
+                            'not_pdf'       => '📄 The file does not appear to be a valid PDF.',
+                            'not_found'     => '❌ File not found after upload.',
+                            'unreadable'    => '❌ The file could not be read by PHP.',
+                            'unknown'       => '❌ Could not parse this PDF (unknown parser error).'
+                        ];
+                        $error = $map[$err] ?? '❌ PDF parsing failed.';
                     }
                 }
+            }
+
+            // OCR fallback if requested/needed
+            if ($shouldTryOcr && empty($extractedText)) {
+                $ocrLang = ocrspace_lang_from_ui($selectedOcrUiLang ?: 'en');
+
+                if ($OCRSPACE_API_KEY === '') {
+                    $error = "🖼️ PDF vypadá jako sken nebo parser selhal a je třeba OCR, ale chybí API klíč v .config.php (OCRSPACE_API_KEY).";
+                } else {
+                    if (!empty($pageRangeInput)) {
+                        error_log('[scan_pdf.php] Info: OCR fallback ignoruje page_range (omezení API).');
+                    }
+                    $ocr = ocrspace_pdf($fullPath, $ocrLang, $OCRSPACE_API_KEY);
+                    if ($ocr['ok'] && is_string($ocr['text']) && trim($ocr['text']) !== '') {
+                        $text = preg_replace('/\s+/', ' ', $ocr['text']);
+                        $sentences = preg_split('/(?<=[.?!])\s+/', $text);
+                        $lines = array_filter(array_map('trim', $sentences));
+                        $lines = array_slice($lines, 0, 100);
+                        $extractedText = implode("\n", $lines);
+
+                        if (!empty($ocr['searchable_local'])) {
+                            $searchableLocal = $ocr['searchable_local'];
+                        }
+                    } else {
+                        $why = $ocr['error'] ?? 'OCR se nezdařilo.';
+                        $error = "🖼️ Parser selhal a OCR také selhalo: " . htmlspecialchars($why);
+                    }
+                }
+            }
+
+            // If parser detail exists and nothing extracted, surface it under error
+            if (!empty($parserDetail) && empty($extractedText)) {
+                if ($error !== '') $error .= " ";
+                $error .= "(Podrobnosti parseru viz níže.)";
+                $GLOBALS['__parser_detail'] = $parserDetail;
             }
         }
     }
@@ -537,6 +556,14 @@ echo "👤 Přihlášený uživatel " . htmlspecialchars($_SESSION['username'] ?
   <p style="color: red; text-align:center;">
     <?php echo htmlspecialchars($error); ?>
   </p>
+  <?php if (!empty($GLOBALS['__parser_detail'])): ?>
+    <details style="max-width:800px;margin:0 auto 10px auto;color:#333;">
+      <summary style="cursor:pointer;font-weight:bold;">📎 Technické podrobnosti chyby parseru</summary>
+      <pre style="white-space:pre-wrap;border:1px solid #ddd;padding:10px;background:#f9f9f9;overflow:auto;"><?php
+        echo htmlspecialchars($GLOBALS['__parser_detail']);
+      ?></pre>
+    </details>
+  <?php endif; ?>
 <?php endif; ?>
 
 <?php if (!$extractedText): ?>
@@ -549,7 +576,7 @@ echo "👤 Přihlášený uživatel " . htmlspecialchars($_SESSION['username'] ?
       <input type="text" name="page_range" placeholder="např. 1-3 či 2,4,6">
     </label>
 
-    <!-- OCR jazyk (použije se jen pokud se spustí OCR fallback) -->
+    <!-- OCR language (used only if OCR fallback runs) -->
     <label>Jazyk pro OCR:
       <select name="ocr_ui_lang">
         <option value="en" selected>Anglicky</option>
@@ -559,6 +586,12 @@ echo "👤 Přihlášený uživatel " . htmlspecialchars($_SESSION['username'] ?
         <option value="es">Španělsky</option>
         <option value="it">Italsky</option>
       </select>
+    </label>
+
+    <!-- Force OCR toggle -->
+    <label style="display:block; margin:8px 0;">
+      <input type="checkbox" name="force_ocr" value="1">
+      Vynutit OCR (přeskočit klasický parser)
     </label>
 
     <button type="submit">📤 Extrahovat text</button>
@@ -623,7 +656,7 @@ echo "👤 Přihlášený uživatel " . htmlspecialchars($_SESSION['username'] ?
     <input type="hidden" name="target_lang_label" id="targetLabel" value="">
     <input type="hidden" name="delete_pdf_path" value="<?php echo htmlspecialchars($uploadedPdf); ?>">
 
-    <label>Velikot písma:
+    <label>Velikost písma:
       <select id="fontSizeSelect" onchange="updateFontSize()">
         <option value="14px">Malá</option>
         <option value="18px" selected>Střední</option>
