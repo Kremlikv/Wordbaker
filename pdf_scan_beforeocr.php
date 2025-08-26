@@ -3,40 +3,12 @@ ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
-echo "<!-- PDF Scan Start with OCR fallback -->";
+echo "<!-- PDF Scan Start -->";
 
 require_once 'session.php';
 include 'styling.php';
-include 'config.php';
 
 use Smalot\PdfParser\Parser;
-
-/* ==========================
-   CONFIG
-   ========================== */
-// Preferred: set in your hosting control panel as an environment variable.
-$OCRSPACE_API_KEY = defined('OCRSPACE_API_KEY') ? OCRSPACE_API_KEY : '';
-// Or hardcode (not recommended to commit): define a constant as a fallback.
-// define('OCRSPACE_API_KEY', 'YOUR_KEY_HERE');
-
-/** Max PDF we’ll send to OCR (bytes). Free OCR.Space handles up to ~20MB. */
-const OCR_MAX_SIZE_BYTES = 20 * 1024 * 1024;
-
-/** Default OCR language (OCR.Space language codes: eng, deu, fra, spa, ita, ces etc.) */
-const OCR_DEFAULT_LANG = 'eng';
-
-/** Map simple UI codes -> OCR.Space language codes */
-function ocrspace_lang_from_ui($ui) {
-    $map = [
-        'cs' => 'ces',
-        'en' => 'eng',
-        'de' => 'deu',
-        'fr' => 'fra',
-        'es' => 'spa',
-        'it' => 'ita',
-    ];
-    return $map[$ui] ?? OCR_DEFAULT_LANG;
-}
 
 try {
     require_once 'pdfparser/alt_autoload.php';
@@ -163,117 +135,16 @@ function parse_pdf_with_guardrails(string $path, ?string $pageRangeInput = null)
     }
 }
 
-/* ==========================
-   OCR: OCR.Space (simple HTTPS)
-   ========================== */
-/**
- * @param string $pdfPath
- * @param string $language e.g. 'eng','deu','fra','spa','ita','ces'
- * @param string $apiKey   OCR.Space API key
- * @param string|null $pageRange optional like "1-3,5"
- * @return array ['ok'=>bool, 'text'=>string|null, 'error'=>string|null, 'raw'=>mixed]
- */
-function ocrspace_pdf(string $pdfPath, string $language, string $apiKey, ?string $pageRange = null): array {
-    if (!is_file($pdfPath)) {
-        return ['ok' => false, 'text' => null, 'error' => 'file_not_found'];
-    }
-    $size = filesize($pdfPath);
-    if ($size === false || $size <= 0) {
-        return ['ok' => false, 'text' => null, 'error' => 'invalid_file'];
-    }
-    if ($size > OCR_MAX_SIZE_BYTES) {
-        return ['ok' => false, 'text' => null, 'error' => 'file_too_large'];
-    }
-
-    $endpoint = 'https://api.ocr.space/parse/image';
-    $cfile = new CURLFile($pdfPath, 'application/pdf', basename($pdfPath));
-
-    $post = [
-        'language'      => $language,
-        'isTable'       => 'false',
-        'scale'         => 'true',
-        'isOverlayRequired' => 'false',
-        'file'          => $cfile,
-        // Optional: restrict pages; OCR.Space supports pages like "1-3"
-        // We'll pass $pageRange only if provided and simple.
-    ];
-    if ($pageRange && preg_match('/^[0-9,\-\s]+$/', $pageRange)) {
-        $post['pages'] = $pageRange;
-    }
-
-    $headers = [
-        'apikey: ' . $apiKey,
-    ];
-
-    $ch = curl_init();
-    curl_setopt($ch, CURLOPT_URL, $endpoint);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, $post);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 120);
-    $response = curl_exec($ch);
-
-    if ($response === false) {
-        $err = curl_error($ch);
-        curl_close($ch);
-        return ['ok' => false, 'text' => null, 'error' => 'curl: ' . $err];
-    }
-
-    $http = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-
-    $json = json_decode($response, true);
-    if (!is_array($json)) {
-        return ['ok' => false, 'text' => null, 'error' => 'bad_json', 'raw' => $response];
-    }
-
-    // OCR.Space success flag
-    $isErroredOnProcessing = $json['IsErroredOnProcessing'] ?? null;
-    if ($http >= 200 && $http < 300 && $isErroredOnProcessing === false) {
-        $combined = [];
-        if (!empty($json['ParsedResults']) && is_array($json['ParsedResults'])) {
-            foreach ($json['ParsedResults'] as $r) {
-                if (isset($r['ParsedText']) && is_string($r['ParsedText'])) {
-                    $combined[] = $r['ParsedText'];
-                }
-            }
-        }
-        $text = trim(implode("\n", $combined));
-        return ['ok' => true, 'text' => $text, 'error' => null, 'raw' => $json];
-    }
-
-    // Build readable error
-    $msg = $json['ErrorMessage'] ?? $json['ErrorDetails'] ?? 'ocr_failed';
-    if (is_array($msg)) $msg = implode(' | ', $msg);
-    return ['ok' => false, 'text' => null, 'error' => (string)$msg, 'raw' => $json];
-}
-
-/* ==========================
-   (Optional) Google Vision PDF OCR (stub)
-   ==========================
-   Note: Google Vision requires uploading the PDF to a Google Cloud Storage bucket
-   and running an ASYNC batch request, then reading JSON results from another GCS path.
-   That’s perfect for stable servers but overkill for free PHP hosts.
-
-   If you want this later, I can give you a ready-to-run REST flow:
-   - Prereqs: a GCS bucket, service account JSON, and setting GOOGLE_APPLICATION_CREDENTIALS.
-   - Then call https://vision.googleapis.com/v1/files:asyncBatchAnnotate with your GCS URIs.
-*/
-
-/* -------------------------
-   Controller
-   ------------------------- */
-$extractedText   = '';
-$error           = '';
-$pdfPreviewPath  = '';
+// -----------------------------------------------------------------------------
+// Controller
+// -----------------------------------------------------------------------------
+$extractedText = '';
+$error = '';
+$pdfPreviewPath = '';
 $defaultTableName = 'pdf_imported_' . date('Ymd_His');
-$uploadedPdf     = '';
-$preflightInfo   = null; // for the badge
+$uploadedPdf = '';
+$preflightInfo = null; // for the badge
 $uploadedFilename = '';
-
-/* OCR language chosen at upload stage */
-$selectedOcrUiLang = isset($_POST['ocr_ui_lang']) ? $_POST['ocr_ui_lang'] : '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['pdf_file'])) {
     $file = $_FILES['pdf_file'];
@@ -291,7 +162,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['pdf_file'])) {
         if (!move_uploaded_file($file['tmp_name'], $fullPath)) {
             $error = "❌ Failed to save uploaded file.";
         } else {
-            // Preflight badge
+            // Preflight now so we can show the badge immediately
             $pf = pdf_preflight($fullPath);
             $preflightInfo = [
                 'size'      => $pf['size'] ?? null,
@@ -307,7 +178,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['pdf_file'])) {
 
             $pageRangeInput = $_POST['page_range'] ?? '';
 
-            // 1) Try normal parser first
+            // Parse (this repeats preflight inside, but keeps things clean)
             $result = parse_pdf_with_guardrails($fullPath, $pageRangeInput);
 
             if ($result['success']) {
@@ -317,44 +188,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['pdf_file'])) {
                 $lines = array_slice($lines, 0, 100); // keep first 100
                 $extractedText = implode("\n", $lines);
             } else {
-                // 2) If it looks like a scan, try OCR fallback
-                if (($result['error'] ?? '') === 'no_text_layer') {
-                    // Determine OCR language
-                    $ocrLang = ocrspace_lang_from_ui($selectedOcrUiLang ?: 'en');
-                    // Find API key
-                    $apiKey = $OCRSPACE_API_KEY;
-                    if ($apiKey === '') {
-                        $error = "🖼️ PDF vypadá jako sken (bez textové vrstvy) a vyžaduje OCR, ale chybí API klíč. 
-Přidejte OCRSPACE_API_KEY do prostředí (nebo do kódu) a zkuste to znovu.";
-                    } else {
-                        $ocr = ocrspace_pdf($fullPath, $ocrLang, $apiKey, $pageRangeInput ?: null);
-                        if ($ocr['ok'] && is_string($ocr['text']) && trim($ocr['text']) !== '') {
-                            // Normalize & limit like before
-                            $text = preg_replace('/\s+/', ' ', $ocr['text']);
-                            $sentences = preg_split('/(?<=[.?!])\s+/', $text);
-                            $lines = array_filter(array_map('trim', $sentences));
-                            $lines = array_slice($lines, 0, 100);
-                            $extractedText = implode("\n", $lines);
-                        } else {
-                            $why = $ocr['error'] ?? 'OCR se nezdařilo.';
-                            $error = "🖼️ Tento PDF je sken a parsování selhalo. OCR také selhalo: " . htmlspecialchars($why);
-                        }
-                    }
-                } else {
-                    $map = [
-                        'encrypted'     => '🔒 This PDF appears to be password-protected. Please upload an unencrypted copy.',
-                        'memory_limit'  => '💾 The PDF is too large/complex for current memory limits. Try splitting it into smaller parts.',
-                        'timeout'       => '⏱️ Parsing timed out. Try a smaller page range or split the file.',
-                        'no_text_layer' => '🖼️ The PDF seems to be a scan (no selectable text). OCR is required.',
-                        'not_pdf'       => '📄 The file does not appear to be a valid PDF.',
-                        'not_found'     => '❌ File not found after upload.',
-                        'unreadable'    => '❌ The file could not be read by PHP.',
-                        'unknown'       => '❌ Could not parse this PDF (unknown parser error).'
-                    ];
-                    $error = $map[$result['error']] ?? '❌ PDF parsing failed.';
-                    if (!empty($result['detail'])) {
-                        error_log('[pdf_scan.php] parser detail: ' . $result['detail']);
-                    }
+                $map = [
+                    'encrypted'     => '🔒 This PDF appears to be password‑protected. Please upload an unencrypted copy.',
+                    'memory_limit'  => '💾 The PDF is too large/complex for current memory limits. Try splitting it into smaller parts.',
+                    'timeout'       => '⏱️ Parsing timed out. Try a smaller page range or split the file.',
+                    'no_text_layer' => '🖼️ The PDF seems to be a scan (no selectable text). OCR is required.',
+                    'not_pdf'       => '📄 The file does not appear to be a valid PDF.',
+                    'not_found'     => '❌ File not found after upload.',
+                    'unreadable'    => '❌ The file could not be read by PHP.',
+                    'unknown'       => '❌ Could not parse this PDF (unknown parser error).'
+                ];
+                $error = $map[$result['error']] ?? '❌ PDF parsing failed.';
+                if (!empty($result['detail'])) {
+                    error_log('[pdf_scan.php] parser detail: ' . $result['detail']);
                 }
             }
         }
@@ -362,7 +208,7 @@ Přidejte OCRSPACE_API_KEY do prostředí (nebo do kódu) a zkuste to znovu.";
 }
 ?>
 <!DOCTYPE html>
-<html lang="cs">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <title>Sken a překlad z PDF</title>
@@ -527,22 +373,6 @@ echo "👤 Přihlášený uživatel " . htmlspecialchars($_SESSION['username'] ?
       <input type="file" name="pdf_file" accept=".pdf" required>
     </label>
 
-    <label>Rozsah stránek (volitelné):
-      <input type="text" name="page_range" placeholder="např. 1-3 či 2,4,6">
-    </label>
-
-    <!-- NEW: OCR language hint (used only if OCR fallback is needed) -->
-    <label>Jazyk pro OCR (použije se jen u skenů):
-      <select name="ocr_ui_lang">
-        <option value="en" selected>Anglicky (doporučeno pro OCR)</option>
-        <option value="cs">Česky</option>
-        <option value="de">Německy</option>
-        <option value="fr">Francouzsky</option>
-        <option value="es">Španělsky</option>
-        <option value="it">Italsky</option>
-      </select>
-    </label>
-
     <button type="submit">📤 Extrahovat text</button>
 
     <?php if ($preflightInfo): ?>
@@ -561,7 +391,11 @@ echo "👤 Přihlášený uživatel " . htmlspecialchars($_SESSION['username'] ?
       <br><br>
     </label>
 
-    <label>Používáme: smalot/pdfparser s OCR fallback (OCR.Space)</label><br><br>
+    <label>Rozsah stránek (volitelné):
+      <input type="text" name="page_range" placeholder="např. 1-3 či 2,4,6">
+    </label>
+
+    <label>Používáme: https://github.com/smalot/pdfparser</label><br><br>
   </form>
 <?php else: ?>
   <?php if ($preflightInfo): ?>
