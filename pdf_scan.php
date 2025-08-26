@@ -7,7 +7,7 @@ echo "<!-- PDF Scan Start with OCR fallback -->";
 
 require_once 'session.php';
 include 'styling.php';
-require_once '.config.php'; // <- API klíče (OCRSPACE_API_KEY)
+require_once 'config.php';// <- API klíče (OCRSPACE_API_KEY)
 
 use Smalot\PdfParser\Parser;
 
