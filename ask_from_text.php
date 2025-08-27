@@ -1,5 +1,5 @@
 <?php
-// ask_from_text.php — WordBaker add-on (DB-driven, MySQLi + conf.php)
+// ask_from_text.php — WordBaker add-on (DB-driven, MySQLi + config.php/ conf.php + env fallback)
 // Purpose: Read scanned text and/or pull a bilingual table directly from MySQL (no JSON),
 // generate 6 comprehension questions with AI, ask them one by one, check correctness,
 // and suggest grammar/spelling improvements.
@@ -7,18 +7,36 @@ mb_internal_encoding('UTF-8');
 header('Content-Type: text/html; charset=utf-8');
 session_start();
 
-// ========================= CONFIG ========================= //
-// Prefer conf.php (gitignored) for keys and DB connection
+// ========================= CONFIG LOAD ORDER ========================= //
+// 1) config.php (preferred, gitignored in your app)
+// 2) conf.php   (alternate name)
+// 3) getenv()   (hosting panel env vars)
+$__cfg = null;
 if (file_exists(__DIR__ . '/config.php')) {
-  include __DIR__ . '/config.php'; // may define $conn (mysqli) and AI vars
+  $__cfg = __DIR__ . '/config.php';
+  include $__cfg; // may define $conn, $DB_*, OPENROUTER_KEY/OPENAI_KEY, AI_PROVIDER, etc.
+} elseif (file_exists(__DIR__ . '/conf.php')) {
+  $__cfg = __DIR__ . '/conf.php';
+  include $__cfg;
 }
 
-// Build MySQLi connection if conf.php didn't set it
+// Helper to fetch config with precedence: var -> CONST -> env -> default
+function cfg_val($varSet, $constName, $envName, $default=null) {
+  if ($varSet !== null && $varSet !== '') return $varSet;
+  if ($constName && defined($constName)) return constant($constName);
+  $e = ($envName !== null) ? getenv($envName) : false;
+  if ($e !== false && $e !== '') return $e;
+  return $default;
+}
+
+// ========================= DB (MySQLi) ========================= //
+// If config.php/conf.php already created $conn (mysqli), we reuse it.
 if (!isset($conn) || !$conn) {
-  $DB_HOST = isset($DB_HOST) ? $DB_HOST : (getenv('DB_HOST') ?: 'mysql-victork.alwaysdata.net');
-  $DB_NAME = isset($DB_NAME) ? $DB_NAME : (getenv('DB_NAME') ?: 'victork_database1');
-  $DB_USER = isset($DB_USER) ? $DB_USER : (getenv('DB_USER') ?: 'victork');
-  $DB_PASS = isset($DB_PASS) ? $DB_PASS : (getenv('DB_PASS') ?: '');
+  // Accept variables OR constants OR env vars
+  $DB_HOST = cfg_val(isset($DB_HOST)?$DB_HOST:null, 'DB_HOST', 'DB_HOST', 'mysql-victork.alwaysdata.net');
+  $DB_NAME = cfg_val(isset($DB_NAME)?$DB_NAME:null, 'DB_NAME', 'DB_NAME', 'victork_database1');
+  $DB_USER = cfg_val(isset($DB_USER)?$DB_USER:null, 'DB_USER', 'DB_USER', 'victork');
+  $DB_PASS = cfg_val(isset($DB_PASS)?$DB_PASS:null, 'DB_PASS', 'DB_PASS', '');
   $conn = @mysqli_connect($DB_HOST, $DB_USER, $DB_PASS, $DB_NAME);
   if (!$conn) {
     http_response_code(500);
@@ -27,13 +45,13 @@ if (!isset($conn) || !$conn) {
   }
 }
 
-// AI provider settings (prefer conf.php values)
-$AI_PROVIDER      = isset($AI_PROVIDER) ? $AI_PROVIDER : (getenv('AI_PROVIDER') ?: 'openrouter');
-$OPENROUTER_KEY   = isset($OPENROUTER_KEY) ? $OPENROUTER_KEY : (getenv('OPENROUTER_API_KEY') ?: '');
-$OPENAI_KEY       = isset($OPENAI_KEY) ? $OPENAI_KEY : (getenv('OPENAI_API_KEY') ?: '');
-$MODEL_OPENROUTER = isset($MODEL_OPENROUTER) ? $MODEL_OPENROUTER : (getenv('AI_MODEL_OPENROUTER') ?: 'anthropic/claude-3-haiku');
-$MODEL_OPENAI     = isset($MODEL_OPENAI) ? $MODEL_OPENAI : (getenv('AI_MODEL_OPENAI') ?: 'gpt-4o-mini');
-$SIMULATE_MODE    = isset($SIMULATE_MODE) ? (bool)$SIMULATE_MODE : (bool)filter_var(getenv('SIMULATE_MODE') ?: 'false', FILTER_VALIDATE_BOOLEAN);
+// ========================= AI SETTINGS ========================= //
+$AI_PROVIDER      = cfg_val(isset($AI_PROVIDER)?$AI_PROVIDER:null,      'AI_PROVIDER',      'AI_PROVIDER',      'openrouter');
+$OPENROUTER_KEY   = cfg_val(isset($OPENROUTER_KEY)?$OPENROUTER_KEY:null,'OPENROUTER_KEY',   'OPENROUTER_API_KEY','');
+$OPENAI_KEY       = cfg_val(isset($OPENAI_KEY)?$OPENAI_KEY:null,        'OPENAI_KEY',       'OPENAI_API_KEY',   '');
+$MODEL_OPENROUTER = cfg_val(isset($MODEL_OPENROUTER)?$MODEL_OPENROUTER:null, 'MODEL_OPENROUTER','AI_MODEL_OPENROUTER','anthropic/claude-3-haiku');
+$MODEL_OPENAI     = cfg_val(isset($MODEL_OPENAI)?$MODEL_OPENAI:null,        'MODEL_OPENAI',     'AI_MODEL_OPENAI',   'gpt-4o-mini');
+$SIMULATE_MODE    = (bool) cfg_val(isset($SIMULATE_MODE)?$SIMULATE_MODE:null, 'SIMULATE_MODE','SIMULATE_MODE', false);
 
 // ========= File Explorer integration (folders + tables) ========= //
 // If another controller already prepares $folders and $folderData, we reuse it.
@@ -48,10 +66,7 @@ if (!isset($folders) || !isset($folderData)) {
       mysqli_free_result($res);
     }
     foreach ($tables as $t) {
-      $folderData['My'][] = [
-        'table' => $t,
-        'display' => 'my/_/' . $t
-      ];
+      $folderData['My'][] = [ 'table' => $t, 'display' => 'my/_/' . $t ];
     }
   } catch (Throwable $e) { /* ignore */ }
 }
