@@ -406,15 +406,42 @@ details.tile[open] > summary::after{ transform:rotate(90deg); }
   width:100%; padding:10px 12px; border:1px solid #d8d8d8; border-radius:10px; font:inherit; box-sizing:border-box; background:#fff;
 }
 .enquiry-form textarea{ min-height:110px; resize:vertical; }
-.days{ display:grid; grid-template-columns:repeat(4,1fr); gap:8px 12px; }
+
+/*.days{ display:grid; grid-template-columns:repeat(4,1fr); gap:8px 12px; }
 @media (max-width:700px){ .days{ grid-template-columns:repeat(3,1fr); } }
-.days label{ font-weight:500; display:flex; align-items:center; gap:8px; }
+.days label{ font-weight:500; display:flex; align-items:center; gap:8px; } */
 
 /* Submit button style (kept simple) */
 .enquiry-submit{
   display:inline-block; border:0; border-radius:999px; padding:10px 16px;
   font-weight:700; cursor:pointer; background:#333; color:#fff;
 }
+
+/* days */ 
+/* Days list: rows stacked vertically; each row is horizontal label + input */
+.days{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+.day-row{
+  display:flex;
+  align-items:center;
+  gap:12px;
+}
+.day-row label{
+  min-width:48px;        /* keeps day labels aligned: Mon/Tue/... */
+  font-weight:600;
+}
+.day-row input[type="text"]{
+  flex:1;
+  padding:10px 12px;
+  border:1px solid #d8d8d8;
+  border-radius:10px;
+  font:inherit;
+  box-sizing:border-box;
+}
+
 
 
 

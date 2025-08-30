@@ -61,40 +61,66 @@
           </div>
         </div>
 
-        <div class="row">
-          <div>
-            <label for="level">Level</label>
-            <select id="level" name="level" required>
-              <option value="" selected disabled>Select level</option>
-              <option>A1</option><option>A2</option>
-              <option>B1</option><option>B2</option>
-              <option>C1</option><option>C2</option>
-            </select>
-          </div>
-          <div>
-            <label>Available days</label>
-            <div class="days">
-              <label><input type="checkbox" name="days[]" value="Mon"> Mon</label>
-              <label><input type="checkbox" name="days[]" value="Tue"> Tue</label>
-              <label><input type="checkbox" name="days[]" value="Wed"> Wed</label>
-              <label><input type="checkbox" name="days[]" value="Thu"> Thu</label>
-              <label><input type="checkbox" name="days[]" value="Fri"> Fri</label>
-              <label><input type="checkbox" name="days[]" value="Sat"> Sat</label>
-              <label><input type="checkbox" name="days[]" value="Sun"> Sun</label>
-            </div>
-          </div>
-        </div>
+
 
         <div class="row">
+            <div>
+              <label for="level">Level</label>
+              <select id="level" name="level" required>
+                <option value="" selected disabled>Select level</option>
+                <option>A1</option><option>A2</option>
+                <option>B1</option><option>B2</option>
+                <option>C1</option><option>C2</option>
+              </select>
+            </div>
+
+            <div>
+              <label>Available days & times</label>
+              <div class="days">
+                <div class="day-row">
+                  <input type="checkbox" id="mon" name="days[]" value="Mon">
+                  <label for="mon">Mon</label>
+                  <input type="text" name="times[Mon]" placeholder="e.g., 8:00–10:00, 18:00–20:00">
+                </div>
+                <div class="day-row">
+                  <input type="checkbox" id="tue" name="days[]" value="Tue">
+                  <label for="tue">Tue</label>
+                  <input type="text" name="times[Tue]" placeholder="e.g., 8:00–10:00, 18:00–20:00">
+                </div>
+                <div class="day-row">
+                  <input type="checkbox" id="wed" name="days[]" value="Wed">
+                  <label for="wed">Wed</label>
+                  <input type="text" name="times[Wed]" placeholder="e.g., 8:00–10:00, 18:00–20:00">
+                </div>
+                <div class="day-row">
+                  <input type="checkbox" id="thu" name="days[]" value="Thu">
+                  <label for="thu">Thu</label>
+                  <input type="text" name="times[Thu]" placeholder="e.g., 8:00–10:00, 18:00–20:00">
+                </div>
+                <div class="day-row">
+                  <input type="checkbox" id="fri" name="days[]" value="Fri">
+                  <label for="fri">Fri</label>
+                  <input type="text" name="times[Fri]" placeholder="e.g., 8:00–10:00, 18:00–20:00">
+                </div>
+                <div class="day-row">
+                  <input type="checkbox" id="sat" name="days[]" value="Sat">
+                  <label for="sat">Sat</label>
+                  <input type="text" name="times[Sat]" placeholder="e.g., 8:00–10:00, 18:00–20:00">
+                </div>
+                <div class="day-row">
+                  <input type="checkbox" id="sun" name="days[]" value="Sun">
+                  <label for="sun">Sun</label>
+                  <input type="text" name="times[Sun]" placeholder="e.g., 8:00–10:00, 18:00–20:00">
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div>
             <label for="start_date">Available from (date)</label>
             <input type="date" id="start_date" name="start_date">
           </div>
-          <div>
-            <label for="end_date">Available until (date)</label>
-            <input type="date" id="end_date" name="end_date">
-          </div>
-        </div>
+
 
         <div>
           <label for="notes">Notes</label>
