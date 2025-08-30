@@ -53,11 +53,11 @@
         <div class="row">
           <div>
             <label for="name">Jméno</label>
-            <input type="text" id="name" name="name" placeholder="Your name" required>
+            <input type="text" id="name" name="name" placeholder="Vaše jméno" required>
           </div>
           <div>
-            <label for="contact">Kontact (email či tel)</label>
-            <input type="text" id="contact" name="contact" placeholder="e.g., jana@example.com or +420…" required>
+            <label for="contact">Kontakt (email či tel)</label>
+            <input type="text" id="contact" name="contact" placeholder="např. jana@example.com nebo +420…" required>
           </div>
         </div>
 
@@ -67,7 +67,7 @@
             <div>
               <label for="level">Úroveň</label>
               <select id="level" name="level" required>
-                <option value="" selected disabled>Select level</option>
+                <option value="" selected disabled>Vyberte úroveň</option>
                 <option>A1</option><option>A2</option>
                 <option>B1</option><option>B2</option>
                 <option>C1</option><option>C2</option>
@@ -80,37 +80,37 @@
                 <div class="day-row">
                   <input type="checkbox" id="mon" name="days[]" value="Mon">
                   <label for="mon">Po</label>
-                  <input type="text" name="times[Mon]" placeholder="e.g., 8:00–10:00, 18:00–20:00">
+                  <input type="text" name="times[Mon]" placeholder="např. 8:00–10:00, 18:00–20:00">
                 </div>
                 <div class="day-row">
                   <input type="checkbox" id="tue" name="days[]" value="Tue">
                   <label for="tue">Út</label>
-                  <input type="text" name="times[Tue]" placeholder="e.g., 8:00–10:00, 18:00–20:00">
+                  <input type="text" name="times[Tue]" placeholder="např. 8:00–10:00, 18:00–20:00">
                 </div>
                 <div class="day-row">
                   <input type="checkbox" id="wed" name="days[]" value="Wed">
                   <label for="wed">St</label>
-                  <input type="text" name="times[Wed]" placeholder="e.g., 8:00–10:00, 18:00–20:00">
+                  <input type="text" name="times[Wed]" placeholder="např. 8:00–10:00, 18:00–20:00">
                 </div>
                 <div class="day-row">
                   <input type="checkbox" id="thu" name="days[]" value="Thu">
                   <label for="thu">Čt</label>
-                  <input type="text" name="times[Thu]" placeholder="e.g., 8:00–10:00, 18:00–20:00">
+                  <input type="text" name="times[Thu]" placeholder="např. 8:00–10:00, 18:00–20:00">
                 </div>
                 <div class="day-row">
                   <input type="checkbox" id="fri" name="days[]" value="Fri">
                   <label for="fri">Pa</label>
-                  <input type="text" name="times[Fri]" placeholder="e.g., 8:00–10:00, 18:00–20:00">
+                  <input type="text" name="times[Fri]" placeholder="např. 8:00–10:00, 18:00–20:00">
                 </div>
                 <div class="day-row">
                   <input type="checkbox" id="sat" name="days[]" value="Sat">
                   <label for="sat">So</label>
-                  <input type="text" name="times[Sat]" placeholder="e.g., 8:00–10:00, 18:00–20:00">
+                  <input type="text" name="times[Sat]" placeholder="např. 8:00–10:00, 18:00–20:00">
                 </div>
                 <div class="day-row">
                   <input type="checkbox" id="sun" name="days[]" value="Sun">
                   <label for="sun">Ne</label>
-                  <input type="text" name="times[Sun]" placeholder="e.g., 8:00–10:00, 18:00–20:00">
+                  <input type="text" name="times[Sun]" placeholder="např. 8:00–10:00, 18:00–20:00">
                 </div>
               </div>
             </div>
@@ -124,7 +124,7 @@
 
         <div>
           <label for="notes">Poznámky</label>
-          <textarea id="notes" name="notes" placeholder="Goals, topics, online/in-person, time preferences…"></textarea>
+          <textarea id="notes" name="notes" placeholder="Cíle, témata, online či osobně, preference..."></textarea>
         </div>
 
         <div>
