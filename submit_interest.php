@@ -1,29 +1,31 @@
 <?php
-// submit_interest.php — PHPMailer with dual-port retry + debug + sanity check
+// submit_interest.php — PHPMailer with dual-port retry + always-visible debug when enabled
 
 mb_internal_encoding('UTF-8');
+
+// TEMP: show PHP errors on screen while debugging (remove later)
+ini_set('display_errors', '1');
+ini_set('display_startup_errors', '1');
+error_reporting(E_ALL);
 
 require_once __DIR__ . '/config.php';
 
 // ---------------- CONFIG ----------------
-$TO_EMAIL  = 'kremlik@seznam.cz';       // where submissions arrive
+$TO_EMAIL  = 'kremlik@seznam.cz';
 $SITE_NAME = 'WordBaker';
 $FROM_NAME = 'WordBaker Notifications';
 
-// SMTP host (Brevo)
+// SMTP (Brevo)
 $SMTP_HOST = 'smtp-relay.brevo.com';
 
-// Pull secrets from config.php (MUST be quoted strings)
-$SMTP_USER = $BREVO_USER ?? '';
-$SMTP_PASS = $BREVO_PASS ?? '';
-$FROM_EMAIL = $FROM_EMAIL ?? 'no-reply@wordbaker.cz';
-
-// Debug flag (optional via config.php)
-$SMTP_DEBUG = isset($SMTP_DEBUG) ? (bool)$SMTP_DEBUG : false;
+// Pull from config.php (must be quoted strings)
+$SMTP_USER   = $BREVO_USER ?? '';
+$SMTP_PASS   = $BREVO_PASS ?? '';
+$FROM_EMAIL  = $FROM_EMAIL ?? 'no-reply@wordbaker.cz';
+$SMTP_DEBUG  = isset($SMTP_DEBUG) ? (bool)$SMTP_DEBUG : false;
 
 // -----------------------------------------------
-
-// Load PHPMailer classes (no Composer)
+// PHPMailer classes
 require_once __DIR__ . '/lib/PHPMailer/src/PHPMailer.php';
 require_once __DIR__ . '/lib/PHPMailer/src/SMTP.php';
 require_once __DIR__ . '/lib/PHPMailer/src/Exception.php';
@@ -43,9 +45,9 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
   exit;
 }
 
-// Collect fields from the Classes form
+// Collect fields
 $name       = read_field('name');
-$contact    = read_field('contact'); // email or phone
+$contact    = read_field('contact');
 $level      = read_field('level');
 $start_date = read_field('start_date');
 $notes      = read_field('notes');
@@ -114,11 +116,11 @@ $msg_lines = [
 ];
 $message_text = implode(PHP_EOL, $msg_lines);
 
-// -------- PHPMailer with dual-port retry + debug + sanity --------
+// -------- PHPMailer with dual-port retry + ALWAYS print debug when enabled --------
 $mail_ok = false;
 $mail_error = null;
 
-// Masked config sanity (printed only on failure)
+// Masked config sanity
 $mask = function($s) { $s = (string)$s; return strlen($s) ? substr($s, 0, 6) . '…(' . strlen($s) . ' chars)' : '(empty)'; };
 $sanity = [
   'SMTP_HOST'        => $SMTP_HOST ?? '(unset)',
@@ -126,22 +128,23 @@ $sanity = [
   'SMTP_USER_masked' => $mask($SMTP_USER ?? ''),
   'SMTP_PASS_masked' => $mask($SMTP_PASS ?? ''),
   'FROM_EMAIL'       => $FROM_EMAIL ?? '(unset)',
+  'DEBUG_ENABLED'    => $SMTP_DEBUG ? 'true' : 'false',
 ];
 
-// Early fail if creds missing (avoids confusing SMTP errors)
+// Capture SMTP debug output into array (support 1 or 2 args)
+$smtp_debug_log = [];
+$debugCapture = function(...$args) use (&$smtp_debug_log) {
+  // PHPMailer may call with ($str) or ($str, $level)
+  $str = $args[0] ?? '';
+  $smtp_debug_log[] = rtrim((string)$str, "\r\n");
+};
+
+// Early check for missing creds
 if (!$SMTP_USER || !$SMTP_PASS) {
   $mail_ok = false;
   $mail_error = 'Missing SMTP_USER or SMTP_PASS (check config.php — values must be quoted strings).';
-}
-
-// Capture SMTP debug output into array if enabled
-$smtp_debug_log = [];
-$debugCapture = function($str) use (&$smtp_debug_log) {
-  $smtp_debug_log[] = rtrim($str, "\r\n");
-};
-
-// Try STARTTLS:587 then SMTPS:465 (only if we have creds)
-if (!$mail_error) {
+} else {
+  // Try STARTTLS:587 then SMTPS:465
   $attempts = [
     ['label' => 'STARTTLS:587', 'secure' => PHPMailer::ENCRYPTION_STARTTLS, 'port' => 587],
     ['label' => 'SMTPS:465',    'secure' => PHPMailer::ENCRYPTION_SMTPS,   'port' => 465],
@@ -152,22 +155,22 @@ if (!$mail_error) {
     try {
       $mail->CharSet     = 'UTF-8';
       $mail->isSMTP();
-      $mail->Host        = $SMTP_HOST;         // smtp-relay.brevo.com
+      $mail->Host        = $SMTP_HOST;
       $mail->SMTPAuth    = true;
-      $mail->AuthType    = 'LOGIN';            // explicit auth type
-      $mail->Username    = $SMTP_USER;         // e.g., 95e9...@smtp-brevo.com
-      $mail->Password    = $SMTP_PASS;         // xkeysib-... (SMTP key)
+      $mail->AuthType    = 'LOGIN';
+      $mail->Username    = $SMTP_USER;          // e.g., 95e...@smtp-brevo.com
+      $mail->Password    = $SMTP_PASS;          // xkeysib-... SMTP key
       $mail->SMTPSecure  = $try['secure'];
       $mail->Port        = $try['port'];
       $mail->SMTPAutoTLS = true;
       $mail->Timeout     = 20;
 
-      if (!empty($SMTP_DEBUG)) {
-        $mail->SMTPDebug   = 2;                // client + server dialogue
-        $mail->Debugoutput = $debugCapture;    // capture to array
+      if ($SMTP_DEBUG) {
+        $mail->SMTPDebug   = 2;                 // client + server
+        $mail->Debugoutput = $debugCapture;     // capture to array
       }
 
-      // DIAGNOSTIC ONLY: uncomment if you suspect cert issues (remove after testing)
+      // DIAGNOSTIC ONLY (uncomment if you suspect cert issues; then remove)
       // $mail->SMTPOptions = [
       //   'ssl' => [
       //     'verify_peer'       => false,
@@ -191,7 +194,7 @@ if (!$mail_error) {
       if ($mail->send()) {
         $mail_ok = true;
         $mail_error = null;
-        break; // success
+        break;
       }
     } catch (Exception $e) {
       $mail_ok = false;
@@ -201,7 +204,7 @@ if (!$mail_error) {
   }
 }
 
-// CSV backup (always attempt)
+// CSV backup (always)
 $dir = __DIR__ . '/data';
 $file = $dir . '/interest_submissions.csv';
 if (!is_dir($dir)) { @mkdir($dir, 0775, true); }
@@ -231,22 +234,24 @@ if ($fp = @fopen($file, 'ab')) {
   fclose($fp);
 }
 
-// Thank-you page
+// Thank-you page (with visible DEBUG banner when enabled)
 echo '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">';
 echo '<title>Thank you</title>';
 echo '<style>
   body{font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;margin:20px;background:#f7f7f7;}
-  .card{max-width:820px;margin:24px auto;padding:22px;border:2px solid #000;border-radius:14px;background:#fff;}
+  .card{max-width:820px;margin:24px auto;padding:22px;border:2px solid #000;border-radius:14px;background:#fff;position:relative;}
+  .debug{position:absolute;top:-12px;right:-12px;background:#ffcc00;color:#000;font-weight:700;padding:6px 10px;border:2px solid #000;border-radius:10px;}
   h1{margin:0 0 10px;}
   .muted{color:#666;}
   .grid{display:grid;grid-template-columns:160px 1fr;gap:10px 16px;}
   .grid div{padding:4px 0;}
   .btn{display:inline-block;margin-top:14px;padding:10px 14px;border-radius:999px;background:#333;color:#fff;text-decoration:none;}
-  pre.log{white-space:pre-wrap;background:#f5f5f5;border:1px solid #ddd;border-radius:8px;padding:10px;margin-top:10px;max-height:320px;overflow:auto;}
+  pre.log{white-space:pre-wrap;background:#f5f5f5;border:1px solid #ddd;border-radius:8px;padding:10px;margin-top:10px;max-height:360px;overflow:auto;}
   details{margin-top:10px;}
   @media (max-width:560px){ .grid{grid-template-columns:1fr;} .grid div{padding:6px 0;} }
 </style>';
 echo '</head><body><div class="card">';
+if ($SMTP_DEBUG) echo '<div class="debug">DEBUG ON</div>';
 echo '<h1>Thank you! ✅</h1><p class="muted">Your application has been sent.</p>';
 
 echo '<div class="grid">';
@@ -264,17 +269,23 @@ if (!$mail_ok) {
   echo '<p class="muted">Note: email sending failed';
   if ($mail_error) echo ' — '.htmlspecialchars($mail_error, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
   echo '.</p>';
+}
 
-  // Show masked sanity + debug
+// ALWAYS show sanity + (if enabled) SMTP log when $SMTP_DEBUG = true
+if ($SMTP_DEBUG) {
   echo '<details open><summary><strong>Config sanity (masked)</strong></summary><pre class="log">';
   foreach ($sanity as $k=>$v) {
     echo htmlspecialchars($k . ': ' . (is_string($v) ? $v : json_encode($v)), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "\n";
   }
   echo "</pre></details>";
 
-  if (!empty($SMTP_DEBUG) && !empty($smtp_debug_log)) {
+  if (!empty($smtp_debug_log)) {
     echo '<details open><summary><strong>SMTP debug log</strong></summary>';
     echo '<pre class="log">'.htmlspecialchars(implode("\n", $smtp_debug_log), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'</pre>';
+    echo '</details>';
+  } else {
+    echo '<details open><summary><strong>SMTP debug log</strong></summary>';
+    echo '<pre class="log">[no SMTP debug captured — check that $SMTP_DEBUG=true in config.php and that PHPMailer includes are present]</pre>';
     echo '</details>';
   }
 }
