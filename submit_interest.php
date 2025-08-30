@@ -57,9 +57,9 @@ $times      = isset($_POST['times']) && is_array($_POST['times']) ? $_POST['time
 
 // Validate
 $errors = [];
-if ($name === '') $errors[] = 'Name is required.';
+if ($name === '') $errors[] = 'Uveďte jméno.';
 if ($contact === '') {
-  $errors[] = 'Contact (email or phone) is required.';
+  $errors[] = 'Uveďte email či telefon.';
 } else {
   if (strpos($contact, '@') !== false) {
     if (!filter_var($contact, FILTER_VALIDATE_EMAIL)) $errors[] = 'Please provide a valid email address.';
@@ -69,10 +69,10 @@ if ($contact === '') {
 }
 $allowed_levels = ['A1','A2','B1','B2','C1','C2'];
 if ($level === '' || !in_array($level, $allowed_levels, true)) {
-  $errors[] = 'Please choose a valid level.';
+  $errors[] = 'Vyberte platnou úroveň.';
 }
 if ($start_date !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $start_date)) {
-  $errors[] = 'Invalid start date format.';
+  $errors[] = 'Neplatný formát data.';
 }
 
 if ($errors) {
@@ -236,7 +236,7 @@ if ($fp = @fopen($file, 'ab')) {
 
 // Thank-you page (with visible DEBUG banner when enabled)
 echo '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">';
-echo '<title>Thank you</title>';
+echo '<title>Díky</title>';
 echo '<style>
   body{font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;margin:20px;background:#f7f7f7;}
   .card{max-width:820px;margin:24px auto;padding:22px;border:2px solid #000;border-radius:14px;background:#fff;position:relative;}
@@ -252,7 +252,7 @@ echo '<style>
 </style>';
 echo '</head><body><div class="card">';
 if ($SMTP_DEBUG) echo '<div class="debug">DEBUG ON</div>';
-echo '<h1>Thank you! ✅</h1><p class="muted">Your application has been sent.</p>';
+echo '<h1>Thank you! ✅</h1><p class="muted">Vaše poptávka byla odeslána.</p>';
 
 echo '<div class="grid">';
 echo '<div><strong>Name</strong></div><div>'.htmlspecialchars($name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'</div>';
@@ -266,7 +266,7 @@ echo '<div><strong>Notes</strong></div><div>'.$notes_html.'</div>';
 echo '</div>';
 
 if (!$mail_ok) {
-  echo '<p class="muted">Note: email sending failed';
+  echo '<p class="muted">Pozor: Odeslání emailu se nezdařilo';
   if ($mail_error) echo ' — '.htmlspecialchars($mail_error, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
   echo '.</p>';
 }
@@ -294,5 +294,5 @@ if (!$csv_ok) {
   echo '<p class="muted">Note: failed to write CSV backup. (Check folder permissions.)</p>';
 }
 
-echo '<a class="btn" href="index.php">Back to homepage</a>';
+echo '<a class="btn" href="index.php">Zpět domů</a>';
 echo '</div></body></html>';
