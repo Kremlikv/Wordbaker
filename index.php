@@ -39,9 +39,9 @@
       
 <section class="tabs" aria-label="WordBaker tabs">
   <!-- State radios (must come first; no JS) -->
-  <input type="radio" name="tabs" id="tab-trans" 
+  <input type="radio" name="tabs" id="tab-trans"> 
   <input type="radio" name="tabs" id="tab-class">
-  <input type="radio" name="tabs" id="tab-app"> checked>
+  <input type="radio" name="tabs" id="tab-app" checked>
   <input type="radio" name="tabs" id="tab-guide">
 
   <!-- Fixed-size tab buttons -->
