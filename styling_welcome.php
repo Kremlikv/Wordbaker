@@ -331,68 +331,50 @@ ul ul.open {
 
 
 /* --- tiles (scoped) --- */
-.tiles{
-  display:grid;
-  grid-template-columns:repeat(4,1fr);
-  gap:16px;
-  margin:10px 0 28px;
+/* --- Tabs: headers stay in place; content opens below --- */
+.tabs { display:grid; gap:16px; margin:10px 0 28px; }
+.tabs-headers{
+  display:grid; gap:16px; grid-template-columns:repeat(4,1fr);
 }
-@media (max-width:1050px){ .tiles{ grid-template-columns:repeat(3,1fr); } }
-@media (max-width:820px){ .tiles{ grid-template-columns:repeat(2,1fr); } }
-@media (max-width:520px){ .tiles{ grid-template-columns:1fr; } }
+@media (max-width:820px){ .tabs-headers{ grid-template-columns:repeat(2,1fr); } }
+@media (max-width:520px){ .tabs-headers{ grid-template-columns:1fr; } }
 
-/* Make the open tile span the full width of the grid */
-details.tile{
-  background:transparent;
-  border:none;
-  border-radius:0;
-  overflow:visible; /* allow the body to “break out” visually if needed */
+/* Hide the radios */
+.tabs input[type="radio"]{ position:absolute; opacity:0; pointer-events:none; }
+
+/* Header buttons */
+.tabs label.tab-btn{
+  display:block; padding:14px 16px; font-weight:700; cursor:pointer; user-select:none;
+  background:#eee; border:2px solid #000; border-radius:14px; text-align:left; position:relative;
 }
-details.tile[open]{
-  grid-column:1 / -1;    /* <-- full width on open */
-}
+.tabs label.tab-btn::after{ content:"▸"; position:absolute; right:14px; transition:transform .2s ease; }
 
-/* The tile “button” */
-details.tile > summary{
-  list-style:none;
-  cursor:pointer;
-  padding:14px 16px;
-  font-weight:700;
-  position:relative;
-  outline:none;
-  user-select:none;
-
-  /* requested look */
-  background:#eee;           /* greyish */
-  border:2px solid #000;     /* black outline */
-  border-radius:14px;
-}
-
-/* Remove default marker */
-details.tile > summary::-webkit-details-marker{ display:none; }
-
-/* Chevron */
-details.tile > summary::after{
-  content:"▸";
-  position:absolute;
-  right:14px;
-  transition:transform .2s ease;
-}
-details.tile[open] > summary::after{ transform:rotate(90deg); }
-
-/* The revealed content */
-.tile-body{
-  padding:16px;
-  margin-top:8px;
-
+/* Active state (highlight) */
+#tab-trans:checked + label[for="tab-trans"],
+#tab-class:checked + label[for="tab-class"],
+#tab-app:checked   + label[for="tab-app"],
+#tab-guide:checked + label[for="tab-guide"]{
   background:#fff;
-  border:2px solid #000;
-  border-radius:14px;
-  color:#555;
-  font-size:.98rem;
+  box-shadow:0 2px 0 #000 inset;
+}
+#tab-trans:checked + label[for="tab-trans"]::after,
+#tab-class:checked + label[for="tab-class"]::after,
+#tab-app:checked   + label[for="tab-app"]::after,
+#tab-guide:checked + label[for="tab-guide"]::after{
+  transform:rotate(90deg);
 }
 
-/* Form (scoped) */
+/* Panels */
+.tabs-panels{
+  border:2px solid #000; border-radius:14px; background:#fff; padding:16px;
+}
+.tab-panel{ display:none; }
+#tab-trans:checked ~ .tabs-panels #panel-trans{ display:block; }
+#tab-class:checked ~ .tabs-panels #panel-class{ display:block; }
+#tab-app:checked   ~ .tabs-panels #panel-app{ display:block; }
+#tab-guide:checked ~ .tabs-panels #panel-guide{ display:block; }
+
+/* Form styling (reuse from earlier) */
 .enquiry-form{ display:grid; gap:12px; margin-top:4px; }
 .enquiry-form .row{ display:grid; gap:12px; grid-template-columns:1fr 1fr; }
 @media (max-width:700px){ .enquiry-form .row{ grid-template-columns:1fr; } }
@@ -406,42 +388,11 @@ details.tile[open] > summary::after{ transform:rotate(90deg); }
   width:100%; padding:10px 12px; border:1px solid #d8d8d8; border-radius:10px; font:inherit; box-sizing:border-box; background:#fff;
 }
 .enquiry-form textarea{ min-height:110px; resize:vertical; }
-
-/*.days{ display:grid; grid-template-columns:repeat(4,1fr); gap:8px 12px; }
-@media (max-width:700px){ .days{ grid-template-columns:repeat(3,1fr); } }
-.days label{ font-weight:500; display:flex; align-items:center; gap:8px; } */
-
-/* Submit button style (kept simple) */
-.enquiry-submit{
-  display:inline-block; border:0; border-radius:999px; padding:10px 16px;
-  font-weight:700; cursor:pointer; background:#333; color:#fff;
-}
-
-/* days */ 
-/* Days list: rows stacked vertically; each row is horizontal label + input */
-.days{
-  display:flex;
-  flex-direction:column;
-  gap:10px;
-}
-.day-row{
-  display:flex;
-  align-items:center;
-  gap:12px;
-}
-.day-row label{
-  min-width:48px;        /* keeps day labels aligned: Mon/Tue/... */
-  font-weight:600;
-}
-.day-row input[type="text"]{
-  flex:1;
-  padding:10px 12px;
-  border:1px solid #d8d8d8;
-  border-radius:10px;
-  font:inherit;
-  box-sizing:border-box;
-}
-
+.days{ display:flex; flex-direction:column; gap:10px; }
+.day-row{ display:flex; align-items:center; gap:12px; }
+.day-row label{ min-width:28px; font-weight:600; }
+.day-row input[type="text"]{ flex:1; padding:10px 12px; border:1px solid #d8d8d8; border-radius:10px; font:inherit; box-sizing:border-box; }
+.enquiry-submit{ display:inline-block; border:0; border-radius:999px; padding:10px 16px; font-weight:700; cursor:pointer; background:#333; color:#fff; }
 
 
 

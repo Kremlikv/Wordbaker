@@ -38,17 +38,30 @@
     <div class="content">
       
 
-<section class="tiles">
-  <details class="tile">
-    <summary>Překlady</summary>
-    <div class="tile-body">
-      <p>Překlady a korektury z/do anglického jazyka. </p>
-    </div>
-  </details>
+<section class="tabs" aria-label="WordBaker tabs">
+  <!-- Radios (state) -->
+  <input type="radio" name="tabs" id="tab-trans" checked>
+  <label class="tab-btn" for="tab-trans">Překlady</label>
 
-  <details class="tile">
-    <summary>Výuka</summary>
-    <div class="tile-body">
+  <input type="radio" name="tabs" id="tab-class">
+  <label class="tab-btn" for="tab-class">Výuka</label>
+
+  <input type="radio" name="tabs" id="tab-app">
+  <label class="tab-btn" for="tab-app">Appka</label>
+
+  <input type="radio" name="tabs" id="tab-guide">
+  <label class="tab-btn" for="tab-guide">Průvodce</label>
+
+  <!-- Keep header buttons in a row -->
+  <div class="tabs-headers" aria-hidden="true"></div>
+
+  <!-- Panels appear below the row -->
+  <div class="tabs-panels">
+    <div id="panel-trans" class="tab-panel" role="region" aria-labelledby="tab-trans">
+      <p>Překlady a korektury z/do angličtiny.</p>
+    </div>
+
+    <div id="panel-class" class="tab-panel" role="region" aria-labelledby="tab-class">
       <form class="enquiry-form" method="post" action="submit_interest.php">
         <div class="row">
           <div>
@@ -61,66 +74,63 @@
           </div>
         </div>
 
-
-
         <div class="row">
-            <div>
-              <label for="level">Úroveň</label>
-              <select id="level" name="level" required>
-                <option value="" selected disabled>Vyberte úroveň</option>
-                <option>A1</option><option>A2</option>
-                <option>B1</option><option>B2</option>
-                <option>C1</option><option>C2</option>
-              </select>
-            </div>
-
-            <div>
-              <label>Časové možnosti</label>
-              <div class="days">
-                <div class="day-row">
-                  <input type="checkbox" id="mon" name="days[]" value="Mon">
-                  <label for="mon">Po</label>
-                  <input type="text" name="times[Mon]" placeholder="např. 8:00–10:00, 18:00–20:00">
-                </div>
-                <div class="day-row">
-                  <input type="checkbox" id="tue" name="days[]" value="Tue">
-                  <label for="tue">Út</label>
-                  <input type="text" name="times[Tue]" placeholder="např. 8:00–10:00, 18:00–20:00">
-                </div>
-                <div class="day-row">
-                  <input type="checkbox" id="wed" name="days[]" value="Wed">
-                  <label for="wed">St</label>
-                  <input type="text" name="times[Wed]" placeholder="např. 8:00–10:00, 18:00–20:00">
-                </div>
-                <div class="day-row">
-                  <input type="checkbox" id="thu" name="days[]" value="Thu">
-                  <label for="thu">Čt</label>
-                  <input type="text" name="times[Thu]" placeholder="např. 8:00–10:00, 18:00–20:00">
-                </div>
-                <div class="day-row">
-                  <input type="checkbox" id="fri" name="days[]" value="Fri">
-                  <label for="fri">Pa</label>
-                  <input type="text" name="times[Fri]" placeholder="např. 8:00–10:00, 18:00–20:00">
-                </div>
-                <div class="day-row">
-                  <input type="checkbox" id="sat" name="days[]" value="Sat">
-                  <label for="sat">So</label>
-                  <input type="text" name="times[Sat]" placeholder="např. 8:00–10:00, 18:00–20:00">
-                </div>
-                <div class="day-row">
-                  <input type="checkbox" id="sun" name="days[]" value="Sun">
-                  <label for="sun">Ne</label>
-                  <input type="text" name="times[Sun]" placeholder="např. 8:00–10:00, 18:00–20:00">
-                </div>
-              </div>
-            </div>
+          <div>
+            <label for="level">Úroveň</label>
+            <select id="level" name="level" required>
+              <option value="" selected disabled>Vyberte úroveň</option>
+              <option>A1</option><option>A2</option>
+              <option>B1</option><option>B2</option>
+              <option>C1</option><option>C2</option>
+            </select>
           </div>
 
           <div>
-            <label for="start_date">Zahájení</label>
-            <input type="date" id="start_date" name="start_date">
+            <label>Časové možnosti</label>
+            <div class="days">
+              <div class="day-row">
+                <input type="checkbox" id="mon" name="days[]" value="Mon">
+                <label for="mon">Po</label>
+                <input type="text" name="times[Mon]" placeholder="např. 8:00–10:00, 18:00–20:00">
+              </div>
+              <div class="day-row">
+                <input type="checkbox" id="tue" name="days[]" value="Tue">
+                <label for="tue">Út</label>
+                <input type="text" name="times[Tue]" placeholder="např. 8:00–10:00, 18:00–20:00">
+              </div>
+              <div class="day-row">
+                <input type="checkbox" id="wed" name="days[]" value="Wed">
+                <label for="wed">St</label>
+                <input type="text" name="times[Wed]" placeholder="např. 8:00–10:00, 18:00–20:00">
+              </div>
+              <div class="day-row">
+                <input type="checkbox" id="thu" name="days[]" value="Thu">
+                <label for="thu">Čt</label>
+                <input type="text" name="times[Thu]" placeholder="např. 8:00–10:00, 18:00–20:00">
+              </div>
+              <div class="day-row">
+                <input type="checkbox" id="fri" name="days[]" value="Fri">
+                <label for="fri">Pá</label>
+                <input type="text" name="times[Fri]" placeholder="např. 8:00–10:00, 18:00–20:00">
+              </div>
+              <div class="day-row">
+                <input type="checkbox" id="sat" name="days[]" value="Sat">
+                <label for="sat">So</label>
+                <input type="text" name="times[Sat]" placeholder="např. 8:00–10:00, 18:00–20:00">
+              </div>
+              <div class="day-row">
+                <input type="checkbox" id="sun" name="days[]" value="Sun">
+                <label for="sun">Ne</label>
+                <input type="text" name="times[Sun]" placeholder="např. 8:00–10:00, 18:00–20:00">
+              </div>
+            </div>
           </div>
+        </div>
 
+        <div>
+          <label for="start_date">Zahájení</label>
+          <input type="date" id="start_date" name="start_date">
+        </div>
 
         <div>
           <label for="notes">Poznámky</label>
@@ -132,27 +142,26 @@
         </div>
       </form>
     </div>
-  </details>
 
-  <details class="tile">
-    <summary>Appka</summary>
-    <div class="tile-body">
-      <p>Využijte online aplikaci Wordbaker. 
+    <div id="panel-app" class="tab-panel" role="region" aria-labelledby="tab-app">
+      <p>
+        Využijte online aplikaci WordBaker.<br><br>
         Převeďte text z PDF, nechte si ho přeložit.<br><br>
-        Vytvořte si dvojjazyčný slovníček. <bn><br>
+        Vytvořte si dvojjazyčný slovníček.<br><br>
         Udělejte si z něj MP3.<br><br>
         Procvičujte se pomocí kartiček.<br><br>
-        Udržuje si přehled, co jste se který měsíc naučili.<br><br> 
+        Udržujte si přehled, co jste se který měsíc naučili.
       </p>
     </div>
-  </details>
 
-  <details class="tile">
-    <summary>Průvodce</summary>
-    <div class="tile-body">
-      <p>Chcete-li se projít po Praze a něco se o ní dozvědět, napište.<br><br>
-         Mám licenci Český národní průvodce II stupně a oprávnění Průvodce Prahou.<br><br>
+    <div id="panel-guide" class="tab-panel" role="region" aria-labelledby="tab-guide">
+      <p>
+        Chcete-li se projít po Praze a něco se o ní dozvědět, napište.<br><br>
+        Mám licenci Český národní průvodce II. stupně a oprávnění Průvodce Prahou.
       </p>
+    </div>
+  </div>
+</section>
 
     </div>
   </details>
