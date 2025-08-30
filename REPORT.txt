@@ -193,7 +193,9 @@ It might allow usage of more voices in SSML.
 PHP MAIL
 
 So students could fill in a form toshow interest about classes I used:
-- PHP Mailer software from Github (free)
+- PHP Mailer software from Github (free) - put in your directory lib/PHPMailer/src (3 files)
 - Account at Brevo (through google account)
-- Made a API key there and stored in config.php
-- Crreated a submit_interest.php
+- Created a submit_interest.php
+- Need SMTP login (95e912001@smtp-brevo.com) and generated log SMTP key (not the master key, not API key)
+- Store keys in config.php
+- Need to verify domain (through cloudflare.com) and no-reply@wordbaker mail at Brevo under Campagins.
