@@ -58,7 +58,16 @@
       <p>Překlady a korektury z/do anglického jazyka.</p>
     </div>
 
-    <div id="panel-class" class="tab-panel" role="region" aria-labelledby="tab-class">      
+
+
+    <div id="panel-class" class="tab-panel" role="region" aria-labelledby="tab-class">
+      <p>
+    Nabízím individuální či skupinovou výuku angličtiny pro všechny úrovně.
+    Hodiny mohou probíhat online nebo osobně v Praze.
+    Přizpůsobím se vašim cílům, tempu a zaměření.
+    Je možná i výuka tzv. přímou metodou (drill otázka-odpověď dle scénáře) 
+    Nebo konverzace metodou DOGME, kde se učíte ze svých chyb v hovoru na libovolné téma.
+      </p>      
   <form class="enquiry-form" method="post" action="submit_interest.php">    
 
     <div class="row">
