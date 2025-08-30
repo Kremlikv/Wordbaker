@@ -332,37 +332,41 @@ ul ul.open {
 
 /* --- tiles (scoped) --- */
 
-/* ---- Fixed-size tabs with stable panel width ---- */
+/* ---- Fixed-size tabs, 2×2 on desktop, 1×4 on narrow screens ---- */
 .tabs{
-  --tab-width: 210px;
-  --tab-height: 48px;
+  /* adjust these if you like */
+  --tab-width: clamp(180px, 24vw, 240px);   /* “fixed” look but prevents overflow on tiny screens */
+  --tab-height: 52px;
   --gap: 16px;
   --panel-width: min(100%, 920px);
+
   display: grid;
   gap: var(--gap);
-  justify-items: center;   /* center headers & panel */
+  justify-items: center;
   margin: 10px 0 28px;
 }
 
-/* Hide radios (state) */
-.tabs > input[type="radio"]{
-  position: absolute;
-  opacity: 0;
-  pointer-events: none;
-}
+/* radios = state (hidden) */
+.tabs > input[type="radio"]{ position:absolute; opacity:0; pointer-events:none; }
 
-/* Header row: fixed-size buttons; force a single row on wide screens */
+/* headers row: exactly 2 columns on desktop, centered */
 .tabs-headers{
-  display: flex;
-  flex-wrap: wrap;             /* allows stacking on narrow screens */
+  display: grid;
+  grid-template-columns: repeat(2, var(--tab-width));
   gap: var(--gap);
   justify-content: center;
-  width: 100%;
-  /* This caps the row so that on desktop it fits exactly 4 tabs */
-  max-width: calc(var(--tab-width) * 4 + var(--gap) * 3);
+  width: min(100%, calc(var(--tab-width) * 2 + var(--gap)));
 }
 
-/* Tab button (fixed size) */
+/* on very narrow screens: 1 per row */
+@media (max-width: 520px){
+  .tabs-headers{
+    grid-template-columns: var(--tab-width);
+    width: var(--tab-width);
+  }
+}
+
+/* tab buttons (fixed size; text won’t resize them) */
 .tabs-headers .tab-btn{
   width: var(--tab-width);
   height: var(--tab-height);
@@ -373,11 +377,13 @@ ul ul.open {
   font-weight: 700;
   cursor: pointer;
   user-select: none;
-  background: #eee;            /* greyish */
-  border: 2px solid #000;      /* black outline */
+  background: #eee;           /* greyish */
+  border: 2px solid #000;     /* black outline */
   border-radius: 14px;
   position: relative;
   white-space: nowrap;         /* keep labels on one line */
+  overflow: hidden;            /* just in case */
+  text-overflow: ellipsis;
 }
 .tabs-headers .tab-btn::after{
   content: "▸";
@@ -386,7 +392,7 @@ ul ul.open {
   transition: transform .2s ease;
 }
 
-/* Active/highlighted tab (via general-sibling targeting) */
+/* active/highlight */
 #tab-trans:checked ~ .tabs-headers label[for="tab-trans"],
 #tab-class:checked ~ .tabs-headers label[for="tab-class"],
 #tab-app:checked   ~ .tabs-headers label[for="tab-app"],
@@ -401,23 +407,24 @@ ul ul.open {
   transform: rotate(90deg);
 }
 
-/* Panels container: stable width, centered, independent of content length */
+/* panels block: stable width, centered under headers */
 .tabs-panels{
   width: var(--panel-width);
   border: 2px solid #000;
   border-radius: 14px;
   background: #fff;
   padding: 16px;
+  margin-top: 4px;
 }
 .tab-panel{ display: none; }
 
-/* Show only the active panel */
-#tab-trans:checked ~ .tabs-panels #panel-trans{ display: block; }
-#tab-class:checked ~ .tabs-panels #panel-class{ display: block; }
-#tab-app:checked   ~ .tabs-panels #panel-app{ display: block; }
-#tab-guide:checked ~ .tabs-panels #panel-guide{ display: block; }
+/* show active panel only */
+#tab-trans:checked ~ .tabs-panels #panel-trans{ display:block; }
+#tab-class:checked ~ .tabs-panels #panel-class{ display:block; }
+#tab-app:checked   ~ .tabs-panels #panel-app{ display:block; }
+#tab-guide:checked ~ .tabs-panels #panel-guide{ display:block; }
 
-/* ---- Form styles (from earlier, trimmed) ---- */
+/* --- your existing form styles (keep) --- */
 .enquiry-form{ display:grid; gap:12px; }
 .enquiry-form .row{ display:grid; gap:12px; grid-template-columns:1fr 1fr; }
 @media (max-width: 700px){ .enquiry-form .row{ grid-template-columns:1fr; } }
