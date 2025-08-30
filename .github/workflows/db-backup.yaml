@@ -3,7 +3,7 @@ name: Backup MySQL to db_backups Branch
 on:
   push:
     branches:
-      - main
+      - branch02
   workflow_dispatch:
 
 jobs:
