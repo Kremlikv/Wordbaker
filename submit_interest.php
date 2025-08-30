@@ -17,7 +17,7 @@ $SMTP_HOST = 'smtp-relay.brevo.com';
 // Pull secrets from config.php (strings!)
 $SMTP_USER = $BREVO_USER ?? '';
 $SMTP_PASS = $BREVO_PASS ?? '';
-$FROM_EMAIL = $FROM_EMAIL ?? 'no-reply@wordbaker.cz';
+$FROM_EMAIL = $BREVO_EMAIL ?? 'no-reply@wordbaker.cz';
 
 // Debug flag (optional, set in config.php)
 $SMTP_DEBUG = isset($SMTP_DEBUG) ? (bool)$SMTP_DEBUG : false;
