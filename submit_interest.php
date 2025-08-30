@@ -1,25 +1,24 @@
 <?php
-// submit_interest.php — SMTP version using PHPMailer, with dual-port retry + debug.
-// Place PHPMailer files at /lib/PHPMailer/src/{PHPMailer.php,SMTP.php,Exception.php}
+// submit_interest.php — PHPMailer with dual-port retry + debug + sanity check
 
 mb_internal_encoding('UTF-8');
 
 require_once __DIR__ . '/config.php';
 
 // ---------------- CONFIG ----------------
-$TO_EMAIL  = 'kremlik@seznam.cz';       // your inbox
+$TO_EMAIL  = 'kremlik@seznam.cz';       // where submissions arrive
 $SITE_NAME = 'WordBaker';
 $FROM_NAME = 'WordBaker Notifications';
 
-// SMTP defaults (Brevo)
+// SMTP host (Brevo)
 $SMTP_HOST = 'smtp-relay.brevo.com';
 
-// Pull secrets from config.php (strings!)
+// Pull secrets from config.php (MUST be quoted strings)
 $SMTP_USER = $BREVO_USER ?? '';
 $SMTP_PASS = $BREVO_PASS ?? '';
-$FROM_EMAIL = $BREVO_EMAIL ?? 'no-reply@wordbaker.cz';
+$FROM_EMAIL = $FROM_EMAIL ?? 'no-reply@wordbaker.cz';
 
-// Debug flag (optional, set in config.php)
+// Debug flag (optional via config.php)
 $SMTP_DEBUG = isset($SMTP_DEBUG) ? (bool)$SMTP_DEBUG : false;
 
 // -----------------------------------------------
@@ -115,71 +114,94 @@ $msg_lines = [
 ];
 $message_text = implode(PHP_EOL, $msg_lines);
 
-// -------- PHPMailer with dual-port retry + debug capture --------
+// -------- PHPMailer with dual-port retry + debug + sanity --------
 $mail_ok = false;
 $mail_error = null;
 
-// Capture SMTP debug output into an array (only if $SMTP_DEBUG)
+// Masked config sanity (printed only on failure)
+$mask = function($s) { $s = (string)$s; return strlen($s) ? substr($s, 0, 6) . '…(' . strlen($s) . ' chars)' : '(empty)'; };
+$sanity = [
+  'SMTP_HOST'        => $SMTP_HOST ?? '(unset)',
+  'SMTP_USER'        => $SMTP_USER ?? '(unset)',
+  'SMTP_USER_masked' => $mask($SMTP_USER ?? ''),
+  'SMTP_PASS_masked' => $mask($SMTP_PASS ?? ''),
+  'FROM_EMAIL'       => $FROM_EMAIL ?? '(unset)',
+];
+
+// Early fail if creds missing (avoids confusing SMTP errors)
+if (!$SMTP_USER || !$SMTP_PASS) {
+  $mail_ok = false;
+  $mail_error = 'Missing SMTP_USER or SMTP_PASS (check config.php — values must be quoted strings).';
+}
+
+// Capture SMTP debug output into array if enabled
 $smtp_debug_log = [];
 $debugCapture = function($str) use (&$smtp_debug_log) {
-  // Strip trailing newlines for neater output
   $smtp_debug_log[] = rtrim($str, "\r\n");
 };
 
-// Two attempts: STARTTLS:587 then SMTPS:465
-$attempts = [
-  ['label' => 'STARTTLS:587', 'secure' => PHPMailer::ENCRYPTION_STARTTLS, 'port' => 587],
-  ['label' => 'SMTPS:465',    'secure' => PHPMailer::ENCRYPTION_SMTPS,   'port' => 465],
-];
+// Try STARTTLS:587 then SMTPS:465 (only if we have creds)
+if (!$mail_error) {
+  $attempts = [
+    ['label' => 'STARTTLS:587', 'secure' => PHPMailer::ENCRYPTION_STARTTLS, 'port' => 587],
+    ['label' => 'SMTPS:465',    'secure' => PHPMailer::ENCRYPTION_SMTPS,   'port' => 465],
+  ];
 
-foreach ($attempts as $try) {
-  $mail = new PHPMailer(true);
-  try {
-    $mail->CharSet = 'UTF-8';
-    $mail->isSMTP();
-    $mail->Host       = $SMTP_HOST;
-    $mail->SMTPAuth   = true;
-    $mail->Username   = $SMTP_USER;      // e.g., 95e...@smtp-brevo.com
-    $mail->Password   = $SMTP_PASS;      // xkeysib-...
-    $mail->SMTPSecure = $try['secure'];
-    $mail->Port       = $try['port'];
-    $mail->SMTPAutoTLS = true;           // safe default
-    $mail->Timeout    = 15;              // seconds
+  foreach ($attempts as $try) {
+    $mail = new PHPMailer(true);
+    try {
+      $mail->CharSet     = 'UTF-8';
+      $mail->isSMTP();
+      $mail->Host        = $SMTP_HOST;         // smtp-relay.brevo.com
+      $mail->SMTPAuth    = true;
+      $mail->AuthType    = 'LOGIN';            // explicit auth type
+      $mail->Username    = $SMTP_USER;         // e.g., 95e9...@smtp-brevo.com
+      $mail->Password    = $SMTP_PASS;         // xkeysib-... (SMTP key)
+      $mail->SMTPSecure  = $try['secure'];
+      $mail->Port        = $try['port'];
+      $mail->SMTPAutoTLS = true;
+      $mail->Timeout     = 20;
 
-    if ($SMTP_DEBUG) {
-      $mail->SMTPDebug  = 2;             // show client+server dialogue
-      $mail->Debugoutput = $debugCapture; // capture to array
-    }
+      if (!empty($SMTP_DEBUG)) {
+        $mail->SMTPDebug   = 2;                // client + server dialogue
+        $mail->Debugoutput = $debugCapture;    // capture to array
+      }
 
-    // Sender & recipients
-    $mail->setFrom($FROM_EMAIL, $FROM_NAME);
-    $mail->addAddress($TO_EMAIL);
-    if (strpos($contact, '@') !== false && filter_var($contact, FILTER_VALIDATE_EMAIL)) {
-      $mail->addReplyTo($contact, $name);
-    }
+      // DIAGNOSTIC ONLY: uncomment if you suspect cert issues (remove after testing)
+      // $mail->SMTPOptions = [
+      //   'ssl' => [
+      //     'verify_peer'       => false,
+      //     'verify_peer_name'  => false,
+      //     'allow_self_signed' => true,
+      //   ],
+      // ];
 
-    $mail->Subject = "[$SITE_NAME] New class enquiry from $name";
-    $mail->Body    = $message_text;
-    $mail->AltBody = $message_text;
-    $mail->isHTML(false);
+      // Sender & recipients
+      $mail->setFrom($FROM_EMAIL, $FROM_NAME);
+      $mail->addAddress($TO_EMAIL);
+      if (strpos($contact, '@') !== false && filter_var($contact, FILTER_VALIDATE_EMAIL)) {
+        $mail->addReplyTo($contact, $name);
+      }
 
-    // Try to send
-    if ($mail->send()) {
-      $mail_ok = true;
-      $mail_error = null;
-      break; // success, stop trying
-    }
-  } catch (Exception $e) {
-    // Keep the last error; loop will try next port
-    $mail_error = "Attempt {$try['label']} failed: " . ($mail->ErrorInfo ?: $e->getMessage());
-    // Close connection before next attempt
-    if (method_exists($mail, 'smtpClose')) {
-      $mail->smtpClose();
+      $mail->Subject = "[$SITE_NAME] New class enquiry from $name";
+      $mail->Body    = $message_text;
+      $mail->AltBody = $message_text;
+      $mail->isHTML(false);
+
+      if ($mail->send()) {
+        $mail_ok = true;
+        $mail_error = null;
+        break; // success
+      }
+    } catch (Exception $e) {
+      $mail_ok = false;
+      $mail_error = "Attempt {$try['label']} failed: " . ($mail->ErrorInfo ?: $e->getMessage());
+      if (method_exists($mail, 'smtpClose')) $mail->smtpClose();
     }
   }
 }
 
-// CSV backup
+// CSV backup (always attempt)
 $dir = __DIR__ . '/data';
 $file = $dir . '/interest_submissions.csv';
 if (!is_dir($dir)) { @mkdir($dir, 0775, true); }
@@ -221,6 +243,7 @@ echo '<style>
   .grid div{padding:4px 0;}
   .btn{display:inline-block;margin-top:14px;padding:10px 14px;border-radius:999px;background:#333;color:#fff;text-decoration:none;}
   pre.log{white-space:pre-wrap;background:#f5f5f5;border:1px solid #ddd;border-radius:8px;padding:10px;margin-top:10px;max-height:320px;overflow:auto;}
+  details{margin-top:10px;}
   @media (max-width:560px){ .grid{grid-template-columns:1fr;} .grid div{padding:6px 0;} }
 </style>';
 echo '</head><body><div class="card">';
@@ -240,15 +263,22 @@ echo '</div>';
 if (!$mail_ok) {
   echo '<p class="muted">Note: email sending failed';
   if ($mail_error) echo ' — '.htmlspecialchars($mail_error, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-  echo '. Your submission was saved to our internal log.</p>';
+  echo '.</p>';
 
-  // If debugging is enabled, show the SMTP transcript
-  if ($SMTP_DEBUG && !empty($smtp_debug_log)) {
+  // Show masked sanity + debug
+  echo '<details open><summary><strong>Config sanity (masked)</strong></summary><pre class="log">';
+  foreach ($sanity as $k=>$v) {
+    echo htmlspecialchars($k . ': ' . (is_string($v) ? $v : json_encode($v)), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . "\n";
+  }
+  echo "</pre></details>";
+
+  if (!empty($SMTP_DEBUG) && !empty($smtp_debug_log)) {
     echo '<details open><summary><strong>SMTP debug log</strong></summary>';
     echo '<pre class="log">'.htmlspecialchars(implode("\n", $smtp_debug_log), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'</pre>';
     echo '</details>';
   }
 }
+
 if (!$csv_ok) {
   echo '<p class="muted">Note: failed to write CSV backup. (Check folder permissions.)</p>';
 }
