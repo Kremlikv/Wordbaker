@@ -60,7 +60,14 @@
 
     <div id="panel-class" class="tab-panel" role="region" aria-labelledby="tab-class">
       <form class="enquiry-form" method="post" action="submit_interest.php">
-        <div class="row">
+      
+      
+        <div id="panel-trans" class="tab-panel" role="region" aria-labelledby="tab-trans">
+      <p>xxxxxxxxa.</p>
+        </div>
+      
+      
+      <div class="row">
           <div>
             <label for="name">Jméno</label>
             <input type="text" id="name" name="name" placeholder="Vaše jméno" required>
