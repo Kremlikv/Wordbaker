@@ -37,28 +37,25 @@
 
     <div class="content">
       
-
 <section class="tabs" aria-label="WordBaker tabs">
-  <!-- Radios (state) -->
+  <!-- State radios (must come first; no JS) -->
   <input type="radio" name="tabs" id="tab-trans" checked>
-  <label class="tab-btn" for="tab-trans">Překlady</label>
-
   <input type="radio" name="tabs" id="tab-class">
-  <label class="tab-btn" for="tab-class">Výuka</label>
-
   <input type="radio" name="tabs" id="tab-app">
-  <label class="tab-btn" for="tab-app">Appka</label>
-
   <input type="radio" name="tabs" id="tab-guide">
-  <label class="tab-btn" for="tab-guide">Průvodce</label>
 
-  <!-- Keep header buttons in a row -->
-  <div class="tabs-headers" aria-hidden="true"></div>
+  <!-- Fixed-size tab buttons -->
+  <div class="tabs-headers">
+    <label class="tab-btn" for="tab-trans">Překlady</label>
+    <label class="tab-btn" for="tab-class">Výuka</label>
+    <label class="tab-btn" for="tab-app">Appka</label>
+    <label class="tab-btn" for="tab-guide">Průvodce</label>
+  </div>
 
-  <!-- Panels appear below the row -->
+  <!-- Stable-width panel below the buttons -->
   <div class="tabs-panels">
     <div id="panel-trans" class="tab-panel" role="region" aria-labelledby="tab-trans">
-      <p>Překlady a korektury z/do angličtiny.</p>
+      <p>Překlady a korektury z/do anglického jazyka.</p>
     </div>
 
     <div id="panel-class" class="tab-panel" role="region" aria-labelledby="tab-class">
@@ -161,10 +158,6 @@
       </p>
     </div>
   </div>
-</section>
-
-    </div>
-  </details>
 </section>
 
 

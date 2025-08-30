@@ -331,57 +331,98 @@ ul ul.open {
 
 
 /* --- tiles (scoped) --- */
-/* --- Tabs: headers stay in place; content opens below --- */
-.tabs { display:grid; gap:16px; margin:10px 0 28px; }
+
+/* ---- Fixed-size tabs with stable panel width ---- */
+.tabs{
+  --tab-width: 210px;
+  --tab-height: 48px;
+  --gap: 16px;
+  --panel-width: min(100%, 920px);
+  display: grid;
+  gap: var(--gap);
+  justify-items: center;   /* center headers & panel */
+  margin: 10px 0 28px;
+}
+
+/* Hide radios (state) */
+.tabs > input[type="radio"]{
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Header row: fixed-size buttons; force a single row on wide screens */
 .tabs-headers{
-  display:grid; gap:16px; grid-template-columns:repeat(4,1fr);
-}
-@media (max-width:820px){ .tabs-headers{ grid-template-columns:repeat(2,1fr); } }
-@media (max-width:520px){ .tabs-headers{ grid-template-columns:1fr; } }
-
-/* Hide the radios */
-.tabs input[type="radio"]{ position:absolute; opacity:0; pointer-events:none; }
-
-/* Header buttons */
-.tabs label.tab-btn{
-  display:block; padding:14px 16px; font-weight:700; cursor:pointer; user-select:none;
-  background:#eee; border:2px solid #000; border-radius:14px; text-align:left; position:relative;
-}
-.tabs label.tab-btn::after{ content:"▸"; position:absolute; right:14px; transition:transform .2s ease; }
-
-/* Active state (highlight) */
-#tab-trans:checked + label[for="tab-trans"],
-#tab-class:checked + label[for="tab-class"],
-#tab-app:checked   + label[for="tab-app"],
-#tab-guide:checked + label[for="tab-guide"]{
-  background:#fff;
-  box-shadow:0 2px 0 #000 inset;
-}
-#tab-trans:checked + label[for="tab-trans"]::after,
-#tab-class:checked + label[for="tab-class"]::after,
-#tab-app:checked   + label[for="tab-app"]::after,
-#tab-guide:checked + label[for="tab-guide"]::after{
-  transform:rotate(90deg);
+  display: flex;
+  flex-wrap: wrap;             /* allows stacking on narrow screens */
+  gap: var(--gap);
+  justify-content: center;
+  width: 100%;
+  /* This caps the row so that on desktop it fits exactly 4 tabs */
+  max-width: calc(var(--tab-width) * 4 + var(--gap) * 3);
 }
 
-/* Panels */
+/* Tab button (fixed size) */
+.tabs-headers .tab-btn{
+  width: var(--tab-width);
+  height: var(--tab-height);
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0 16px;
+  font-weight: 700;
+  cursor: pointer;
+  user-select: none;
+  background: #eee;            /* greyish */
+  border: 2px solid #000;      /* black outline */
+  border-radius: 14px;
+  position: relative;
+  white-space: nowrap;         /* keep labels on one line */
+}
+.tabs-headers .tab-btn::after{
+  content: "▸";
+  position: absolute;
+  right: 14px;
+  transition: transform .2s ease;
+}
+
+/* Active/highlighted tab (via general-sibling targeting) */
+#tab-trans:checked ~ .tabs-headers label[for="tab-trans"],
+#tab-class:checked ~ .tabs-headers label[for="tab-class"],
+#tab-app:checked   ~ .tabs-headers label[for="tab-app"],
+#tab-guide:checked ~ .tabs-headers label[for="tab-guide"]{
+  background: #fff;
+  box-shadow: inset 0 2px 0 #000;
+}
+#tab-trans:checked ~ .tabs-headers label[for="tab-trans"]::after,
+#tab-class:checked ~ .tabs-headers label[for="tab-class"]::after,
+#tab-app:checked   ~ .tabs-headers label[for="tab-app"]::after,
+#tab-guide:checked ~ .tabs-headers label[for="tab-guide"]::after{
+  transform: rotate(90deg);
+}
+
+/* Panels container: stable width, centered, independent of content length */
 .tabs-panels{
-  border:2px solid #000; border-radius:14px; background:#fff; padding:16px;
+  width: var(--panel-width);
+  border: 2px solid #000;
+  border-radius: 14px;
+  background: #fff;
+  padding: 16px;
 }
-.tab-panel{ display:none; }
-#tab-trans:checked ~ .tabs-panels #panel-trans{ display:block; }
-#tab-class:checked ~ .tabs-panels #panel-class{ display:block; }
-#tab-app:checked   ~ .tabs-panels #panel-app{ display:block; }
-#tab-guide:checked ~ .tabs-panels #panel-guide{ display:block; }
+.tab-panel{ display: none; }
 
-/* Form styling (reuse from earlier) */
-.enquiry-form{ display:grid; gap:12px; margin-top:4px; }
+/* Show only the active panel */
+#tab-trans:checked ~ .tabs-panels #panel-trans{ display: block; }
+#tab-class:checked ~ .tabs-panels #panel-class{ display: block; }
+#tab-app:checked   ~ .tabs-panels #panel-app{ display: block; }
+#tab-guide:checked ~ .tabs-panels #panel-guide{ display: block; }
+
+/* ---- Form styles (from earlier, trimmed) ---- */
+.enquiry-form{ display:grid; gap:12px; }
 .enquiry-form .row{ display:grid; gap:12px; grid-template-columns:1fr 1fr; }
-@media (max-width:700px){ .enquiry-form .row{ grid-template-columns:1fr; } }
+@media (max-width: 700px){ .enquiry-form .row{ grid-template-columns:1fr; } }
 .enquiry-form label{ font-weight:600; display:block; margin-bottom:6px; }
 .enquiry-form input[type="text"],
-.enquiry-form input[type="email"],
-.enquiry-form input[type="number"],
 .enquiry-form input[type="date"],
 .enquiry-form select,
 .enquiry-form textarea{
@@ -393,7 +434,6 @@ ul ul.open {
 .day-row label{ min-width:28px; font-weight:600; }
 .day-row input[type="text"]{ flex:1; padding:10px 12px; border:1px solid #d8d8d8; border-radius:10px; font:inherit; box-sizing:border-box; }
 .enquiry-submit{ display:inline-block; border:0; border-radius:999px; padding:10px 16px; font-weight:700; cursor:pointer; background:#333; color:#fff; }
-
 
 
 </style>
