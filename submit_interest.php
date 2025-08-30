@@ -1,40 +1,26 @@
 <?php
-// submit_interest.php — SMTP version using PHPMailer.
+// submit_interest.php — SMTP version using PHPMailer, with dual-port retry + debug.
 // Place PHPMailer files at /lib/PHPMailer/src/{PHPMailer.php,SMTP.php,Exception.php}
 
 mb_internal_encoding('UTF-8');
 
-require_once __DIR__ . '/config.php'; 
+require_once __DIR__ . '/config.php';
 
 // ---------------- CONFIG ----------------
-// Where you want to receive the form
 $TO_EMAIL  = 'kremlik@seznam.cz';       // your inbox
-
-// Sender (must be verified/allowed by your SMTP provider)
 $SITE_NAME = 'WordBaker';
 $FROM_NAME = 'WordBaker Notifications';
 
-// --- SMTP SETTINGS ---
-// Option A: Brevo (recommended for free plan)
-// $SMTP_HOST = 'smtp-relay.brevo.com';
-// $SMTP_PORT = 587;
-// $SMTP_USER = 'YOUR_BREVO_LOGIN_OR_API_KEY';
-// $SMTP_PASS = 'YOUR_BREVO_SMTP_OR_API_KEY';
-// $FROM_EMAIL = 'no-reply@wordbaker.cz'; // add/verify this sender in Brevo
-
-// Option B: Gmail (requires App Password)
-// $SMTP_HOST = 'smtp.gmail.com';
-// $SMTP_PORT = 587;
-// $SMTP_USER = 'yourgmail@gmail.com';
-// $SMTP_PASS = 'YOUR_APP_PASSWORD_16_CHARS';
-// $FROM_EMAIL = 'yourgmail@gmail.com'; // or a verified alias in Gmail
-
-// ---- CHOOSE ONE OPTION ABOVE AND UNCOMMENT IT ----- 
+// SMTP defaults (Brevo)
 $SMTP_HOST = 'smtp-relay.brevo.com';
-$SMTP_PORT = 587;
-$SMTP_USER = $BREVO_USER;
-$SMTP_PASS = $BREVO_PASS;
-$FROM_EMAIL = 'no-reply@wordbaker.cz';  
+
+// Pull secrets from config.php (strings!)
+$SMTP_USER = $BREVO_USER ?? '';
+$SMTP_PASS = $BREVO_PASS ?? '';
+$FROM_EMAIL = $FROM_EMAIL ?? 'no-reply@wordbaker.cz';
+
+// Debug flag (optional, set in config.php)
+$SMTP_DEBUG = isset($SMTP_DEBUG) ? (bool)$SMTP_DEBUG : false;
 
 // -----------------------------------------------
 
@@ -129,38 +115,68 @@ $msg_lines = [
 ];
 $message_text = implode(PHP_EOL, $msg_lines);
 
-// Prepare PHPMailer
-$mail = new PHPMailer(true);
+// -------- PHPMailer with dual-port retry + debug capture --------
+$mail_ok = false;
 $mail_error = null;
 
-try {
-  $mail->CharSet = 'UTF-8';
-  $mail->isSMTP();
-  $mail->Host       = $SMTP_HOST;
-  $mail->SMTPAuth   = true;
-  $mail->Username   = $SMTP_USER;
-  $mail->Password   = $SMTP_PASS;
-  $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-  $mail->Port       = $SMTP_PORT;
+// Capture SMTP debug output into an array (only if $SMTP_DEBUG)
+$smtp_debug_log = [];
+$debugCapture = function($str) use (&$smtp_debug_log) {
+  // Strip trailing newlines for neater output
+  $smtp_debug_log[] = rtrim($str, "\r\n");
+};
 
-  // Sender & recipients
-  $mail->setFrom($FROM_EMAIL, $FROM_NAME);
-  $mail->addAddress($TO_EMAIL);
-  // Let you reply directly to the applicant
-  if (strpos($contact, '@') !== false && filter_var($contact, FILTER_VALIDATE_EMAIL)) {
-    $mail->addReplyTo($contact, $name);
+// Two attempts: STARTTLS:587 then SMTPS:465
+$attempts = [
+  ['label' => 'STARTTLS:587', 'secure' => PHPMailer::ENCRYPTION_STARTTLS, 'port' => 587],
+  ['label' => 'SMTPS:465',    'secure' => PHPMailer::ENCRYPTION_SMTPS,   'port' => 465],
+];
+
+foreach ($attempts as $try) {
+  $mail = new PHPMailer(true);
+  try {
+    $mail->CharSet = 'UTF-8';
+    $mail->isSMTP();
+    $mail->Host       = $SMTP_HOST;
+    $mail->SMTPAuth   = true;
+    $mail->Username   = $SMTP_USER;      // e.g., 95e...@smtp-brevo.com
+    $mail->Password   = $SMTP_PASS;      // xkeysib-...
+    $mail->SMTPSecure = $try['secure'];
+    $mail->Port       = $try['port'];
+    $mail->SMTPAutoTLS = true;           // safe default
+    $mail->Timeout    = 15;              // seconds
+
+    if ($SMTP_DEBUG) {
+      $mail->SMTPDebug  = 2;             // show client+server dialogue
+      $mail->Debugoutput = $debugCapture; // capture to array
+    }
+
+    // Sender & recipients
+    $mail->setFrom($FROM_EMAIL, $FROM_NAME);
+    $mail->addAddress($TO_EMAIL);
+    if (strpos($contact, '@') !== false && filter_var($contact, FILTER_VALIDATE_EMAIL)) {
+      $mail->addReplyTo($contact, $name);
+    }
+
+    $mail->Subject = "[$SITE_NAME] New class enquiry from $name";
+    $mail->Body    = $message_text;
+    $mail->AltBody = $message_text;
+    $mail->isHTML(false);
+
+    // Try to send
+    if ($mail->send()) {
+      $mail_ok = true;
+      $mail_error = null;
+      break; // success, stop trying
+    }
+  } catch (Exception $e) {
+    // Keep the last error; loop will try next port
+    $mail_error = "Attempt {$try['label']} failed: " . ($mail->ErrorInfo ?: $e->getMessage());
+    // Close connection before next attempt
+    if (method_exists($mail, 'smtpClose')) {
+      $mail->smtpClose();
+    }
   }
-
-  $subject = "[$SITE_NAME] New class enquiry from $name";
-  $mail->Subject = $subject;
-  $mail->Body    = $message_text;
-  $mail->AltBody = $message_text;
-  $mail->isHTML(false);
-
-  $mail_ok = $mail->send();
-} catch (Exception $e) {
-  $mail_ok = false;
-  $mail_error = $mail->ErrorInfo ?: $e->getMessage();
 }
 
 // CSV backup
@@ -204,6 +220,7 @@ echo '<style>
   .grid{display:grid;grid-template-columns:160px 1fr;gap:10px 16px;}
   .grid div{padding:4px 0;}
   .btn{display:inline-block;margin-top:14px;padding:10px 14px;border-radius:999px;background:#333;color:#fff;text-decoration:none;}
+  pre.log{white-space:pre-wrap;background:#f5f5f5;border:1px solid #ddd;border-radius:8px;padding:10px;margin-top:10px;max-height:320px;overflow:auto;}
   @media (max-width:560px){ .grid{grid-template-columns:1fr;} .grid div{padding:6px 0;} }
 </style>';
 echo '</head><body><div class="card">';
@@ -224,6 +241,13 @@ if (!$mail_ok) {
   echo '<p class="muted">Note: email sending failed';
   if ($mail_error) echo ' — '.htmlspecialchars($mail_error, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
   echo '. Your submission was saved to our internal log.</p>';
+
+  // If debugging is enabled, show the SMTP transcript
+  if ($SMTP_DEBUG && !empty($smtp_debug_log)) {
+    echo '<details open><summary><strong>SMTP debug log</strong></summary>';
+    echo '<pre class="log">'.htmlspecialchars(implode("\n", $smtp_debug_log), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'</pre>';
+    echo '</details>';
+  }
 }
 if (!$csv_ok) {
   echo '<p class="muted">Note: failed to write CSV backup. (Check folder permissions.)</p>';
