@@ -39,9 +39,9 @@
       
 <section class="tabs" aria-label="WordBaker tabs">
   <!-- State radios (must come first; no JS) -->
-  <input type="radio" name="tabs" id="tab-trans" checked>
+  <input type="radio" name="tabs" id="tab-trans" 
   <input type="radio" name="tabs" id="tab-class">
-  <input type="radio" name="tabs" id="tab-app">
+  <input type="radio" name="tabs" id="tab-app"> checked>
   <input type="radio" name="tabs" id="tab-guide">
 
   <!-- Fixed-size tab buttons -->
@@ -142,7 +142,7 @@
 
     <div id="panel-app" class="tab-panel" role="region" aria-labelledby="tab-app">
       <p>
-        Využijte online aplikaci WordBaker.<br><br>
+        Zaregistrujte se a vyyužijte aplikaci WordBaker.<br><br>
         Převeďte text z PDF, nechte si ho přeložit.<br><br>
         Vytvořte si dvojjazyčný slovníček.<br><br>
         Udělejte si z něj MP3.<br><br>
