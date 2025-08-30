@@ -38,7 +38,7 @@
     <div class="content">
       
 
-    <section class="tiles">
+<section class="tiles">
   <details class="tile">
     <summary>Translations</summary>
     <div class="tile-body">
@@ -122,6 +122,7 @@
     </div>
   </details>
 </section>
+
 
 
     </div> 

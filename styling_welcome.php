@@ -328,22 +328,72 @@ ul ul.open {
 }
 
 
+
+
 /* --- tiles (scoped) --- */
-.tiles{ display:grid; grid-template-columns:repeat(4,1fr); gap:16px; margin:10px 0 28px; }
+.tiles{
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:16px;
+  margin:10px 0 28px;
+}
 @media (max-width:1050px){ .tiles{ grid-template-columns:repeat(3,1fr); } }
 @media (max-width:820px){ .tiles{ grid-template-columns:repeat(2,1fr); } }
 @media (max-width:520px){ .tiles{ grid-template-columns:1fr; } }
 
-details.tile{ background:#f7f7f7; border:1px solid #e7e7e7; border-radius:16px; overflow:hidden; }
-details.tile > summary{ list-style:none; cursor:pointer; padding:14px 16px; font-weight:700; position:relative; }
-details.tile > summary::-webkit-details-marker{ display:none; }
-details.tile > summary::after{ content:"▸"; position:absolute; right:14px; transition:transform .2s ease; }
-details.tile[open] > summary::after{ transform:rotate(90deg); }
-.tile-body{ padding:0 16px 16px; color:#555; font-size:.98rem; }
-.tile-body p{ margin:10px 0; }
+/* Make the open tile span the full width of the grid */
+details.tile{
+  background:transparent;
+  border:none;
+  border-radius:0;
+  overflow:visible; /* allow the body to “break out” visually if needed */
+}
+details.tile[open]{
+  grid-column:1 / -1;    /* <-- full width on open */
+}
 
-/* form (scoped) */
-.enquiry-form{ display:grid; gap:12px; margin-top:8px; }
+/* The tile “button” */
+details.tile > summary{
+  list-style:none;
+  cursor:pointer;
+  padding:14px 16px;
+  font-weight:700;
+  position:relative;
+  outline:none;
+  user-select:none;
+
+  /* requested look */
+  background:#eee;           /* greyish */
+  border:2px solid #000;     /* black outline */
+  border-radius:14px;
+}
+
+/* Remove default marker */
+details.tile > summary::-webkit-details-marker{ display:none; }
+
+/* Chevron */
+details.tile > summary::after{
+  content:"▸";
+  position:absolute;
+  right:14px;
+  transition:transform .2s ease;
+}
+details.tile[open] > summary::after{ transform:rotate(90deg); }
+
+/* The revealed content */
+.tile-body{
+  padding:16px;
+  margin-top:8px;
+
+  background:#fff;
+  border:2px solid #000;
+  border-radius:14px;
+  color:#555;
+  font-size:.98rem;
+}
+
+/* Form (scoped) */
+.enquiry-form{ display:grid; gap:12px; margin-top:4px; }
 .enquiry-form .row{ display:grid; gap:12px; grid-template-columns:1fr 1fr; }
 @media (max-width:700px){ .enquiry-form .row{ grid-template-columns:1fr; } }
 .enquiry-form label{ font-weight:600; display:block; margin-bottom:6px; }
@@ -359,7 +409,12 @@ details.tile[open] > summary::after{ transform:rotate(90deg); }
 .days{ display:grid; grid-template-columns:repeat(4,1fr); gap:8px 12px; }
 @media (max-width:700px){ .days{ grid-template-columns:repeat(3,1fr); } }
 .days label{ font-weight:500; display:flex; align-items:center; gap:8px; }
-.enquiry-submit{ display:inline-block; border:0; border-radius:999px; padding:10px 16px; font-weight:700; cursor:pointer; background:#e4572e; color:#fff; }
+
+/* Submit button style (kept simple) */
+.enquiry-submit{
+  display:inline-block; border:0; border-radius:999px; padding:10px 16px;
+  font-weight:700; cursor:pointer; background:#333; color:#fff;
+}
 
 
 
