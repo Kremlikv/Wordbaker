@@ -32,8 +32,8 @@ $FROM_NAME = 'WordBaker Notifications';
 // ---- CHOOSE ONE OPTION ABOVE AND UNCOMMENT IT ----- 
 $SMTP_HOST = 'smtp-relay.brevo.com';
 $SMTP_PORT = 587;
-$SMTP_USER = $BREVO_KEY;
-$SMTP_PASS = $BREVO_KEY;
+$SMTP_USER = $BREVO_USER;
+$SMTP_PASS = $BREVO_PASS;
 $FROM_EMAIL = 'no-reply@wordbaker.cz';  
 
 // -----------------------------------------------

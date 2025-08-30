@@ -189,3 +189,11 @@ DIFFERENT VOICES
 
 A Wav logic with generate_mp3_batched.php now works.
 It might allow usage of more voices in SSML.
+
+PHP MAIL
+
+So students could fill in a form toshow interest about classes I used:
+- PHP Mailer software from Github (free)
+- Account at Brevo (through google account)
+- Made a API key there and stored in config.php
+- Crreated a submit_interest.php
