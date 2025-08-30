@@ -60,7 +60,7 @@
 
     <div id="panel-class" class="tab-panel" role="region" aria-labelledby="tab-class">      
     <form class="enquiry-form" method="post" action="submit_interest.php">    
-      <div class="row">
+        <div class="row">
           <div>
             <label for="name">Jméno</label>
             <input type="text" id="name" name="name" placeholder="Vaše jméno" required>
@@ -70,6 +70,8 @@
             <input type="text" id="contact" name="contact" placeholder="např. jana@example.com nebo +420…" required>
           </div>
         </div>
+
+
 
         <div class="row">
           <div>
