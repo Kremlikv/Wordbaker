@@ -58,9 +58,7 @@
       <p>Překlady a korektury z/do anglického jazyka.</p>
     </div>
 
-    <div id="panel-class" class="tab-panel" role="region" aria-labelledby="tab-class">
-       <p>Překlady a korektury z/do anglického jazyka.</p>
-      
+    <div id="panel-class" class="tab-panel" role="region" aria-labelledby="tab-class">      
     <form class="enquiry-form" method="post" action="submit_interest.php">    
       <div class="row">
           <div>
