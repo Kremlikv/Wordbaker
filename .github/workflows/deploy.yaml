@@ -3,7 +3,7 @@ name: Deploy to ByetHost
 on:
   push:
     branches:
-      - main # or master
+      - branch02 # or master
 
 jobs:
   ftp-deploy:
