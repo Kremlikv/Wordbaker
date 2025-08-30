@@ -28,8 +28,7 @@
 
 
   <section class="intro">
-    <h1>Let's bake some words!</h1>
-
+  
     <img src="ItalianChef.png" alt="ItalianChef" style="max-width: 60%; height: auto">
 
   </section>
@@ -37,17 +36,93 @@
   <div class="row">
 
     <div class="content">
-      <h1>Upečte si svůj vlastní slovníček</h1>
-            <p>Naskenujte si text z PDF, nechte s ho automatem přeložit po větách.<br>
-            <br>
-            Nebo nahrajte své vlastní poznámky z hodin angličtiny - těžká slovíčka a správný překlad.<br>
-            <br>            
-            Pomocí umělé inteligence si vytvořte audio nahrávky.<br>
-            <br>
-            Studujte jazykové kartičky, poslouchejte v autě MP3,  <br>
-            <br>
-            V přehledech vidíte, která slova jste který měsíc označili jako těžká a která jako už zvládnutá.
-            <br>                       
+      
+
+    <section class="tiles">
+  <details class="tile">
+    <summary>Translations</summary>
+    <div class="tile-body">
+      <p>Texttext</p>
+    </div>
+  </details>
+
+  <details class="tile">
+    <summary>Classes</summary>
+    <div class="tile-body">
+      <form class="enquiry-form" method="post" action="submit_interest.php">
+        <div class="row">
+          <div>
+            <label for="name">Name</label>
+            <input type="text" id="name" name="name" placeholder="Your name" required>
+          </div>
+          <div>
+            <label for="contact">Contact (email or phone)</label>
+            <input type="text" id="contact" name="contact" placeholder="e.g., jana@example.com or +420…" required>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <label for="level">Level</label>
+            <select id="level" name="level" required>
+              <option value="" selected disabled>Select level</option>
+              <option>A1</option><option>A2</option>
+              <option>B1</option><option>B2</option>
+              <option>C1</option><option>C2</option>
+            </select>
+          </div>
+          <div>
+            <label>Available days</label>
+            <div class="days">
+              <label><input type="checkbox" name="days[]" value="Mon"> Mon</label>
+              <label><input type="checkbox" name="days[]" value="Tue"> Tue</label>
+              <label><input type="checkbox" name="days[]" value="Wed"> Wed</label>
+              <label><input type="checkbox" name="days[]" value="Thu"> Thu</label>
+              <label><input type="checkbox" name="days[]" value="Fri"> Fri</label>
+              <label><input type="checkbox" name="days[]" value="Sat"> Sat</label>
+              <label><input type="checkbox" name="days[]" value="Sun"> Sun</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div>
+            <label for="start_date">Available from (date)</label>
+            <input type="date" id="start_date" name="start_date">
+          </div>
+          <div>
+            <label for="end_date">Available until (date)</label>
+            <input type="date" id="end_date" name="end_date">
+          </div>
+        </div>
+
+        <div>
+          <label for="notes">Notes</label>
+          <textarea id="notes" name="notes" placeholder="Goals, topics, online/in-person, time preferences…"></textarea>
+        </div>
+
+        <div>
+          <button class="enquiry-submit" type="submit">Send application</button>
+        </div>
+      </form>
+    </div>
+  </details>
+
+  <details class="tile">
+    <summary>App</summary>
+    <div class="tile-body">
+      <p>Texttext</p>
+    </div>
+  </details>
+
+  <details class="tile">
+    <summary>Tour Guide</summary>
+    <div class="tile-body">
+      <p>Texttext</p>
+    </div>
+  </details>
+</section>
+
 
     </div> 
 
