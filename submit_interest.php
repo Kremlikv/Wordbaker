@@ -29,12 +29,12 @@ $FROM_NAME = 'WordBaker Notifications';
 // $SMTP_PASS = 'YOUR_APP_PASSWORD_16_CHARS';
 // $FROM_EMAIL = 'yourgmail@gmail.com'; // or a verified alias in Gmail
 
-// ---- CHOOSE ONE OPTION ABOVE AND UNCOMMENT IT ---- 
+// ---- CHOOSE ONE OPTION ABOVE AND UNCOMMENT IT ----- 
 $SMTP_HOST = 'smtp-relay.brevo.com';
 $SMTP_PORT = 587;
 $SMTP_USER = $BREVO_KEY;
 $SMTP_PASS = $BREVO_KEY;
-$FROM_EMAIL = 'no-reply@wordbaker.cz';
+$FROM_EMAIL = 'no-reply@wordbaker.cz';  
 
 // -----------------------------------------------
 
